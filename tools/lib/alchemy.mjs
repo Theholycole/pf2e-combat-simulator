@@ -53,6 +53,7 @@ export function advise(creature, level, options = {}) {
 // The simulated alchemist's kit: its bombs (alchemist's fire, frost vial and bottled lightning; with full, the strongest of each damage type)
 // with the item module's riders on them, elixir of life from Quick Alchemy, and with full every item with a save it can use on a foe.
 const STANDARD_BOMBS = ["Alchemist's Fire", "Frost Vial", "Bottled Lightning"];
+const SELF_ELIXIRS = ["Drakeheart Mutagen", "Juggernaut Mutagen", "Bestial Mutagen", "Quicksilver Mutagen", "Stone Body Mutagen", "Energy Mutagen", "Mistform Elixir", "Bravo's Brew", "Cheetah's Elixir"];
 const kits = new Map();
 export function alchemistKit(level, { full = false } = {}) {
     const key = `${level}|${full}`;
@@ -75,6 +76,14 @@ export function alchemistKit(level, { full = false } = {}) {
     const elixirPlan = elixir ? plansOf(elixir).itemPlan : null;
     const elixirEntry = elixirPlan ? itemEntry(elixirPlan, { id: "alchemist-elixir-of-life", name: `${elixir.name} (Quick Alchemy)` }) : null;
     if (elixirEntry) spells.push({ ...elixirEntry, plan: { ...elixirEntry.plan, activation: { ...(elixirEntry.plan.activation ?? {}), time: String(Number(elixirEntry.plan.activation?.time ?? 1) + 1) } }, pool: "reagents", consumable: false, from: "Quick Alchemy" });
+    // (2026-11-10, Cole: "Remember they have access to all alchemical items they can craft." With full, the mutagens and elixirs that guard
+    // or strengthen it in a fight, each at its best type for the level, from Quick Alchemy and drunk at once (2 actions, a vial).)
+    if (full) for (const family of SELF_ELIXIRS) {
+        const doc = alchemicalDocs().filter((each) => familyOf(each.name) === family && (Number(each.system?.level?.value) || 0) <= level).sort((a, b) => b.system.level.value - a.system.level.value)[0];
+        const plan = doc ? plansOf(doc).itemPlan : null;
+        const entry = plan ? itemEntry(plan, { id: `alchemist-${family.toLowerCase().replace(/\W+/g, "-")}`, name: `${doc.name} (Quick Alchemy)` }) : null;
+        if (entry) spells.push({ ...entry, plan: { ...entry.plan, activation: { ...(entry.plan.activation ?? {}), time: String(Number(entry.plan.activation?.time ?? 1) + 1) } }, pool: "reagents", consumable: false, from: "Quick Alchemy" });
+    }
     if (full) for (const item of described.filter((entry) => entry.kind === "save")) {
         const entry = saveEntry(item, numbers);
         if (entry) spells.push(entry);

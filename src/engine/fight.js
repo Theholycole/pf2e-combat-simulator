@@ -546,6 +546,11 @@ function startTurn(state, c) {
     c.weakGrip?.clear();
     // Flourishes (Flurry of Blows): once a turn. A finisher ends Strikes for the turn.
     c.usedThisTurn = new Set();
+    // (2026-11-10, Quick Alchemy: a quick vial lasts to the end of the turn it's made, so none is ready at a turn's start.)
+    // (And an item made with Quick Alchemy only until the start of its next turn: a bomb in hand with no stock of it left was made, so it's
+    // inert now.)
+    for (const strike of c.strikes ?? []) if (strike.quickVial || (strike.ammo?.reagents && !((c.spellPools?.[strike.ammo.pool] ?? 0) > 0))) (c.unloaded ??= new Set()).add(strike.name);
+    c.bombsThisTurn = 0;
     // (What it Sustains as the turn starts — a hex its familiar answers.)
     c.sustainedNow = [];
     // (C35: Vital Luminance's reservoir grows.)
@@ -1043,6 +1048,7 @@ function actOn(state, c, action) {
             if (strike?.thrall) thrallStrikes(state, c, target);
             performStrike(state, c, target, strike);
             if (strike?.reload) (c.unloaded ??= new Set()).add(strike.name);
+            if (strike?.ammo) c.bombsThisTurn = (c.bombsThisTurn ?? 0) + 1;
             break;
         }
         case "reload": {
@@ -1964,6 +1970,8 @@ function actOn(state, c, action) {
             if (entry.stance) {
                 for (const other of c.selfEffects.filter((self) => self.stance && self !== entry)) for (const effect of (c.effects ?? []).filter((active) => active.key === `self:${other.name}`)) removeEffect(c, effect);
             }
+            // (2026-11-10, one mutagen at a time: a new one ends the old.)
+            if (entry.mutagen && (c.mutagensAtOnce ?? 1) <= 1) for (const other of c.selfEffects.filter((self) => self.mutagen && self !== entry)) for (const effect of (c.effects ?? []).filter((active) => active.key === `self:${other.name}`)) removeEffect(c, effect);
             const effect = applyEffect(state, c, entry.model, c, { applyCondition, key: `self:${entry.name}` });
             // (B308: shut in its shell for the rest of its turn; coming out costs an action at its next.)
             if (entry.shell) c.inShell = true;

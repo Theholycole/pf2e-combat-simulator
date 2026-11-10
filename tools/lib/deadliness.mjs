@@ -69,7 +69,9 @@ export function spell(name, castRank) {
 // The simulated alchemist's kit (tools/lib/alchemy.mjs): its bombs' riders and elixir of life; SIM_ALCHEMY=full, every bomb family and save
 // item in its formula book (2026-11-04, Cole's optional feature).
 const { alchemistKit } = await import("./alchemy.mjs");
-const alchemy = (lv) => alchemistKit(lv, { full: process.env.SIM_ALCHEMY === "full" });
+// (2026-11-10, Cole: "Remember they have access to all alchemical items they can craft": the full book by default; SIM_ALCHEMY=standard for
+// the three bombs alone.)
+const alchemy = (lv) => alchemistKit(lv, { full: process.env.SIM_ALCHEMY !== "standard" });
 const parties = new Map();
 export function partyFor(level) {
     const lv = Math.max(1, Math.min(20, level));

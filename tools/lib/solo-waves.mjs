@@ -383,6 +383,16 @@ export function soloTask({ slug, level, run }) {
         // (A companion that fell stays down — alone, nothing raises it — but the PC goes on.)
         const own = state.get(pc.id);
         if (wave <= 10) hpLeft.push(Math.round((100 * own.hp) / pc.hp.max));
+        // (2026-11-10, an alchemist's versatile vials: 2 back for each 10 minutes of exploration, 3 from 9th, up to its 2 + Intelligence —
+        // alongside whatever else it does with the 10 minutes.)
+        if (pc.vialRegain && own.pools.reagents !== undefined) own.pools.reagents = Math.min(pc.vialMax ?? Infinity, (own.pools.reagents ?? 0) + pc.vialRegain);
+        // (2026-11-10, a chirurgeon's field vials: quick vials, free, that heal the vial's initial damage — once a rest for coagulant, and
+        // from 11th again while it's at half its Hit Points or fewer.)
+        if (pc.chirurgeonVials) {
+            const heal = () => Array.from({ length: pc.chirurgeonVials.dice }, () => roll(6)).reduce((sum, value) => sum + value, 0);
+            own.hp = Math.min(pc.hp.max, own.hp + heal());
+            for (let guard = 0; pc.chirurgeonVials.uncapped && own.hp <= pc.hp.max / 2 && guard < 50; guard++) own.hp = Math.min(pc.hp.max, own.hp + heal());
+        }
         // Its healing spells first (seconds, not the 10 minutes), slots spent.
         const healed = healBetween(pc, own, roll, run * 1000 + wave + 500000);
         rests.healSpells += healed.casts;

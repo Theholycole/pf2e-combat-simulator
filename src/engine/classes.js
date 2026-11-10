@@ -106,7 +106,11 @@ const CLASSES = {
         armor: "medium", armorSteps: [[1, T], [13, E], [19, M]],
         fort: [[1, E], [11, M]], ref: [[1, E], [15, M]], will: [[1, T], [7, E]], perception: [[1, T], [9, E]],
         classDC: [[1, T], [9, E], [17, M]],
-        build(lv, a, { alchemy = null } = {}) {
+        build(lv, a, { alchemy = null, field: chosenField = null } = {}) {
+            // (2026-11-10, Cole's pick "All four, each its own build": its research field — bomber, chirurgeon, mutagenist or toxicologist —
+            // options.field, else SIM_FIELD, else bomber.)
+            const field = chosenField ?? globalThis.process?.env?.SIM_FIELD ?? "bomber";
+            const bomber = field === "bomber";
             // (2026-11-04, Cole: "Yes, bombs, elixirs and vial limit".) Player Core 2's alchemist, a bomber: versatile vials, 2 + its
             // Intelligence a day (2 back for each 10 minutes of exploration, so a full stock each fight); Quick Alchemy (1 action, a vial)
             // makes a bomb in hand, so each throw is Quick Alchemy then the Strike; Advanced Alchemy's 4 + Intelligence items a day, a
@@ -123,18 +127,63 @@ const CLASSES = {
                 { name: "Frost Vial", itemBonus: grade - 1, damage: { dice: grade, die: 6, bonus: 0, type: "cold" }, splash: grade, persistent: null },
                 { name: "Bottled Lightning", itemBonus: grade - 1, damage: { dice: grade, die: 6, bonus: 0, type: "electricity" }, splash: grade, persistent: null }
             ];
+            // (2026-11-10, Cole: "double check Alchemist to see if they are getting a fair score". Weapon Specialization comes at 13th for an
+            // alchemist, and it has no greater specialization: before, +2 from 7th and doubled from 15th.)
+            const spec = lv >= 13 ? (prof === M ? 3 : prof === L ? 4 : 2) : 0;
+            // (Bomber field benefit: its splash on the primary target only when it would catch itself or an ally — splashPrimaryOnly.)
             const strikes = bombs.map((bomb) => ({
                 name: bomb.name, bonus: lv + prof + a.dex + (bomb.itemBonus ?? 0), melee: false, increment: 20, thrown: true, held: true, splashKind: "bomb",
-                splashAmount: lv >= 5 ? Math.max(bomb.splash ?? 0, a.int) : bomb.splash ?? 0, iwr: { group: "bomb", traits: ["alchemical"] },
-                damage: [{ dice: bomb.damage.dice, die: bomb.damage.die, bonus: (bomb.damage.bonus ?? 0) + specialization(lv, prof), type: bomb.damage.type }, ...(bomb.persistent ? [{ ...bomb.persistent, persistent: true }] : [])],
+                splashAmount: lv >= 5 && bomber ? Math.max(bomb.splash ?? 0, a.int) : bomb.splash ?? 0, iwr: { group: "bomb", traits: ["alchemical"] },
+                damage: [{ dice: bomb.damage.dice, die: bomb.damage.die, bonus: (bomb.damage.bonus ?? 0) + spec, type: bomb.damage.type }, ...(bomb.persistent ? [{ ...bomb.persistent, persistent: true }] : [])],
                 ammo: { pool: `alchemist:${bomb.name}`, reagents: true, startsEmpty: true }, reload: 1
             }));
+            // Quick Alchemy's quick vial: a versatile vial made for nothing (1 action), thrown the same turn — a bomber's in acid, cold,
+            // electricity or fire. The vial's type is its level's: 1d6 and 1 splash; 2d6, 2 and +1 to hit from 4th; 3d6, 3 and +2 from 12th;
+            // 4d6, 4 and +3 from 18th.
+            const vialDice = lv >= 18 ? 4 : lv >= 12 ? 3 : lv >= 4 ? 2 : 1;
+            // (A bomber's in acid, cold, electricity or fire; a toxicologist's in acid or poison; the others' acid.)
+            const vialTypes = bomber ? ["acid", "fire", "cold", "electricity"] : field === "toxicologist" ? ["acid", "poison"] : ["acid"];
+            const vials = vialTypes.map((type) => ({
+                name: `Quick Vial (${type})`, bonus: lv + prof + a.dex + vialDice - 1, melee: false, increment: 20, thrown: true, held: true, splashKind: "bomb", quickVial: true,
+                splashAmount: lv >= 5 && bomber ? Math.max(vialDice, a.int) : vialDice, iwr: { group: "bomb", traits: ["alchemical"] },
+                damage: [{ dice: vialDice, die: 6, bonus: spec, type }],
+                ammo: { pool: "alchemist:quick-vial", startsEmpty: true }, reload: 1
+            }));
             const dagger = weaponStrike(lv, { name: "Dagger", die: 4, type: "piercing", toHit: a.dex, damageAttr: a.str, prof: rank(lv, [[1, T], [7, E], [15, M]]), group: "knife", extra: { agile: true, finesse: true } });
+            dagger.damage[0].bonus = a.str + spec;
+            // A toxicologist's field vial as an injury poison: a quick vial on its dagger as one action (its field benefit), the vial's damage
+            // on the hit (poison, or acid where that's worse for the foe — both offered), from 11th its splash as persistent poison too.
+            const envenomed = field === "toxicologist" ? ["poison", "acid"].map((type) => ({ ...structuredClone(dagger), name: `Envenomed Dagger (${type})`, quickVial: true, ammo: { pool: "alchemist:quick-vial", startsEmpty: true }, reload: 1,
+                damage: [...structuredClone(dagger.damage), { dice: vialDice, die: 6, bonus: 0, type }, ...(lv >= 11 ? [{ dice: 0, die: 0, bonus: vialDice, type: "poison", persistent: true }] : [])] })) : [];
             const ready = Math.floor((4 + a.int) / 4);
+            // Mutagens from Quick Alchemy, drunk at once (2 actions, a vial; one mutagen at a time): drakeheart (its item bonus to AC over its
+            // armor's and a Dexterity cap of +2; -1 to Reflex and Will), juggernaut (temporary Hit Points and Fortitude; -2 to Will and
+            // Perception), stone body from 5th (resistance 5 to piercing and slashing, 10 from 15th; -2 to Reflex).
+            // A mutagenist: temporary Hit Points equal to its Intelligence plus half its level as it drinks one (the higher of those and the
+            // mutagen's own), a quick vial drunk with it to suppress the drawback (an action more), from 11th that vial's resistance to
+            // physical damage equal to half its level, and from 13th two mutagens at once.
+            const mutagenist = field === "mutagenist";
+            const fieldTemp = mutagenist ? a.int + Math.floor(lv / 2) : 0;
+            const mutagen = (name, { drawback = [], tempHp = 0, ...fields }) => ({ name, actions: mutagenist ? 3 : 2, pool: "reagents", mutagen: true, model: { name, rounds: 10, modifiers: [], tempHp: Math.max(tempHp, fieldTemp), fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0, attackDeltas: {}, strikeDeltas: {}, ...fields, ...(mutagenist ? {} : { modifiers: [...(fields.modifiers ?? []), ...drawback] }), ...(mutagenist && lv >= 11 ? { resistances: [...(fields.resistances ?? []).filter((each) => !["bludgeoning", "piercing", "slashing"].includes(each.type)), ...["bludgeoning", "piercing", "slashing"].map((type) => ({ type, value: Math.max(Math.floor(lv / 2), (fields.resistances ?? []).find((each) => each.type === type)?.value ?? 0), exceptions: [] }))] } : {}) } });
+            const drakeAC = Math.max(0, (lv >= 17 ? 7 : lv >= 3 ? 5 : 4) - 4 - armorPotency(lv)) + Math.max(0, Math.min(a.dex, 2) - Math.min(a.dex, 1));
+            const juggernaut = lv >= 17 ? [4, 45] : lv >= 11 ? [3, 30] : lv >= 3 ? [2, 10] : [1, 5];
+            const selfEffects = [
+                ...(drakeAC > 0 || mutagenist ? [mutagen("Drakeheart Mutagen", { modifiers: drakeAC > 0 ? [{ on: "ac", type: "item", value: drakeAC }] : [], drawback: [{ on: "reflex", type: "untyped", value: -1 }, { on: "will", type: "untyped", value: -1 }] })] : []),
+                mutagen("Juggernaut Mutagen", { tempHp: juggernaut[1], modifiers: [{ on: "fortitude", type: "item", value: juggernaut[0] }], drawback: [{ on: "will", type: "untyped", value: -2 }] }),
+                ...(lv >= 5 ? [mutagen("Stone Body Mutagen", { resistances: ["piercing", "slashing"].map((type) => ({ type, value: lv >= 15 ? 10 : 5, exceptions: [] })), drawback: [{ on: "reflex", type: "untyped", value: -2 }] })] : [])
+            ];
+            // A chirurgeon: Crafting for Medicine; its field vials heal (between waves, solo waves — chirurgeonVials).
+            const crafting = lv + primarySkill(lv) + a.int;
             return {
-                strikes: [...strikes, dagger], skills: { crafting: lv + primarySkill(lv) + a.int },
-                spellPools: { reagents: 2 + a.int, [`alchemist:${strikes[0].name}`]: ready },
-                ...(kit?.spells?.length ? { spells: kit.spells } : {})
+                strikes: [...strikes, ...vials, ...envenomed, dagger], skills: { crafting, ...(field === "chirurgeon" ? { medicine: crafting } : {}) },
+                spellPools: { reagents: 2 + a.int, [`alchemist:${strikes[0].name}`]: ready, "alchemist:quick-vial": 9999 },
+                ...(kit?.spells?.length ? { spells: kit.spells } : {}),
+                // Double Brew (9th): Quick Alchemy makes two, so every second bomb a turn needs none; Abundant Vials (17th): quickened for a quick
+                // vial, so its first quick vial a turn needs none (planner.js emptyNow). Advanced Alchemy's vials back between fights: 2 each 10
+                // minutes, 3 from 9th (solo waves).
+                fields: { researchField: field, ...(bomber ? { splashPrimaryOnly: true } : {}), selfEffects, mutagensAtOnce: mutagenist && lv >= 13 ? 2 : 1,
+                    ...(field === "toxicologist" && lv >= 5 ? { resistances: [{ type: "poison", value: Math.floor(lv / 2), exceptions: [] }] } : {}),
+                    ...(field === "chirurgeon" ? { chirurgeonVials: { dice: vialDice, uncapped: lv >= 11, maxElixir: lv >= 13 } } : {}), vialRegain: lv >= 9 ? 3 : 2, vialMax: 2 + a.int, ...(lv >= 9 ? { doubleBrew: true } : {}), ...(lv >= 17 ? { abundantVials: true } : {}) }
             };
         }
     },
@@ -523,7 +572,7 @@ export const classAttributes = (slug, level) => CLASSES[slug]?.attrs(key(level),
 export const classArmor = (slug) => CLASSES[slug]?.armor ?? null;
 
 // A PC of a class at a level (null: a class this doesn't know). options: { spell, basics } as standardParty's.
-export function classPC(slug, level, { spell = () => null, basics = [], alchemy = null, innovation = null } = {}) {
+export function classPC(slug, level, { spell = () => null, basics = [], alchemy = null, innovation = null, field = null } = {}) {
     const lv = Math.max(1, Math.min(20, level));
     if (["fighter", "rogue", "wizard", "cleric"].includes(slug)) return standardParty(lv, { spell, basics }).find((c) => c.id === slug);
     const def = CLASSES[slug];
@@ -532,7 +581,7 @@ export function classPC(slug, level, { spell = () => null, basics = [], alchemy 
     const a = def.attrs(k, lv);
     const armor = ARMOR[def.armor];
     const ac = 10 + lv + rank(lv, def.armorSteps) + armor.item + Math.min(a.dex, armor.cap) + armorPotency(lv);
-    const built = def.build?.(lv, a, { alchemy, innovation }) ?? {};
+    const built = def.build?.(lv, a, { alchemy, innovation, field }) ?? {};
     const casterStaff = { name: "Staff", bonus: lv + T + a.str, melee: true, agile: false, iwr: { group: "club" }, damage: [{ dice: 1, die: 4, bonus: a.str, type: "bludgeoning" }] };
     const [strike, ...backups] = built.strikes?.length ? built.strikes : [casterStaff];
     const spellAttr = def.caster ? a[def.caster.attr] : 0;
