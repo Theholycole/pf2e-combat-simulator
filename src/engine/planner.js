@@ -1277,9 +1277,9 @@ function expandStrikes(env) {
     if (!restrained) {
         for (const [index, strike] of (c.strikes ?? []).entries()) {
             if (!strike.reload || strike.reload > remaining || !emptyNow(c, node, index, strike) || !strikeUsable(c, strike)) continue;
-            // (2026-11-10: a quick vial is gone by the next turn; another bomb only when none is ready — one in hand for the next turn, not
-            // a vial spent on each.)
-            if (strike.quickVial || (strike.ammo && (c.strikes ?? []).some((other, at) => other !== strike && other.ammo && !other.quickVial && !emptyNow(c, node, at, other)))) continue;
+            // (2026-11-10: a quick vial is gone by the next turn, and so is an item made with Quick Alchemy; a stocked bomb drawn only when none
+            // is ready — one in hand for the next turn.)
+            if (strike.quickVial || (strike.ammo?.reagents && !((c.spellPools?.[strike.ammo.pool] ?? 0) > 0)) || (strike.ammo && (c.strikes ?? []).some((other, at) => other !== strike && other.ammo && !other.quickVial && !emptyNow(c, node, at, other)))) continue;
             let best = 0;
             for (const target of ctx.enemies) {
                 if (target.status !== "active") continue;

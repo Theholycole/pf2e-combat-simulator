@@ -547,7 +547,9 @@ function startTurn(state, c) {
     // Flourishes (Flurry of Blows): once a turn. A finisher ends Strikes for the turn.
     c.usedThisTurn = new Set();
     // (2026-11-10, Quick Alchemy: a quick vial lasts to the end of the turn it's made, so none is ready at a turn's start.)
-    for (const strike of c.strikes ?? []) if (strike.quickVial) (c.unloaded ??= new Set()).add(strike.name);
+    // (And an item made with Quick Alchemy only until the start of its next turn: a bomb in hand with no stock of it left was made, so it's
+    // inert now.)
+    for (const strike of c.strikes ?? []) if (strike.quickVial || (strike.ammo?.reagents && !((c.spellPools?.[strike.ammo.pool] ?? 0) > 0))) (c.unloaded ??= new Set()).add(strike.name);
     c.bombsThisTurn = 0;
     // (What it Sustains as the turn starts — a hex its familiar answers.)
     c.sustainedNow = [];
