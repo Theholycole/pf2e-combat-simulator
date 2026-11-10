@@ -191,7 +191,14 @@ const CLASSES = {
         seat: "cleric", hp: 8, attrs: (k, lv) => ({ str: 1, dex: 2, con: casterCon(lv), int: 0, wis: k, cha: 1 }),
         armor: "light", armorSteps: [[1, T], [13, E]],
         fort: [[1, T], [3, E]], ref: [[1, T], [11, E]], will: [[1, E], [13, M]], perception: [[1, T], [9, E]],
-        caster: { tradition: "divine", attr: "wis", slots: 4 }
+        // (2026-11-10, Cole: "get them working" — its apparitions. Primary apparition the Steward of Stone and Fire: its apparition spells
+        // (signature spells, so Fireball heightened into its higher slots) first in its slots, its cantrip Ignition, and its vessel spell
+        // Earth's Bile — 1 action, a 10-foot burst of fire, bludgeoning and persistent fire, its area again each round it's Sustained (the
+        // engine's zone spells). Focus Points: 1, 2 with its third apparition (7th), 3 with its fourth (15th). Its practice, the
+        // liturgist's, gives Circle of Spirits (changing its primary apparition: nothing in one fight) and Dancing Invocation's Sustain on a
+        // Step (not played).)
+        caster: { tradition: "divine", attr: "wis", slots: 4, extra: ["Ignition"], lead: { 1: ["Interposing Earth"], 2: ["Exploding Earth"], 3: ["Fireball"], 4: ["Fireball", "Wall of Fire"], 5: ["Fireball", "Wall of Stone"], 6: ["Fireball", "Petrify"], 7: ["Volcanic Eruption", "Fireball"], 8: ["Earthquake", "Fireball"], 9: ["Falling Stars", "Fireball"] } },
+        focus: { names: ["Earth's Bile"], attr: "wis", points: (lv) => (lv >= 15 ? 3 : lv >= 7 ? 2 : 1) }
     },
     barbarian: {
         seat: "fighter", hp: 12, attrs: (k, lv) => ({ str: k, dex: 2, con: martialCon(lv), int: 0, wis: minor(lv), cha: 0 }),
@@ -579,7 +586,7 @@ const SAVE_UPGRADES = {
 export const CLASS_SLUGS = Object.freeze([...Object.keys(CLASSES), "fighter", "rogue", "wizard", "cleric"].sort());
 // What a class's PC doesn't play yet (its chassis, spells and weapon are played).
 export const CLASS_GAPS = Object.freeze({
-    animist: "apparitions", necromancer: "thralls as bodies on the field (foes can't strike them or catch them in areas), Thrall Charge and Consume Thrall", runesmith: "runes other than atryl, ranshu and marssyl (diacritics, shield and support runes, higher-level runes)", summoner: "evolution feats on the eidolon",
+    necromancer: "thralls as bodies on the field (foes can't strike them or catch them in areas), Thrall Charge and Consume Thrall", runesmith: "runes other than atryl, ranshu and marssyl (diacritics, shield and support runes, higher-level runes)", summoner: "evolution feats on the eidolon",
     bard: "compositions other than Courageous Anthem", sorcerer: "blood magic and Sorcerous Potency", psychic: "Unleash Psyche and amps", witch: "familiar abilities other than its patron's and Familiar Focus/Lifelink", oracle: "the curse", druid: "Untamed Form",
     barbarian: "Rage's -1 AC", alchemist: "mutagens, poisons and the research fields other than bomber", kineticist: "the kinetic aura and impulses other than Elemental Blast", magus: "Arcane Cascade and conflux spells"
 });
@@ -637,7 +644,8 @@ export function classPC(slug, level, { spell = () => null, basics = [], alchemy 
     c.abilities = a;
     if (def.caster) {
         const base = bookOf(def.caster.tradition);
-        const book = { ...base, slots: def.caster.slots, topTwo: def.caster.topTwo, prof: def.caster.prof, cantrips: [...(def.caster.extra ?? []), ...base.cantrips] };
+        const ranks = def.caster.lead ? Object.fromEntries(Object.entries(base.ranks).map(([r, names]) => [r, [...new Set([...(def.caster.lead[r] ?? []), ...names])]])) : base.ranks;
+        const book = { ...base, ranks, slots: def.caster.slots, topTwo: def.caster.topTwo, prof: def.caster.prof, cantrips: [...new Set([...(def.caster.extra ?? []), ...base.cantrips])] };
         Object.assign(c, preparedSpells(c, book, lv, spellAttr, spell));
     }
     // Focus spells (a champion's Lay on Hands, a druid's order spell, a bloodline's, a revelation, a conflux, grave spells): at half its level
@@ -650,9 +658,12 @@ export function classPC(slug, level, { spell = () => null, basics = [], alchemy 
         c.spells ??= [];
         for (const name of def.focus.names) {
             const found = spell(name, castRank);
-            if (found) c.spells.push({ ...found, name: found.name ?? name, castRank, dc: 10 + lv + prof + attr, attack: lv + prof + attr, pool, tradition: def.caster?.tradition ?? "divine" });
+            if (!found) continue;
+            const entry = { ...found, name: found.name ?? name, castRank, dc: 10 + lv + prof + attr, attack: lv + prof + attr, pool, tradition: def.caster?.tradition ?? "divine" };
+            c.spells.push(entry);
         }
-        if (c.spells.some((entry) => entry.pool === pool)) c.spellPools = { ...(c.spellPools ?? {}), [pool]: def.focus.points };
+        const points = typeof def.focus.points === "function" ? def.focus.points(lv) : def.focus.points;
+        if (c.spells.some((entry) => entry.pool === pool)) c.spellPools = { ...(c.spellPools ?? {}), [pool]: points };
     }
     // (Sorcerous Potency: a slot spell's rank more damage. A psychic's Unleash Psyche — twice the rank for its 2 rounds, then a round off —
     // as its rank on every spell, the fight's average.)
