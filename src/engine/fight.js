@@ -1316,6 +1316,13 @@ function actOn(state, c, action) {
             const drained = (spell?.vampiric || spell?.forcible || spell?.detonating || spell?.energyAblation || spell?.splitShot || spell?.detonationArray || spell?.touchFocus || spell?.infuseVoid || (c.foretellHarm && (!spell?.kind || spell?.castsSpell) && !(spell?.plan?.traits ?? []).includes("cantrip") && c.foretoldRound !== state.round) || ((!spell?.kind || spell?.castsSpell) && state.list.some((other) => other.covenSpell && other !== c && other.side === c.side))) && !disrupted ? new Map(state.list.filter((other) => other.side !== c.side).map((other) => [other.id, other.hp.value + (other.hp.temp ?? 0)])) : null;
             state.critSaves = null;
             castSpell(state, c, action.spellIndex, action.targetIds, action.actions, { ...(disrupted ? { disrupted: true } : {}), ...(byStrike ? { forcedDegree: rider.degree } : {}), ...(action.finishing ? { evenDown: true } : {}) });
+            // (2026-11-10, an inventor's unstable action — Explode: a DC 17 flat check after it, its unstable pool back on a success; else
+            // none until it Refocuses.)
+            if (spell?.unstable && spell.pool) {
+                const flat = state.rng.d20();
+                if (flat >= 17) c.spellPools[spell.pool] = (c.spellPools[spell.pool] ?? 0) + 1;
+                state.log?.push(`  ${c.name}'s unstable flat check: ${flat} (${flat >= 17 ? "still stable" : "unstable until it Refocuses"})`);
+            }
             // (2026-11-08, Recover Spell: a disrupted spell's slot regained, to be cast again next turn — played as the slot given back, an
             // action of its next turn spent on it.)
             if (disrupted && c.recoverSpell && spell?.pool && !spell.kind && isActive(c)) {

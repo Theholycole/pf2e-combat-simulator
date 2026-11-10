@@ -2211,10 +2211,11 @@ function expandTactics(env) {
         }
     }
     // Overdrive (once a round, until it works): its Strikes' extra damage over about three rounds.
-    if (c.overdrive && !c.overdriveDone && !c.usedThisTurn?.has("overdrive") && node.used === 0) {
+    if (c.overdrive && !c.overdriveDone && !((c.overdriveLockUntil ?? -1) > state.round) && !c.usedThisTurn?.has("overdrive") && node.used === 0) {
         const odds = degreeDistribution(c.overdrive.modifier, levelDC(c.overdrive.level));
         const current = (c.activeBuffs ?? []).some((buff) => buff.name === c.overdrive.name) ? 1 : 0;
-        const bonus = odds[3] * c.overdrive.intMod + odds[2] * Math.floor(c.overdrive.intMod / 2) + odds[1] * 1 - current;
+        const tier = c.overdrive.tier ?? 0;
+        const bonus = odds[3] * (c.overdrive.intMod + tier) + odds[2] * (Math.floor(c.overdrive.intMod / 2) + tier) + (current ? 0 : odds[1]) - current - odds[0] * 0.5;
         if (bonus > 0) children.push(child(node, { type: "overdrive" }, 1, ctx.ownValue * ROUND_TO_KILL * 3 * 1.2 * bonus / threatOf));
     }
     // (B167, Tactical Direction: worth its allies' Attacks of Opportunity, a little each, when none has one of its own.)
