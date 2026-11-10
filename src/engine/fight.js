@@ -2600,6 +2600,8 @@ function summarize(state) {
             // (A deviation as the fight left it, for the day's next fight — deviant.js.)
             // (Its spell and focus pools as the fight left them, for a day's next fight — tools/lib/e7-power.mjs dayFights.)
             ...(c.spellPools ? { spellPools: { ...c.spellPools } } : {}),
+            // (Whom it used Battle Medicine on — a day's immunity, for the next fight — tools/lib/solo-waves.mjs.)
+            ...(c.battleMedicineGiven?.size ? { battleMedicineGiven: [...c.battleMedicineGiven] } : {}),
             ...(c.deviation ? { deviation: { dc: c.deviation.dc, stage: c.deviation.stage, spent: c.deviation.spent, lasting: [...(c.deviation.lasting ?? [])] } } : {})
         })),
         foes: state.list.filter((c) => c.side === "foes").map((c) => ({
