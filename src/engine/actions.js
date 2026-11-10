@@ -2282,6 +2282,16 @@ export function dealDamage(state, target, amount, { source = null, critical = fa
         else if (!nonlethal) kill(state, target);
         return 0;
     }
+    // (Eidolon: one area effect that damages a summoner and its eidolon both — only the greater amount applies to their shared Hit Points.)
+    if (state.sharedHits && (target.sharesHpWith || state.list?.some((other) => other.sharesHpWith === target.id))) {
+        const taken = state.sharedHits.get(target.hp) ?? 0;
+        state.sharedHits.set(target.hp, Math.max(taken, amount));
+        if (amount <= taken) {
+            log(state, `  ${target.name} shares the hit (only the greater amount applies)`);
+            return 0;
+        }
+        amount -= taken;
+    }
     let remaining = amount;
     if (target.hp.temp > 0) {
         const absorbed = Math.min(target.hp.temp, remaining);

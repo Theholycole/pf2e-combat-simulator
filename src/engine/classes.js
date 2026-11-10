@@ -509,7 +509,7 @@ const CLASSES = {
             const prof = rank(lv, [[1, T], [5, E], [13, M]]);
             const jaws = weaponStrike(lv, { name: "Jaws", die: 8, type: "piercing", toHit: str, damageAttr: str, prof, group: "brawling", extra: { unarmed: true } });
             const claw = weaponStrike(lv, { name: "Claw", die: 6, type: "slashing", toHit: str, damageAttr: str, prof, group: "brawling", extra: { unarmed: true, agile: true } });
-            const eidolonAC = 10 + lv + rank(lv, [[1, T], [13, E]]) + 2 + 3 + armorPotency(lv);
+            const eidolonAC = 10 + lv + rank(lv, [[1, T], [11, E], [19, M]]) + 2 + 3 + armorPotency(lv);
             // (Boost Eidolon, the summoner's one action each turn: +2 status damage a weapon die, to +8 — on the eidolon's Strikes; Act Together's
             // fourth action: the eidolon's two, the summoner's one.)
             const boost = Math.min(8, 2 * striking(lv));

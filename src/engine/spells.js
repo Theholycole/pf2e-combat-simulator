@@ -3335,6 +3335,10 @@ export function castPlan(state, caster, spell, targetIds, actions, options = {})
     const outerBy = state.castingBy;
     state.castingNow = spell;
     state.castingBy = caster;
+    // (2026-11-10, Eidolon: a summoner and eidolon caught in one area effect take only the greater amount — the damage each shared Hit
+    // Point pool has taken from this cast.)
+    const outerShared = state.sharedHits;
+    state.sharedHits = new Map();
     // (2026-11-07, Timeline-Splitting Spell: once a fight, a non-cantrip slot spell with a save cast in two timelines — a second use of its
     // slot spent where it has one, the better result kept (its third action not played).)
     const outerSplit = state.splitting;
@@ -3359,6 +3363,7 @@ export function castPlan(state, caster, spell, targetIds, actions, options = {})
     } finally {
         state.castingNow = outer;
         state.castingBy = outerBy;
+        state.sharedHits = outerShared;
         state.splitting = outerSplit;
     }
 }
