@@ -546,6 +546,24 @@ function startTurn(state, c) {
     c.weakGrip?.clear();
     // Flourishes (Flurry of Blows): once a turn. A finisher ends Strikes for the turn.
     c.usedThisTurn = new Set();
+    // (2026-11-10, Cole: "get them working" — a psychic's Unleash Psyche as PF2e has it: as its turn begins, having Cast a Spell on its
+    // previous turn and not stupefied, its psyche unleashed for 2 rounds — twice the rank more damage on its damaging spells —; then
+    // stupefied 1 for 2 rounds, and not again for 2 rounds. Before, the fight's average, its rank more on every spell, all fight.)
+    if (c.unleashPsyche) {
+        if (c.psycheUntil != null && state.round > c.psycheUntil) {
+            c.psycheUntil = null;
+            c.spellDamageBonus = null;
+            c.psycheAgain = state.round + 2;
+            applyCondition(state, c, "stupefied", 1, { mode: "fixed", value: 2, unit: "rounds" }, c);
+            state.log?.push(`  ${c.name}'s unleashed psyche subsides; it is stupefied 1`);
+        }
+        if (c.psycheUntil == null && state.round >= (c.psycheAgain ?? 0) && c.castRound === state.round - 1 && !(c.cond.stupefied > 0) && c.status === ACTIVE) {
+            c.psycheUntil = state.round + 1;
+            c.spellDamageBonus = { perRank: 2, slotsOnly: false };
+            state.stats.unleashed = (state.stats.unleashed ?? 0) + 1;
+            state.log?.push(`  ${c.name} uses Unleash Psyche`);
+        }
+    }
     if (c.actTogether) {
         c.actTogetherDone = false;
         eidolonBoost(state, c, true);

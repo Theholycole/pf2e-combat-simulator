@@ -491,7 +491,9 @@ const CLASSES = {
         seat: "wizard", hp: 6, attrs: (k, lv) => ({ str: 0, dex: 2, con: casterCon(lv), int: k, wis: minor(lv), cha: 1 }),
         armor: "unarmored", armorSteps: [[1, T], [13, E]],
         fort: [[1, T], [9, E]], ref: [[1, T], [5, E]], will: [[1, E], [11, M], [17, L]], perception: [[1, T], [11, E]],
-        caster: { tradition: "occult", attr: "int", slots: 2, extra: ["Imaginary Weapon"] }, psyche: true
+        caster: { tradition: "occult", attr: "int", slots: 2, extra: ["Imaginary Weapon"] }, psyche: true,
+        // (2026-11-10, Fortress of Will (17th): a critical failure at a Will save a failure — its half damage on a failure not played.)
+        build: (lv) => ({ fields: { critSpec: false, ...(lv >= 17 ? { saveDegrees: [{ saves: ["will"], adjustment: { success: "one-degree-better", criticalFailure: "one-degree-better" } }] } : {}) } })
     },
     ranger: {
         seat: "fighter", hp: 10, attrs: (k, lv) => ({ str: second(lv) - 1, dex: k, con: martialCon(lv), int: 0, wis: minor(lv), cha: 0 }),
@@ -629,7 +631,7 @@ export const CLASS_SLUGS = Object.freeze([...Object.keys(CLASSES), "fighter", "r
 // What a class's PC doesn't play yet (its chassis, spells and weapon are played).
 export const CLASS_GAPS = Object.freeze({
     summoner: "evolution feats on the eidolon",
-    psychic: "Unleash Psyche and amps", witch: "familiar abilities other than its patron's and Familiar Focus/Lifelink", oracle: "the curse", druid: "Untamed Form",
+    witch: "familiar abilities other than its patron's and Familiar Focus/Lifelink", oracle: "the curse", druid: "Untamed Form",
     barbarian: "Rage's -1 AC", alchemist: "mutagens, poisons and the research fields other than bomber", kineticist: "the kinetic aura and impulses other than Elemental Blast", magus: "Arcane Cascade and conflux spells"
 });
 // The standard party's seat each class sits in (the PC it replaces in classParty).
@@ -710,7 +712,20 @@ export function classPC(slug, level, { spell = () => null, basics = [], alchemy 
     // (Sorcerous Potency: a slot spell's rank more damage. A psychic's Unleash Psyche — twice the rank for its 2 rounds, then a round off —
     // as its rank on every spell, the fight's average.)
     if (def.potency) c.spellDamageBonus = { perRank: 1, slotsOnly: true };
-    if (def.psyche) c.spellDamageBonus = { perRank: 1, slotsOnly: false };
+    // (2026-11-10: the psychic's Unleash Psyche played as it comes and goes — fight.js —; its psi cantrip's amp — The Tangible Dream's
+    // Imaginary Weapon: 2d6 a rank above the 1st, not 1d6, and two targets — for a Focus Point: 2, 3 from Clarity of Focus (5th).)
+    if (def.psyche) {
+        c.unleashPsyche = true;
+        const weapon = (c.spells ?? []).find((entry) => entry.name === "Imaginary Weapon" && !entry.pool);
+        const shared = weapon?.plan?.resolution?.sharedDamage;
+        if (shared?.heightening?.damage) {
+            const amped = structuredClone(weapon.plan);
+            for (const id of Object.keys(amped.resolution.sharedDamage.heightening.damage)) amped.resolution.sharedDamage.heightening.damage[id] = "2d6";
+            amped.targeting = { ...amped.targeting, target: "2 creatures", actorConstraints: { ...amped.targeting.actorConstraints, sourceText: "2 creatures" } };
+            c.spells.push({ ...weapon, name: "Imaginary Weapon (amped)", plan: amped, pool: "psychic:focus" });
+            c.spellPools = { ...(c.spellPools ?? {}), "psychic:focus": lv >= 5 ? 3 : 2 };
+        }
+    }
     // (A runesmith's runes: abilities of its own, runesmithRunes.)
     if (built.spells?.length) c.spells = [...(c.spells ?? []), ...built.spells];
     // (An alchemist's versatile vials and ready bombs.)

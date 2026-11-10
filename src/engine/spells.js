@@ -3353,6 +3353,8 @@ export function castPlan(state, caster, spell, targetIds, actions, options = {})
     // (2026-11-10, Lingering Composition, a maestro bard's focus spell: before a 1-round composition cantrip, a Performance check against
     // the standard DC of the highest-level creature it reaches (the fight's highest level, as the foes') — 3 rounds, 4 on a critical
     // success, the Focus Point back on a failure. Spent whenever the bard has a point and none of its compositions is up.)
+    // (2026-11-10, Unleash Psyche's "you Cast a Spell on your previous turn".)
+    if (isSpellCast(spell)) caster.castRound = state.round;
     const outerLinger = state.lingering;
     state.lingering = null;
     const linger = caster.lingeringComposition;
