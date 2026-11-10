@@ -1428,12 +1428,16 @@ function actOn(state, c, action) {
                 }
             }
             // (2026-11-07, Foretell Harm: once a round, the creature its non-cantrip spell hurt most takes twice the spell's rank at its next turn's start.)
-            if (drained && c.foretellHarm && (!spell.kind || spell.castsSpell) && !(spell.plan?.traits ?? []).includes("cantrip") && c.foretoldRound !== state.round) {
-                const hurt = state.list.filter((other) => drained.has(other.id) && isActive(other)).map((other) => [other, drained.get(other.id) - Math.max(0, other.hp.value) - (other.hp.temp ?? 0)]).filter(([, lost]) => lost > 0).sort((a, b) => b[1] - a[1])[0]?.[0];
+            // (2026-11-10: a cursebound ability — not at its curse's limit; its target immune to it after (24 hours: the fight) — and its
+            // oracle's curse a step worse, oracleCurse.)
+            if (drained && c.foretellHarm && (!spell.kind || spell.castsSpell) && !(spell.plan?.traits ?? []).includes("cantrip") && c.foretoldRound !== state.round && (!c.curse || (c.cursebound ?? 0) < c.curse.max)) {
+                const hurt = state.list.filter((other) => drained.has(other.id) && isActive(other) && !other.foretoldBy?.has(c.id)).map((other) => [other, drained.get(other.id) - Math.max(0, other.hp.value) - (other.hp.temp ?? 0)]).filter(([, lost]) => lost > 0).sort((a, b) => b[1] - a[1])[0]?.[0];
                 if (hurt) {
                     c.foretoldRound = state.round;
                     hurt.foretold = { amount: 2 * (spell.castRank ?? 1), by: c.id };
+                    (hurt.foretoldBy ??= new Set()).add(c.id);
                     state.log?.push(`  ${c.name} foretells harm to ${hurt.name} (Foretell Harm)`);
+                    if (c.curse) oracleCurse(state, c);
                 }
             }
             // (2026-11-07, Coven Spell: an ally's damaging spell — the witch's reaction, a status bonus to its damage equal to its rank on each
@@ -2328,6 +2332,23 @@ export function takeTurn(state, c) {
     }
     if (state.outcome) return;
     endTurn(state, c);
+}
+
+// (2026-11-10, Cole: "get them working" — an oracle's curse: each cursebound ability it uses makes it cursebound 1 more, to its limit (2; 3
+// with Major Curse at 11th, 4 with Extreme Curse at 17th), the curse's effects by that value for the fight (no Refocus in one). The
+// tempest mystery's Curse of Inclement Headwinds: weakness 2 to electricity (5 + its level from cursebound 3), −2 circumstance to its
+// ranged attack rolls from 2, −10-foot status penalty to its Speeds at 4.)
+function oracleCurse(state, c) {
+    c.cursebound = Math.min(c.curse.max, (c.cursebound ?? 0) + 1);
+    const value = c.cursebound;
+    for (const effect of (c.effects ?? []).filter((entry) => entry.key === "oracle:cursebound")) removeEffect(c, effect);
+    const model = {
+        name: `Cursebound ${value}`, rounds: Infinity, modifiers: value >= 4 ? [{ on: "speed", type: "status", value: -10 }] : [],
+        conditional: value >= 2 ? [{ on: "attack", type: "circumstance", value: -2, predicate: ["item:ranged"] }] : [],
+        tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [{ type: "electricity", value: value >= 3 ? 5 + (c.level ?? 1) : 2, exceptions: [] }], immunities: [], conditions: [], unsupported: [], situational: 0
+    };
+    applyEffect(state, c, model, c, { applyCondition, key: "oracle:cursebound" });
+    state.log?.push(`  ${c.name} is cursebound ${value}`);
 }
 
 // (2026-11-10) A summoner's Boost Eidolon on its eidolon's Strikes, or not (a turn it spent both its actions on one activity).

@@ -485,7 +485,12 @@ const CLASSES = {
         seat: "cleric", hp: 8, attrs: (k, lv) => ({ str: 0, dex: 2, con: casterCon(lv), int: 0, wis: minor(lv), cha: k }),
         armor: "light", armorSteps: [[1, T], [13, E]],
         fort: [[1, T], [9, E]], ref: [[1, T], [13, E]], will: [[1, E], [7, M], [17, L]], perception: [[1, T], [11, E]],
-        caster: { tradition: "divine", attr: "cha", slots: 4 }, focus: { names: ["Tempest Touch"], attr: "cha", points: 1 }
+        // (2026-11-10, Cole: "get them working" — its tempest mystery: its granted spells first at their ranks (Electric Arc, Thunderstrike,
+        // Hydraulic Torrent, Chain Lightning), its cursebound oracle feat Foretell Harm, and its curse, Curse of Inclement Headwinds
+        // (fight.js oracleCurse). Mysterious Resolve (7th) and its greater form: a success on a Will save a critical success (SAVE_UPGRADES'
+        // Will at 7th), a critical failure on one a failure at 17th.)
+        caster: { tradition: "divine", attr: "cha", slots: 4, extra: ["Electric Arc"], lead: { 1: ["Thunderstrike"], 4: ["Hydraulic Torrent"], 6: ["Chain Lightning"] } }, focus: { names: ["Tempest Touch"], attr: "cha", points: 1 },
+        build: (lv) => ({ fields: { critSpec: false, foretellHarm: true, curse: { mystery: "tempest", max: lv >= 17 ? 4 : lv >= 11 ? 3 : 2 }, ...(lv >= 17 ? { saveDegrees: [{ saves: ["will"], adjustment: { success: "one-degree-better", criticalFailure: "one-degree-better" } }] } : {}) } })
     },
     psychic: {
         seat: "wizard", hp: 6, attrs: (k, lv) => ({ str: 0, dex: 2, con: casterCon(lv), int: k, wis: minor(lv), cha: 1 }),
@@ -635,7 +640,7 @@ export const CLASS_SLUGS = Object.freeze([...Object.keys(CLASSES), "fighter", "r
 // What a class's PC doesn't play yet (its chassis, spells and weapon are played).
 export const CLASS_GAPS = Object.freeze({
     summoner: "evolution feats on the eidolon",
-    oracle: "the curse", druid: "Untamed Form",
+    druid: "Untamed Form",
     barbarian: "Rage's -1 AC", alchemist: "mutagens, poisons and the research fields other than bomber", kineticist: "the kinetic aura and impulses other than Elemental Blast", magus: "Arcane Cascade and conflux spells"
 });
 // The standard party's seat each class sits in (the PC it replaces in classParty).
