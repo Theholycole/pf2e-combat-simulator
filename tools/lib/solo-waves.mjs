@@ -342,7 +342,7 @@ export function soloTask({ slug, level, run }) {
     const start = soloOf(slug, level);
     const pc = start[0].id === slug ? start[0] : start.find((c) => c.classSlug === slug) ?? start[0];
     const med = medicineOf(slug, pc);
-    const focusMax = Object.fromEntries(Object.entries(pc.spellPools ?? {}).filter(([key]) => /focus/.test(key)));
+    const focusMax = Object.fromEntries(Object.entries(pc.spellPools ?? {}).filter(([key]) => /focus|unstable/.test(key)));
     const roll = dice(run * 7919 + level * 104729 + slug.length * 31);
     let state = new Map(start.map((c) => [c.id, { hp: c.hp.max, pools: { ...(c.spellPools ?? {}) } }]));
     let minutes = 0;

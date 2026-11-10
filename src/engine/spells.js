@@ -3874,20 +3874,33 @@ export function exploitValue(c, target) {
 
 // Overdrive: a Crafting check against the inventor's level DC; its Strikes deal
 // its Intelligence modifier more on a critical success, half on a success, 1
-// fire on a failure; a critical failure burns it (1d6 fire per 2 levels, at least 1d6).
+// fire on a failure; Expert, Master and Legendary Overdrive's 1, 2 or 3 more on a
+// success (c.overdrive.tier). A critical failure burns it (fire equal to half its
+// level, rounded up), ends its overdrive, and it can't Overdrive for 1d4 rounds
+// (c.overdriveLockUntil). (2026-11-10, Cole's pick "Fix 1 to 7, rerun".) An armor
+// innovation's Metallic Reactance is 2 more in overdrive.
 export function overdrive(state, c) {
     const natural = state.rng.d20();
     const degree = degreeOf(natural + c.overdrive.modifier - statusPenalty(c, "skill"), levelDC(c.overdrive.level), natural);
     log(state, `  ${c.name} uses ${c.overdrive.name}: ${DEGREE_NAMES[degree].replace(/([A-Z])/g, " $1").toLowerCase()}`);
-    c.activeBuffs = (c.activeBuffs ?? []).filter((buff) => buff.name !== c.overdrive.name);
+    const reactance = (on) => {
+        if (!c.metallicReactance || Boolean(c.reactanceUp) === on) return;
+        const step = on ? c.metallicReactance : -c.metallicReactance;
+        c.resistances = (c.resistances ?? []).map((entry) => (entry.type === "acid" || entry.type === "electricity" ? { ...entry, value: entry.value + step } : entry));
+        c.reactanceUp = on;
+    };
     if (degree === 0) {
-        let amount = 0;
-        for (let die = 0; die < Math.max(1, Math.floor(c.overdrive.level / 2)); die++) amount += state.rng.die(6);
-        applyDamage(state, c, [{ type: "fire", amount, persistent: false, precision: false }], { source: c });
-        c.overdriveDone = true;
+        c.activeBuffs = (c.activeBuffs ?? []).filter((buff) => buff.name !== c.overdrive.name);
+        reactance(false);
+        applyDamage(state, c, [{ type: "fire", amount: Math.ceil(c.overdrive.level / 2), persistent: false, precision: false }], { source: c });
+        c.overdriveLockUntil = state.round + state.rng.die(4);
         return;
     }
-    const bonus = degree === 3 ? c.overdrive.intMod : degree === 2 ? Math.floor(c.overdrive.intMod / 2) : 1;
+    // (A failure under an overdrive leaves it be.)
+    if (degree === 1 && (c.activeBuffs ?? []).some((buff) => buff.name === c.overdrive.name)) return;
+    c.activeBuffs = (c.activeBuffs ?? []).filter((buff) => buff.name !== c.overdrive.name);
+    const bonus = degree === 3 ? c.overdrive.intMod + (c.overdrive.tier ?? 0) : degree === 2 ? Math.floor(c.overdrive.intMod / 2) + (c.overdrive.tier ?? 0) : 1;
+    if (degree >= 2) reactance(true);
     const type = degree === 1 ? "fire" : null;
     const strikeDeltas = Object.fromEntries((c.strikes ?? []).map((strike) => [strike.name, [{ dice: 0, die: 0, bonus, multiplier: 1, type: type ?? strike.damage[0]?.type, precision: false, persistent: false }]]));
     c.activeBuffs.push({ name: c.overdrive.name, strikeDeltas });

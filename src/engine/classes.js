@@ -10,7 +10,7 @@
 // runesmith's runes aren't played, only their spells and weapons; the necromancer's thralls are a count, by the spell module's thrall rules).
 import { savePlan } from "./deviant.js";
 import { E, L, M, T, armorPotency, key, pc, potency, preparedSpells, primarySkill, rank, SPELLBOOKS, specialization, spellProf, standardParty, striking } from "./party.js";
-import { familiarFor } from "./companions.js";
+import { animalCompanion, familiarFor } from "./companions.js";
 
 // The two traditions the standard party doesn't cast (the wizard's arcane and the cleric's divine are party.js's), best first for each rank.
 export const MORE_SPELLBOOKS = Object.freeze({
@@ -252,15 +252,59 @@ const CLASSES = {
     inventor: {
         seat: "fighter", hp: 8, attrs: (k, lv) => ({ str: second(lv), dex: 1, con: martialCon(lv), int: k, wis: minor(lv), cha: 0 }),
         armor: "medium", armorSteps: [[1, T], [11, E], [19, M]],
-        fort: [[1, E]], ref: [[1, T], [7, E]], will: [[1, E]], perception: [[1, T], [13, E]],
+        fort: [[1, E], [17, M]], ref: [[1, T], [7, E]], will: [[1, E], [11, M]], perception: [[1, T], [13, E]],
         classDC: [[1, T], [9, E], [17, M]],
-        build(lv, a) {
+        // (2026-11-10, Cole's pick "Fix 1 to 7, rerun": the inventor's innovation — weapon, armor or construct — options.innovation, else
+        // SIM_INNOVATION, else weapon; each rated as its own build.)
+        build(lv, a, { innovation = null } = {}) {
+            const kind = innovation ?? globalThis.process?.env?.SIM_INNOVATION ?? "weapon";
             const prof = rank(lv, [[1, T], [5, E], [13, M]]);
-            const hammer = weaponStrike(lv, { name: "Warhammer", die: 8, type: "bludgeoning", toHit: a.str, damageAttr: a.str, prof, group: "hammer", extra: { held: true } });
-            // Offensive Boost (9th, 2026-11-06): a weapon innovation's Strikes deal 1d6 more (Ignition, fire).
-            if (lv >= 9) hammer.damage.push({ dice: 1, die: 6, bonus: 0, type: "fire" });
+            // A weapon innovation's modifications: Razor Prongs (1st; trip, versatile S), Aerodynamic Construction (7th breakthrough; sweep),
+            // Enhanced Damage (15th revolutionary; d8 to d10). Another innovation's warhammer is a plain one.
+            const weapon = kind === "weapon";
+            const hammer = weaponStrike(lv, { name: "Warhammer", die: weapon && lv >= 15 ? 10 : 8, type: "bludgeoning", toHit: a.str, damageAttr: a.str, prof, group: "hammer", extra: { held: true, ...(weapon ? { trip: true } : {}), ...(weapon && lv >= 7 ? { sweep: true } : {}) } });
+            // Offensive Boost (9th, 2026-11-06): the innovation's Strikes deal 1d6 more (Ignition, fire) — the weapon's, the armor's wearer's,
+            // or the construct's.
+            if (lv >= 9 && kind !== "construct") hammer.damage.push({ dice: 1, die: 6, bonus: 0, type: "fire" });
             const crafting = lv + primarySkill(lv) + a.int;
-            return { strikes: [hammer], skills: { crafting }, fields: { overdrive: { name: "Overdrive", modifier: crafting, intMod: a.int, level: lv } } };
+            const classDC = 10 + lv + rank(lv, [[1, T], [9, E], [17, M]]) + a.int;
+            // Expert, Master and Legendary Overdrive (3rd, 7th, 15th): 1, 2, 3 more damage on a success or critical success.
+            const tier = lv >= 15 ? 3 : lv >= 7 ? 2 : lv >= 3 ? 1 : 0;
+            // Explode (2 actions, unstable): max(2, level)d6 fire, basic Reflex against its class DC, a 5-foot emanation (10 feet from the
+            // breakthrough at 7th, 15 from the revolutionary at 15th); then a DC 17 flat check, or no unstable actions until it Refocuses.
+            const explode = { name: "Explode", plan: savePlan("Explode", { actions: 2, traits: ["fire", "manipulate", "unstable", "inventor"], area: { type: "emanation", value: lv >= 15 ? 15 : lv >= 7 ? 10 : 5 }, save: "reflex", dc: classDC, damage: `${Math.max(2, lv)}d6[fire]`, basic: true }), castRank: Math.ceil(lv / 2), dc: classDC, attack: null, pool: "inventor:unstable", kind: "ability", actionType: "action", rechargeGroup: "Explode", unstable: true };
+            explode.plan.source.type = "action";
+            const hardness = lv >= 13 ? 10 : lv >= 7 ? 8 : 5;
+            const fields = {
+                overdrive: { name: "Overdrive", modifier: crafting, intMod: a.int, level: lv, tier },
+                shield: { ac: 2, hardness, hp: hardness * 4, bt: hardness * 2, broken: false, raised: false }, reactions: { aoo: false, shieldBlock: true },
+                innovation: kind
+            };
+            // An armor innovation: Metallic Reactance (acid and electricity 3 + half its level, 2 more in overdrive), Dense Plating (7th;
+            // slashing half its level), Physical Protections (15th; bludgeoning, piercing and slashing half its level).
+            if (kind === "armor") {
+                const half = Math.floor(lv / 2);
+                const resist = [{ type: "acid", value: 3 + half, exceptions: [] }, { type: "electricity", value: 3 + half, exceptions: [] }];
+                if (lv >= 15) resist.push(...["bludgeoning", "piercing", "slashing"].map((type) => ({ type, value: half, exceptions: [] })));
+                else if (lv >= 7) resist.push({ type: "slashing", value: half, exceptions: [] });
+                fields.resistances = resist;
+                fields.metallicReactance = 2;
+            }
+            if (kind === "construct") {
+                // A construct companion (the bear's numbers at its stage: young, mature from Advanced Construct Companion at 8th, incredible
+                // from Incredible Construct Companion at 14th; Offensive Boost on its Strikes), its master's turn two actions (one to
+                // Command it); Explode about it, its own two actions.
+                const stage = lv >= 14 ? "incredible" : lv >= 8 ? "mature" : "young";
+                fields.actionsPerTurn = 2;
+                const construct = (master) => {
+                    const it = animalCompanion(master, stage);
+                    Object.assign(it, { name: `${master.name}'s Construct Companion`, traits: ["construct", "minion"], senses: ["darkvision"], spells: [...it.spells, structuredClone(explode)], spellPools: { "inventor:unstable": 1 } });
+                    if (lv >= 9) for (const strike of it.strikes) strike.damage = [...strike.damage, { dice: 1, die: 6, bonus: 0, type: "fire" }];
+                    return it;
+                };
+                return { strikes: [hammer], skills: { crafting }, fields, companions: [construct] };
+            }
+            return { strikes: [hammer], skills: { crafting }, spells: [explode], spellPools: { "inventor:unstable": 1 }, fields };
         }
     },
     investigator: {
@@ -479,7 +523,7 @@ export const classAttributes = (slug, level) => CLASSES[slug]?.attrs(key(level),
 export const classArmor = (slug) => CLASSES[slug]?.armor ?? null;
 
 // A PC of a class at a level (null: a class this doesn't know). options: { spell, basics } as standardParty's.
-export function classPC(slug, level, { spell = () => null, basics = [], alchemy = null } = {}) {
+export function classPC(slug, level, { spell = () => null, basics = [], alchemy = null, innovation = null } = {}) {
     const lv = Math.max(1, Math.min(20, level));
     if (["fighter", "rogue", "wizard", "cleric"].includes(slug)) return standardParty(lv, { spell, basics }).find((c) => c.id === slug);
     const def = CLASSES[slug];
@@ -488,7 +532,7 @@ export function classPC(slug, level, { spell = () => null, basics = [], alchemy 
     const a = def.attrs(k, lv);
     const armor = ARMOR[def.armor];
     const ac = 10 + lv + rank(lv, def.armorSteps) + armor.item + Math.min(a.dex, armor.cap) + armorPotency(lv);
-    const built = def.build?.(lv, a, { alchemy }) ?? {};
+    const built = def.build?.(lv, a, { alchemy, innovation }) ?? {};
     const casterStaff = { name: "Staff", bonus: lv + T + a.str, melee: true, agile: false, iwr: { group: "club" }, damage: [{ dice: 1, die: 4, bonus: a.str, type: "bludgeoning" }] };
     const [strike, ...backups] = built.strikes?.length ? built.strikes : [casterStaff];
     const spellAttr = def.caster ? a[def.caster.attr] : 0;
