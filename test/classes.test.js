@@ -86,7 +86,9 @@ test("Sorcerous Potency adds the rank to a slot spell's damage on each creature 
     const changes = [{ op: "damage", target: "a", instances: [{ type: "fire", amount: 10 }, { type: "fire", amount: 3 }] }, { op: "damage", target: "a", instances: [{ type: "fire", amount: 4 }] }];
     const boosted = withCasterDamage(sorcerer, { name: "Fireball", castRank: 3, pool: "sorcerer:3:0", plan: { traits: [] } }, changes);
     assert.deepEqual(boosted.map((change) => change.instances[0].amount), [13, 4]);
-    assert.equal(withCasterDamage(sorcerer, { name: "Ignition", castRank: 3, pool: null, plan: { traits: ["cantrip"] } }, changes), changes);
+    assert.equal(withCasterDamage(sorcerer, { name: "Electric Arc", castRank: 3, pool: null, plan: { traits: ["cantrip"] } }, changes), changes);
+    // (2026-11-10, blood magic: a bloodline cantrip its rank in fire on one target.)
+    assert.deepEqual(withCasterDamage(sorcerer, { name: "Ignition", castRank: 3, pool: null, plan: { traits: ["cantrip"] } }, changes)[0].instances.map((each) => [each.type, each.amount]), [["fire", 10], ["fire", 3], ["fire", 3]]);
     const state = createFightState({ combatants: [{ ...classPC("barbarian", 3), engagement: 1 }, { ...moderateCreature(3, "foe", "Foe"), engagement: 1 }] }, {}, 1);
     const barbarian = state.byId.get("barbarian");
     const before = armorClass(barbarian);

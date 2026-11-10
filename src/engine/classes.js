@@ -242,7 +242,15 @@ const CLASSES = {
         seat: "wizard", hp: 8, attrs: (k, lv) => ({ str: 0, dex: 2, con: casterCon(lv), int: 0, wis: minor(lv), cha: k }),
         armor: "light", armorSteps: [[1, T], [13, E]],
         fort: [[1, T], [9, E]], ref: [[1, T], [3, E]], will: [[1, E], [17, M]], perception: [[1, E], [11, M]],
-        caster: { tradition: "occult", attr: "cha", slots: 4, extra: ["Courageous Anthem"] }
+        caster: { tradition: "occult", attr: "cha", slots: 4, extra: ["Courageous Anthem"] },
+        // (2026-11-10, Cole: "get them working" — its other compositions: Counter Performance (every bard's focus spell: its reaction as an
+        // ally within 60 feet saves against an auditory or visual effect, its Performance check standing in for the save if higher; a Focus
+        // Point) and, as a maestro, Lingering Composition (its anthem for 3 or 4 rounds on a Performance check; spells.js castPlan). Two
+        // focus spells, 2 Focus Points. Performance: expert at 3rd, master at 7th, legendary at 15th.)
+        build(lv, a) {
+            const performance = lv + rank(lv, [[1, T], [3, E], [7, M], [15, L]]) + a.cha;
+            return { skills: { performance }, spellPools: { "bard:focus": 2 }, fields: { critSpec: false, lingeringComposition: "bard:focus", saveSkill: { name: "Counter Performance", skill: "performance", save: null, against: ["auditory", "visual"], ally: true, within: 60, allyTrait: null, pool: "bard:focus" } } };
+        }
     },
     champion: {
         seat: "fighter", hp: 10, attrs: (k, lv) => ({ str: k, dex: 0, con: martialCon(lv), int: 0, wis: minor(lv), cha: second(lv) - 1 }),
@@ -531,7 +539,11 @@ const CLASSES = {
         seat: "wizard", hp: 6, attrs: (k, lv) => ({ str: 0, dex: 2, con: casterCon(lv), int: 0, wis: minor(lv), cha: k }),
         armor: "unarmored", armorSteps: [[1, T], [13, E]],
         fort: [[1, T], [5, E]], ref: [[1, T], [9, E]], will: [[1, E], [17, M]], perception: [[1, T], [11, E]],
-        caster: { tradition: "arcane", attr: "cha", slots: 4 }, focus: { names: ["Elemental Toss"], attr: "cha", points: 1 }, potency: true
+        // (2026-11-10, Cole: "get them working" — its bloodline, the elemental (fire) one its Elemental Toss is from: primal spells, not arcane;
+        // its sorcerous gifts first at their ranks (Ignition, Breathe Fire, Fireball, Earthquake, Wrathful Storm) and its blood magic,
+        // Elemental Fury: a bloodline spell deals one target 1 fire damage a rank more (spells.js withCasterDamage).)
+        caster: { tradition: "primal", attr: "cha", slots: 4, extra: ["Ignition"], lead: { 1: ["Breathe Fire"], 3: ["Fireball"], 8: ["Earthquake"], 9: ["Wrathful Storm"] } }, focus: { names: ["Elemental Toss"], attr: "cha", points: 1 }, potency: true,
+        build: () => ({ fields: { critSpec: false, bloodMagic: { type: "fire", spells: ["Ignition", "Breathe Fire", "Fireball", "Earthquake", "Wrathful Storm", "Elemental Toss"] } } })
     },
     summoner: {
         seat: "fighter", hp: 10, attrs: (k, lv) => ({ str: 0, dex: 2, con: martialCon(lv), int: 0, wis: minor(lv), cha: k }),
@@ -617,7 +629,7 @@ export const CLASS_SLUGS = Object.freeze([...Object.keys(CLASSES), "fighter", "r
 // What a class's PC doesn't play yet (its chassis, spells and weapon are played).
 export const CLASS_GAPS = Object.freeze({
     summoner: "evolution feats on the eidolon",
-    bard: "compositions other than Courageous Anthem", sorcerer: "blood magic and Sorcerous Potency", psychic: "Unleash Psyche and amps", witch: "familiar abilities other than its patron's and Familiar Focus/Lifelink", oracle: "the curse", druid: "Untamed Form",
+    psychic: "Unleash Psyche and amps", witch: "familiar abilities other than its patron's and Familiar Focus/Lifelink", oracle: "the curse", druid: "Untamed Form",
     barbarian: "Rage's -1 AC", alchemist: "mutagens, poisons and the research fields other than bomber", kineticist: "the kinetic aura and impulses other than Elemental Blast", magus: "Arcane Cascade and conflux spells"
 });
 // The standard party's seat each class sits in (the PC it replaces in classParty).
