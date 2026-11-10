@@ -25,7 +25,7 @@ const ITEM_ROOT = SIBLING(["pf2e-automatic-item-resolution", "PF2e AUTOMATIC ITE
 
 const { readDocuments, basicActions, PACK_ROOT, summonReserves } = await import("./pack-creatures.mjs");
 const { spellSummonEntry } = await import("../../src/engine/summons.js");
-const { partyFor, classPartyFor, classesPartyFor } = await import("./deadliness.mjs");
+const { partyFor, classPartyFor, classesPartyFor, setClassPartyHook } = await import("./deadliness.mjs");
 const { CLASS_SLUGS, classArmor, seatOf } = await import("../../src/engine/classes.js");
 const { withCompanion, mountUp, companionStats } = await import("../../src/engine/companions.js");
 const { compileFeat } = await import(new URL("src/compiler/index.js", FEAT_ROOT).href);
@@ -4477,3 +4477,40 @@ export async function runFeatTask(task) {
     if (task.kind === "canary") return canaryTask(task);
     return featTask(task);
 }
+
+// (2026-11-10, Cole's pick "All fixes, with impulses": the kineticist's class features that give impulse feats — a single fire gate's two
+// 1st-level fire impulses (Kinetic Gate), and an impulse feat at each Gate's Threshold (5th, 9th, 13th, 17th: Expand the Portal), the ones
+// rated best of each level a kineticist could take then. Its fire impulse junction steps up the fire dice of its impulses of 2 actions or
+// more. Played as the class's own (not forced, not drawing fire).)
+export const KINETICIST_GATE = Object.freeze([[1, "Flying Flame"], [1, "Scorching Column"], [5, "Blazing Wave"], [9, "Solar Detonation"], [13, "Thermal Nimbus"], [17, "Walk Through the Conflagration"]]);
+const DIE_STEP = { 4: 6, 6: 8, 8: 10, 10: 12 };
+function fireJunction(plan) {
+    const walk = (node) => {
+        if (Array.isArray(node)) return node.map(walk);
+        if (!node || typeof node !== "object") return node;
+        const fire = node.type === "fire";
+        return Object.fromEntries(Object.entries(node).map(([key, value]) => [key, key === "formula" && typeof value === "string" ? value.replace(fire ? /(\d+)d(4|6|8|10)\b/g : /(\d+)d(4|6|8|10)(?=\[(?:persistent,)?fire\])/g, (_, n, d) => `${n}d${DIE_STEP[d]}`) : walk(value)]));
+    };
+    return walk(plan);
+}
+setClassPartyHook("kineticist", (party, level) => {
+    if (process.env.SIM_GATE === "0") return party;
+    const feats = docsOf(`${PACK_ROOT}/feats`);
+    let out = party;
+    for (const [at, name] of KINETICIST_GATE) {
+        if (level < at) continue;
+        const doc = [...feats.values()].find((each) => each.name === name);
+        if (!doc) continue;
+        const result = partyWithFeat(doc, level, { party: out, hostId: "kineticist" });
+        if (!result.skipped) out = result.party;
+    }
+    return out.map((c) => {
+        if (c.id !== "kineticist") return c;
+        const { forceUse, drawsFire, ...rest } = c;
+        const spells = (rest.spells ?? []).map((entry) => {
+            const actions = Number(entry.plan?.activation?.time) || Number(entry.plan?.activation?.actions) || 0;
+            return entry.kind !== "basic" && (entry.plan?.traits ?? []).includes("fire") && actions >= 2 ? { ...entry, plan: fireJunction(entry.plan) } : entry;
+        });
+        return { ...rest, spells };
+    });
+});

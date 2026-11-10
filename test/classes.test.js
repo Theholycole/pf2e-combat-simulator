@@ -70,7 +70,8 @@ test("the summoner's eidolon is its own body sharing the summoner's Hit Points; 
     const party = classParty("summoner", 5, { spell: () => null });
     const eidolon = party.find((c) => c.id === "eidolon");
     assert.equal(eidolon.sharesHpWith, "summoner");
-    assert.deepEqual([eidolon.actionsPerTurn, party.find((c) => c.id === "summoner").actionsPerTurn], [2, 1]);
+    assert.deepEqual([eidolon.actionsPerTurn, party.find((c) => c.id === "summoner").actionsPerTurn], [2, 2]);
+    assert.equal(party.find((c) => c.id === "summoner").actTogether, true);
     const state = createFightState({ combatants: [...party.map((c) => ({ ...c, engagement: 1 })), { ...moderateCreature(5, "foe", "Foe"), engagement: 1 }] }, {}, 1);
     const summoner = state.byId.get("summoner");
     const body = state.byId.get("eidolon");
@@ -85,7 +86,9 @@ test("Sorcerous Potency adds the rank to a slot spell's damage on each creature 
     const changes = [{ op: "damage", target: "a", instances: [{ type: "fire", amount: 10 }, { type: "fire", amount: 3 }] }, { op: "damage", target: "a", instances: [{ type: "fire", amount: 4 }] }];
     const boosted = withCasterDamage(sorcerer, { name: "Fireball", castRank: 3, pool: "sorcerer:3:0", plan: { traits: [] } }, changes);
     assert.deepEqual(boosted.map((change) => change.instances[0].amount), [13, 4]);
-    assert.equal(withCasterDamage(sorcerer, { name: "Ignition", castRank: 3, pool: null, plan: { traits: ["cantrip"] } }, changes), changes);
+    assert.equal(withCasterDamage(sorcerer, { name: "Electric Arc", castRank: 3, pool: null, plan: { traits: ["cantrip"] } }, changes), changes);
+    // (2026-11-10, blood magic: a bloodline cantrip its rank in fire on one target.)
+    assert.deepEqual(withCasterDamage(sorcerer, { name: "Ignition", castRank: 3, pool: null, plan: { traits: ["cantrip"] } }, changes)[0].instances.map((each) => [each.type, each.amount]), [["fire", 10], ["fire", 3], ["fire", 3]]);
     const state = createFightState({ combatants: [{ ...classPC("barbarian", 3), engagement: 1 }, { ...moderateCreature(3, "foe", "Foe"), engagement: 1 }] }, {}, 1);
     const barbarian = state.byId.get("barbarian");
     const before = armorClass(barbarian);
@@ -136,7 +139,9 @@ test("the runesmith: Runic Optimization in place of weapon specialization, a shi
 
 test("the runesmith's runes: atryl and ranshu traced and invoked against its class DC, both at once; marssyl's splash on the warhammer", () => {
     const runesmith = classPC("runesmith", 5);
-    const runes = runesmith.spells.filter((entry) => entry.runesmithRune);
+    // (2026-11-10: thullax first, then atryl and ranshu.)
+    const runes = runesmith.spells.filter((entry) => entry.runesmithRune).slice(1);
+    assert.equal(runesmith.spells.find((entry) => entry.runesmithRune).plan.resolution.sharedDamage.components[0].formula, "3d6[acid]");
     assert.deepEqual(runes.map((entry) => Number(entry.plan.activation.time)), [2, 2, 3, 3]);
     assert.ok(runes.every((entry) => entry.dc === 21 && entry.plan.resolution.check.statistic === "fortitude" && entry.plan.resolution.check.basic));
     assert.deepEqual(runes[3].plan.resolution.sharedDamage.components.map((part) => part.formula), ["3d8[fire]", "3d8[electricity]"]);

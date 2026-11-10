@@ -18,6 +18,8 @@ import { placeArrival } from "./grid-fight.js";
 import { CRITICAL_FAILURE, CRITICAL_SUCCESS, FAILURE, degreeOf } from "./checks.js";
 import { saveModifier } from "./combatant.js";
 import { applyDamage } from "./actions.js";
+import { canReact, sizeRank, spendReaction } from "./abilities.js";
+import { canAct } from "./combatant.js";
 import { rollInstances } from "./spells.js";
 import { parseDamage } from "../../../pf2e-resolution-core/src/index.js";
 
@@ -72,6 +74,21 @@ export function thrallKilled(state, body) {
     const master = body?.thrallOf ? state.byId.get(body.thrallOf) : null;
     if (master) master.thralls = thrallBodies(state, master).length;
     if (master && body.amalgam) amalgamGone(master);
+}
+
+// (2026-11-10, Inevitable Return, a necromancer's 3rd-level reaction: a Small or Medium enemy within 30 feet dies — a thrall in its space,
+// beside a creature that was in its Melee. Its 30 feet: on the grid; off it, any foe of the fight.)
+export function inevitableReturn(state, dead, melee) {
+    if (dead.kind === "object" || sizeRank(dead.size ?? "med") > sizeRank("med") || sizeRank(dead.size ?? "med") < sizeRank("sm")) return;
+    for (const c of state.list) {
+        if (!c.inevitableReturn || c.side === dead.side || !isActive(c) || !canAct(c) || !canReact(c, "Inevitable Return")) continue;
+        if (state.grid && c.square && dead.square && distanceBetween(c, dead) > 30) continue;
+        spendReaction(c, "Inevitable Return");
+        const near = [...(melee ?? [])].map((id) => state.byId.get(id)).find((other) => other && other !== dead && other.side !== c.side && isActive(other)) ?? null;
+        createThralls(state, c, 1, near, { proliferate: false });
+        state.log?.push(`  ${c.name} uses Inevitable Return: a thrall rises from ${dead.name}`);
+        return;
+    }
 }
 
 // One of its thralls spent: the one beside `near` if any, else its oldest.

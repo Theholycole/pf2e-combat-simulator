@@ -87,10 +87,21 @@ export function classesPartyFor(slugs, level) {
     return classesParty(slugs, lv, { spell: dangerPartySpell(spell), basics: Object.values(basicActions), alchemy });
 }
 
+// (2026-11-10) Class features that a tool above this one plays — the kineticist's gate impulses, feats the feat tools compile
+// (tools/lib/feat-power.mjs classFeatureHooks): (party, level) → the party with them.
+const classPartyHooks = new Map();
+export function setClassPartyHook(slug, hook) {
+    classPartyHooks.set(slug, hook);
+    for (const id of [...classParties.keys()]) if (id.startsWith(`${slug}|`)) classParties.delete(id);
+}
+
 export function classPartyFor(slug, level) {
     const lv = Math.max(1, Math.min(20, level));
     const id = `${slug}|${lv}`;
-    if (!classParties.has(id)) classParties.set(id, classParty(slug, lv, { spell: dangerPartySpell(spell), basics: Object.values(basicActions), alchemy }));
+    if (!classParties.has(id)) {
+        const party = classParty(slug, lv, { spell: dangerPartySpell(spell), basics: Object.values(basicActions), alchemy });
+        classParties.set(id, classPartyHooks.get(slug)?.(party, lv) ?? party);
+    }
     return classParties.get(id);
 }
 

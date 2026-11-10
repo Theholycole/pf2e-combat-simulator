@@ -15,6 +15,8 @@
 // below it, or (from 4th level, every other wave) two creatures 4 levels below (10 XP each) — creatures of the feat ratings' build (a moderate
 // creature's numbers, darkvision, a natural attack), at level −1 at least.
 const { classPartyFor } = await import("./deadliness.mjs");
+// (The class features the feat tools play — the kineticist's gate impulses: feat-power.mjs registers them.)
+await import("./feat-power.mjs");
 const { simulate } = await import("../../src/engine/fight.js");
 const { DANGER_OPTIONS } = await import("../../src/engine/danger-scale.js");
 const { moderateCreatureAt } = await import("../../src/engine/creature-tables.js");

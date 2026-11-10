@@ -19,7 +19,7 @@ import { applyEffect, hasConditional, strikeRollOptions, removeEffect, spendNext
 import { actionTraits, exploitCovers, applyCondition, applyMove, bothHitRider, castPlan, castSpell, rageTriggers, curseOnHit, deathThroes, forbiddingBonus, applyHeal, skillValue, guardSpells, prismaticSpray, markOn, poolReady, retributionAnswer, spendMark, spendPool, touchRetaliation, traitsAllowed, nearbyDeathAnswers, downsAnswers, hitByAnswers, mishapAnswers, provokedReaction, reactToAttack, reactToDamage, reactToHit, reactToMiss, reactToOwnHit, rollCount, rollInstances } from "./spells.js";
 import { parseDamage } from "../../../pf2e-resolution-core/src/index.js";
 import { summonerFalls, summonsOnDamage, summonsOnDeath } from "./summons.js";
-import { destroyBody, thrallAuraStrike, thrallBodies, thrallKilled } from "./thralls.js";
+import { destroyBody, inevitableReturn, thrallAuraStrike, thrallBodies, thrallKilled } from "./thralls.js";
 import { hiddenMovementOffGuard, sightDC, unseen } from "./environment.js";
 import { aimsAtHead, attachAfterHit, bestStrikeType, cauterizeStumps, critRiderAnswer, critSpecEffect, elementalAnswers, proteanAfterDamage, splitAfterHit, strikeHead, troopAfterDamage } from "./creature-rules.js";
 import { log } from "./log.js";
@@ -2282,6 +2282,16 @@ export function dealDamage(state, target, amount, { source = null, critical = fa
         else if (!nonlethal) kill(state, target);
         return 0;
     }
+    // (Eidolon: one area effect that damages a summoner and its eidolon both — only the greater amount applies to their shared Hit Points.)
+    if (state.sharedHits && (target.sharesHpWith || state.list?.some((other) => other.sharesHpWith === target.id))) {
+        const taken = state.sharedHits.get(target.hp) ?? 0;
+        state.sharedHits.set(target.hp, Math.max(taken, amount));
+        if (amount <= taken) {
+            log(state, `  ${target.name} shares the hit (only the greater amount applies)`);
+            return 0;
+        }
+        amount -= taken;
+    }
     let remaining = amount;
     if (target.hp.temp > 0) {
         const absorbed = Math.min(target.hp.temp, remaining);
@@ -2523,6 +2533,7 @@ function kill(state, target) {
     summonerFalls(state, target);
     // (2026-11-06: a necromancer's thrall body destroyed — its count follows, thralls.js.)
     if (target.thrallOf) thrallKilled(state, target);
+    else if (target.kind !== "pc") inevitableReturn(state, target, melee);
 }
 
 export function increaseDying(state, c, amount) {

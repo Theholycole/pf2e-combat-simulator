@@ -546,6 +546,28 @@ function startTurn(state, c) {
     c.weakGrip?.clear();
     // Flourishes (Flurry of Blows): once a turn. A finisher ends Strikes for the turn.
     c.usedThisTurn = new Set();
+    // (2026-11-10, Cole: "get them working" — a psychic's Unleash Psyche as PF2e has it: as its turn begins, having Cast a Spell on its
+    // previous turn and not stupefied, its psyche unleashed for 2 rounds — twice the rank more damage on its damaging spells —; then
+    // stupefied 1 for 2 rounds, and not again for 2 rounds. Before, the fight's average, its rank more on every spell, all fight.)
+    if (c.unleashPsyche) {
+        if (c.psycheUntil != null && state.round > c.psycheUntil) {
+            c.psycheUntil = null;
+            c.spellDamageBonus = null;
+            c.psycheAgain = state.round + 2;
+            applyCondition(state, c, "stupefied", 1, { mode: "fixed", value: 2, unit: "rounds" }, c);
+            state.log?.push(`  ${c.name}'s unleashed psyche subsides; it is stupefied 1`);
+        }
+        if (c.psycheUntil == null && state.round >= (c.psycheAgain ?? 0) && c.castRound === state.round - 1 && !(c.cond.stupefied > 0) && c.status === ACTIVE) {
+            c.psycheUntil = state.round + 1;
+            c.spellDamageBonus = { perRank: 2, slotsOnly: false };
+            state.stats.unleashed = (state.stats.unleashed ?? 0) + 1;
+            state.log?.push(`  ${c.name} uses Unleash Psyche`);
+        }
+    }
+    if (c.actTogether) {
+        c.actTogetherDone = false;
+        eidolonBoost(state, c, true);
+    }
     // (2026-11-10, Quick Alchemy: a quick vial lasts to the end of the turn it's made, so none is ready at a turn's start.)
     // (And an item made with Quick Alchemy only until the start of its next turn: a bomb in hand with no stock of it left was made, so it's
     // inert now.)
@@ -672,6 +694,15 @@ function startTurn(state, c) {
             actions -= 1;
             state.log?.push(`  ${c.name} uses Shared Focus: ${ally.name} gains a Focus Point`);
         }
+    }
+    // (2026-11-10, Consume Thrall, a puppeteer necromancer's action: once a day, out of Focus Points with a thrall within 30 feet — the thrall
+    // destroyed, a Focus Point for a grave spell. Taken as its turn begins while it has a thrall for the grave spell to come.)
+    if (c.consumeThrall && !c.consumeThrallUsed && c.status === ACTIVE && actions >= 3 && (c.spellPools?.[c.consumeThrall] ?? 1) === 0 && (c.thralls ?? 0) >= 2) {
+        c.consumeThrallUsed = true;
+        actions -= 1;
+        spendThrall(state, c);
+        c.spellPools[c.consumeThrall] = 1;
+        state.log?.push(`  ${c.name} uses Consume Thrall: a Focus Point`);
     }
     // (2026-11-07, My Kingdom, My Blood: its first turn's three actions — a Stride, its fist in the ground —, the 60-foot aura for the fight.)
     if (c.kingdomBlood && !c.kingdomActive && c.status === ACTIVE && actions >= 3) {
@@ -1397,12 +1428,16 @@ function actOn(state, c, action) {
                 }
             }
             // (2026-11-07, Foretell Harm: once a round, the creature its non-cantrip spell hurt most takes twice the spell's rank at its next turn's start.)
-            if (drained && c.foretellHarm && (!spell.kind || spell.castsSpell) && !(spell.plan?.traits ?? []).includes("cantrip") && c.foretoldRound !== state.round) {
-                const hurt = state.list.filter((other) => drained.has(other.id) && isActive(other)).map((other) => [other, drained.get(other.id) - Math.max(0, other.hp.value) - (other.hp.temp ?? 0)]).filter(([, lost]) => lost > 0).sort((a, b) => b[1] - a[1])[0]?.[0];
+            // (2026-11-10: a cursebound ability — not at its curse's limit; its target immune to it after (24 hours: the fight) — and its
+            // oracle's curse a step worse, oracleCurse.)
+            if (drained && c.foretellHarm && (!spell.kind || spell.castsSpell) && !(spell.plan?.traits ?? []).includes("cantrip") && c.foretoldRound !== state.round && (!c.curse || (c.cursebound ?? 0) < c.curse.max)) {
+                const hurt = state.list.filter((other) => drained.has(other.id) && isActive(other) && !other.foretoldBy?.has(c.id)).map((other) => [other, drained.get(other.id) - Math.max(0, other.hp.value) - (other.hp.temp ?? 0)]).filter(([, lost]) => lost > 0).sort((a, b) => b[1] - a[1])[0]?.[0];
                 if (hurt) {
                     c.foretoldRound = state.round;
                     hurt.foretold = { amount: 2 * (spell.castRank ?? 1), by: c.id };
+                    (hurt.foretoldBy ??= new Set()).add(c.id);
                     state.log?.push(`  ${c.name} foretells harm to ${hurt.name} (Foretell Harm)`);
+                    if (c.curse) oracleCurse(state, c);
                 }
             }
             // (2026-11-07, Coven Spell: an ally's damaging spell — the witch's reaction, a status bonus to its damage equal to its rank on each
@@ -2299,6 +2334,36 @@ export function takeTurn(state, c) {
     endTurn(state, c);
 }
 
+// (2026-11-10, Cole: "get them working" — an oracle's curse: each cursebound ability it uses makes it cursebound 1 more, to its limit (2; 3
+// with Major Curse at 11th, 4 with Extreme Curse at 17th), the curse's effects by that value for the fight (no Refocus in one). The
+// tempest mystery's Curse of Inclement Headwinds: weakness 2 to electricity (5 + its level from cursebound 3), −2 circumstance to its
+// ranged attack rolls from 2, −10-foot status penalty to its Speeds at 4.)
+function oracleCurse(state, c) {
+    c.cursebound = Math.min(c.curse.max, (c.cursebound ?? 0) + 1);
+    const value = c.cursebound;
+    for (const effect of (c.effects ?? []).filter((entry) => entry.key === "oracle:cursebound")) removeEffect(c, effect);
+    const model = {
+        name: `Cursebound ${value}`, rounds: Infinity, modifiers: value >= 4 ? [{ on: "speed", type: "status", value: -10 }] : [],
+        conditional: value >= 2 ? [{ on: "attack", type: "circumstance", value: -2, predicate: ["item:ranged"] }] : [],
+        tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [{ type: "electricity", value: value >= 3 ? 5 + (c.level ?? 1) : 2, exceptions: [] }], immunities: [], conditions: [], unsupported: [], situational: 0
+    };
+    applyEffect(state, c, model, c, { applyCondition, key: "oracle:cursebound" });
+    state.log?.push(`  ${c.name} is cursebound ${value}`);
+}
+
+// (2026-11-10) A summoner's Boost Eidolon on its eidolon's Strikes, or not (a turn it spent both its actions on one activity).
+function eidolonBoost(state, c, on) {
+    const eidolon = state.list.find((other) => other.sharesHpWith === c.id);
+    if (!eidolon) return;
+    for (const strike of eidolon.strikes ?? []) {
+        strike.boostPart ??= (strike.damage ?? []).find((part) => part.source === "Boost Eidolon") ?? null;
+        if (!strike.boostPart) continue;
+        const has = strike.damage.includes(strike.boostPart);
+        if (on && !has) strike.damage = [...strike.damage, strike.boostPart];
+        if (!on && has) strike.damage = strike.damage.filter((part) => part !== strike.boostPart);
+    }
+}
+
 // Its turn's actions, as the planner picks them; false when the fight ended in them.
 function playActions(state, c) {
     let guard = 0;
@@ -2311,7 +2376,14 @@ function playActions(state, c) {
     while (c.actionsLeft > 0 && canAct(c) && !c.cond.fleeing && guard++ < 8) {
         const action = chooseAction(state, c);
         if (!action) break;
-        c.actionsLeft -= actionCost(c, action);
+        const cost = actionCost(c, action);
+        c.actionsLeft -= cost;
+        // (2026-11-10, Act Together: one action of the summoner's own, or a 2-action activity — its eidolon's Boost lost till its next turn.)
+        if (c.actTogether && !c.actTogetherDone) {
+            c.actTogetherDone = true;
+            if (cost <= 1) c.actionsLeft = 0;
+            else eidolonBoost(state, c, false);
+        }
         act(state, c, action);
         afterAction(state);
         c.actionCount = (c.actionCount ?? 0) + 1;

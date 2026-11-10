@@ -6,8 +6,7 @@
 //   classParty(slug, level): the standard party with that class's PC in the seat of the PC who fights most like it (a martial for the
 //   fighter, a skirmisher for the rogue, an arcane or occult caster for the wizard, a divine or primal one for the cleric), so a class's
 //   feats are rated on their own class.
-// What isn't played yet is listed in CLASS_GAPS (the animist's apparitions and the
-// runesmith's runes aren't played, only their spells and weapons; the necromancer's thralls are a count, by the spell module's thrall rules).
+// What isn't played yet is listed in CLASS_GAPS.
 import { savePlan } from "./deviant.js";
 import { E, L, M, T, armorPotency, key, pc, potency, preparedSpells, primarySkill, rank, SPELLBOOKS, specialization, spellProf, standardParty, striking } from "./party.js";
 import { animalCompanion, familiarFor } from "./companions.js";
@@ -77,18 +76,42 @@ function weaponStrike(level, { name, die, type, toHit, damageAttr = 0, prof, ite
 function runesmithRunes(lv, dc) {
     const dice = 1 + Math.floor((lv - 1) / 2);
     const traits = ["magical", "concentrate", "manipulate"];
-    const rune = (name, actions, range, components, effects = {}) => {
-        const plan = savePlan(name, { actions, traits, range, target: "1 creature", save: "fortitude", dc, damage: components[0].formula, effects });
-        plan.traits = plan.activation.traits = [...traits, "runesmith", ...components.map((part) => part.type)];
+    const rune = (name, actions, range, components, effects = {}, { save = "fortitude", area = null, extraTraits = [], pool = null, basic = true, immune = false } = {}) => {
+        const plan = savePlan(name, { actions, traits, range, area, target: "1 creature", save, dc, damage: components[0]?.formula ?? null, effects, basic });
+        if (area && range) plan.targeting.range = range;
+        // (Its target immune to it after — for the fight.)
+        if (immune) plan.trigger = { ...plan.trigger, immunity: true };
+        plan.traits = plan.activation.traits = [...traits, "runesmith", ...extraTraits, ...components.map((part) => part.type)];
         plan.source.type = "action";
-        plan.resolution.sharedDamage.components = components.map((part, index) => ({ id: String(index), formula: part.formula, type: part.type, category: null }));
-        for (const outcome of Object.values(plan.resolution.outcomes)) if (outcome.damage.sourceComponentIds?.length) outcome.damage.sourceComponentIds = components.map((_, index) => String(index));
-        return { name, plan, castRank: Math.ceil(lv / 2), dc, attack: null, pool: null, kind: "ability", actionType: "action", rechargeGroup: name, runesmithRune: true };
+        if (components.length) {
+            plan.resolution.sharedDamage.components = components.map((part, index) => ({ id: String(index), formula: part.formula, type: part.type, category: null }));
+            for (const outcome of Object.values(plan.resolution.outcomes)) if (outcome.damage.sourceComponentIds?.length) outcome.damage.sourceComponentIds = components.map((_, index) => String(index));
+        }
+        return { name, plan, castRank: Math.ceil(lv / 2), dc, attack: null, pool, kind: "ability", actionType: "action", rechargeGroup: name, runesmithRune: true };
     };
+    const round1 = { mode: "fixed", value: 1, unit: "rounds" };
     const fire = { formula: `${dice}d8[fire]`, type: "fire" };
     const thunder = { formula: `${dice}d8[electricity]`, type: "electricity" };
     const dazzled = { criticalFailure: [["dazzled", null, { mode: "fixed", value: 1, unit: "rounds" }]] };
+    // (2026-11-10, Cole: "get them working" — more of its repertoire, from the rune list he gave (Impossible Magic pp. 55-61): thullax, rune
+    // of corrosion (1d6 acid a die more every 2 levels, 1 persistent acid more every 2 on a critical failure); from 9th trolistri, rune of
+    // forlorn sorrow, traced on itself (each enemy in a 15-foot emanation: Will, slowed 1 for a round, 2 on a critical failure; immune for
+    // an hour after); from 17th ochyghol, the Poisoned Star (8d6 fire in a 40-foot burst about the bearer, basic Reflex;
+    // its 3d10 at the centre and doom not played) and rovan, seal of the Dead Vault (incapacitation, Fortitude: slowed 1 on a success, 2 on
+    // a failure, restrained, blinded and slowed 2 on a critical failure). Diacritics cost a Trace more on a traced rune and come to less
+    // than a second rune for the same action, so they're left out; the etched holtrik and kojastri are in its build.)
+    const acid = { formula: `${1 + Math.floor((lv - 1) / 2)}d6[acid]`, type: "acid" };
+    const thullax = rune("Thullax, Rune of Corrosion (Trace and Invoke)", 2, "touch", [acid]);
+    const persistent = 1 + Math.floor((lv - 1) / 2);
+    thullax.plan.resolution.outcomes.criticalFailure.damage = { mode: "mixed", shared: { multiplier: 2, sourceComponentIds: ["0"] }, formulas: [{ formula: `${persistent}[persistent,acid]` }], rollScope: "outcome" };
+    const later = [];
+    if (lv >= 9) later.push(rune("Trolistri, Rune of Forlorn Sorrow (Trace on itself and Invoke)", 2, null, [], { failure: [["slowed", 1, round1]], criticalFailure: [["slowed", 2, round1]] }, { save: "will", area: { type: "emanation", value: 15, foes: true }, extraTraits: ["emotion", "mental"], basic: false, immune: true }));
+    if (lv >= 17) {
+        later.push(rune("Ochyghol, the Poisoned Star (Trace from afar and Invoke)", 3, "30 feet", [{ formula: "8d6[fire]", type: "fire" }], {}, { save: "reflex", area: { type: "burst", value: 40 } }));
+        later.push(rune("Rovan, Seal of the Dead Vault (Trace and Invoke)", 2, "touch", [], { success: [["slowed", 1, round1]], failure: [["slowed", 2, round1]], criticalFailure: [["restrained", null, null], ["blinded", null, null], ["slowed", 2, null]] }, { extraTraits: ["incapacitation", "earth"], basic: false, immune: true }));
+    }
     return [
+        thullax, ...later,
         rune("Atryl, Rune of Fire (Trace and Invoke)", 2, "touch", [fire], dazzled),
         rune("Ranshu, Rune of Thunder (Trace and Invoke)", 2, "touch", [thunder]),
         rune("Ranshu, Rune of Thunder (Trace from afar and Invoke)", 3, "30 feet", [thunder]),
@@ -191,7 +214,14 @@ const CLASSES = {
         seat: "cleric", hp: 8, attrs: (k, lv) => ({ str: 1, dex: 2, con: casterCon(lv), int: 0, wis: k, cha: 1 }),
         armor: "light", armorSteps: [[1, T], [13, E]],
         fort: [[1, T], [3, E]], ref: [[1, T], [11, E]], will: [[1, E], [13, M]], perception: [[1, T], [9, E]],
-        caster: { tradition: "divine", attr: "wis", slots: 4 }
+        // (2026-11-10, Cole: "get them working" — its apparitions. Primary apparition the Steward of Stone and Fire: its apparition spells
+        // (signature spells, so Fireball heightened into its higher slots) first in its slots, its cantrip Ignition, and its vessel spell
+        // Earth's Bile — 1 action, a 10-foot burst of fire, bludgeoning and persistent fire, its area again each round it's Sustained (the
+        // engine's zone spells). Focus Points: 1, 2 with its third apparition (7th), 3 with its fourth (15th). Its practice, the
+        // liturgist's, gives Circle of Spirits (changing its primary apparition: nothing in one fight) and Dancing Invocation's Sustain on a
+        // Step (not played).)
+        caster: { tradition: "divine", attr: "wis", slots: 4, extra: ["Ignition"], lead: { 1: ["Interposing Earth"], 2: ["Exploding Earth"], 3: ["Fireball"], 4: ["Fireball", "Wall of Fire"], 5: ["Fireball", "Wall of Stone"], 6: ["Fireball", "Petrify"], 7: ["Volcanic Eruption", "Fireball"], 8: ["Earthquake", "Fireball"], 9: ["Falling Stars", "Fireball"] } },
+        focus: { names: ["Earth's Bile"], attr: "wis", points: (lv) => (lv >= 15 ? 3 : lv >= 7 ? 2 : 1) }
     },
     barbarian: {
         seat: "fighter", hp: 12, attrs: (k, lv) => ({ str: k, dex: 2, con: martialCon(lv), int: 0, wis: minor(lv), cha: 0 }),
@@ -211,7 +241,15 @@ const CLASSES = {
         seat: "wizard", hp: 8, attrs: (k, lv) => ({ str: 0, dex: 2, con: casterCon(lv), int: 0, wis: minor(lv), cha: k }),
         armor: "light", armorSteps: [[1, T], [13, E]],
         fort: [[1, T], [9, E]], ref: [[1, T], [3, E]], will: [[1, E], [17, M]], perception: [[1, E], [11, M]],
-        caster: { tradition: "occult", attr: "cha", slots: 4, extra: ["Courageous Anthem"] }
+        caster: { tradition: "occult", attr: "cha", slots: 4, extra: ["Courageous Anthem"] },
+        // (2026-11-10, Cole: "get them working" — its other compositions: Counter Performance (every bard's focus spell: its reaction as an
+        // ally within 60 feet saves against an auditory or visual effect, its Performance check standing in for the save if higher; a Focus
+        // Point) and, as a maestro, Lingering Composition (its anthem for 3 or 4 rounds on a Performance check; spells.js castPlan). Two
+        // focus spells, 2 Focus Points. Performance: expert at 3rd, master at 7th, legendary at 15th.)
+        build(lv, a) {
+            const performance = lv + rank(lv, [[1, T], [3, E], [7, M], [15, L]]) + a.cha;
+            return { skills: { performance }, spellPools: { "bard:focus": 2 }, fields: { critSpec: false, lingeringComposition: "bard:focus", saveSkill: { name: "Counter Performance", skill: "performance", save: null, against: ["auditory", "visual"], ally: true, within: 60, allyTrait: null, pool: "bard:focus" } } };
+        }
     },
     champion: {
         seat: "fighter", hp: 10, attrs: (k, lv) => ({ str: k, dex: 0, con: martialCon(lv), int: 0, wis: minor(lv), cha: second(lv) - 1 }),
@@ -370,18 +408,27 @@ const CLASSES = {
     kineticist: {
         seat: "fighter", hp: 8, attrs: (k, lv) => ({ str: 1, dex: second(lv), con: k, int: 0, wis: minor(lv), cha: 0 }),
         armor: "light", armorSteps: [[1, T], [13, E], [19, M]],
-        fort: [[1, E], [7, M], [15, L]], ref: [[1, E]], will: [[1, T], [3, E]], perception: [[1, T], [9, E]],
+        fort: [[1, E], [7, M], [15, L]], ref: [[1, E], [11, M]], will: [[1, T], [3, E]], perception: [[1, T], [9, E]],
         classDC: [[1, T], [7, E], [15, M], [19, L]],
         build(lv, a) {
             // Elemental Blast (fire): an impulse attack (Constitution, its gate attenuator's item bonus), a die more at 5th, 9th, 13th and 17th;
             // two actions add its Constitution to the damage. Its Weapon Specialization at 13th.
             const prof = rank(lv, [[1, T], [7, E], [15, M], [19, L]]);
             const dice = 1 + steps(lv);
-            const spec = lv >= 13 ? specialization(lv, prof) : 0;
+            // (2026-11-10: no greater weapon specialization for a kineticist — it was doubled from 15th.)
+            const spec = lv >= 13 ? specialization(lv, prof, false) : 0;
             const blast = { name: "Elemental Blast", bonus: lv + prof + a.con + potency(lv), potency: potency(lv), melee: false, increment: 60, held: false, impulse: true, iwr: { group: "blast", traits: ["magical", "fire"] }, damage: [{ dice, die: 6, bonus: spec, type: "fire" }] };
-            const melee = { ...blast, name: "Elemental Blast (melee)", melee: true, increment: null };
-            const twoAction = (strike) => ({ name: `${strike.name}, two actions`, actions: 2, strides: 0, strike: strike.name.toLowerCase(), attackBonus: 0, damageBonus: a.con, damage: null, offGuard: false, requires: null, oncePerFight: false, onHit: { conditions: [], critical: null, push: null, damage: [], save: null, size: null }, riderSpell: null, traits: ["impulse", "attack"] });
-            return { strikes: [blast, melee], fields: { strikeActivities: [twoAction(blast), twoAction(melee)] } };
+            // (2026-11-10, Cole's pick "All fixes, with impulses": a melee blast adds its Strength; a single fire gate's impulse junction — a
+            // 2-action blast's fire dice a step bigger, d6 to d8, played as a point more a die —; its gate junctions at the Gate's Thresholds:
+            // the aura junction (5th: weakness to its fire impulses equal to half its level for foes in its 10-foot aura — on its melee blast,
+            // the one that's always in it), the critical blast junction (9th: 1d6 persistent fire on a critical hit, plus its attenuator's item
+            // bonus), the elemental resistance (13th: cold and fire equal to its level). Its impulse feats: tools/lib/feat-power.mjs.)
+            if (lv >= 9) blast.critExtra = [{ dice: 1, die: 6, bonus: potency(lv), type: "fire", persistent: true }];
+            const melee = { ...blast, name: "Elemental Blast (melee)", melee: true, increment: null, damage: [{ ...blast.damage[0], bonus: blast.damage[0].bonus + a.str + (lv >= 5 ? Math.floor(lv / 2) : 0) }] };
+            const twoAction = (strike) => ({ name: `${strike.name}, two actions`, actions: 2, strides: 0, strike: strike.name.toLowerCase(), attackBonus: 0, damageBonus: a.con + dice, damage: null, offGuard: false, requires: null, oncePerFight: false, onHit: { conditions: [], critical: null, push: null, damage: [], save: null, size: null }, riderSpell: null, traits: ["impulse", "attack"] });
+            // (Kinetic Quickness: Reflex master at 11th. Greater Kinetic Durability (15th): a critical failure on a Fortitude save a failure — with
+            // Kinetic Durability's success a critical success; the half damage on a failure against damage isn't played.)
+            return { strikes: [blast, melee], fields: { kineticAura: true, strikeActivities: [twoAction(blast), twoAction(melee)], ...(lv >= 13 ? { resistances: ["cold", "fire"].map((type) => ({ type, value: lv, exceptions: [] })) } : {}), ...(lv >= 15 ? { saveDegrees: [{ saves: ["fortitude"], adjustment: { success: "one-degree-better", criticalFailure: "one-degree-better" } }] } : {}) } };
         }
     },
     magus: {
@@ -416,7 +463,7 @@ const CLASSES = {
     necromancer: {
         seat: "wizard", hp: 6, attrs: (k, lv) => ({ str: 0, dex: 2, con: casterCon(lv), int: k, wis: minor(lv), cha: 0 }),
         armor: "unarmored", armorSteps: [[1, T], [13, E]],
-        fort: [[1, E], [11, M]], ref: [[1, T], [5, E]], will: [[1, E]], perception: [[1, T], [7, E]],
+        fort: [[1, E], [11, M], [17, L]], ref: [[1, T], [5, E]], will: [[1, E]], perception: [[1, T], [7, E]],
         caster: { tradition: "occult", attr: "int", slots: 3 }, focus: { names: ["Necrotic Bomb", "Bone Spear"], attr: "int", points: 2 },
         build(lv, a) {
             // (2026-11-02, the user: "the spell module handles Necromancer thralls". Its thrall rules, scripts/thrall-tokens.js: a thrall is a
@@ -428,20 +475,29 @@ const CLASSES = {
             const dice = 1 + Math.max(0, Math.floor((lv - 1) / 4));
             const thrall = { name: "Thrall", bonus: lv + spellProf(lv) + a.int, melee: false, increment: 30, held: false, thrall: true, proxy: true, versatile: ["bludgeoning", "piercing"], iwr: { group: "brawling", traits: ["unarmed"] }, damage: [{ dice, die: 6, bonus: 0, type: "slashing" }] };
             const staff = { name: "Staff", bonus: lv + T + a.str, melee: true, agile: false, iwr: { group: "club" }, damage: [{ dice: 1, die: 4, bonus: a.str, type: "bludgeoning" }] };
-            return { strikes: [thrall, staff], fields: { critSpec: false, thrallMaker: { proliferation: 1 } } };
+            // (2026-11-10: the puppeteer's Consume Thrall (fight.js), Inevitable Return (3rd, thralls.js), Undying Resilience (17th: legendary
+            // Fortitude, a critical failure a failure; its half damage on a failure not played).)
+            return { strikes: [thrall, staff], fields: { critSpec: false, thrallMaker: { proliferation: 1 }, consumeThrall: "necromancer:focus", ...(lv >= 3 ? { inevitableReturn: true } : {}), ...(lv >= 17 ? { saveDegrees: [{ saves: ["fortitude"], adjustment: { success: "one-degree-better", criticalFailure: "one-degree-better" } }] } : {}) } };
         }
     },
     oracle: {
         seat: "cleric", hp: 8, attrs: (k, lv) => ({ str: 0, dex: 2, con: casterCon(lv), int: 0, wis: minor(lv), cha: k }),
         armor: "light", armorSteps: [[1, T], [13, E]],
         fort: [[1, T], [9, E]], ref: [[1, T], [13, E]], will: [[1, E], [7, M], [17, L]], perception: [[1, T], [11, E]],
-        caster: { tradition: "divine", attr: "cha", slots: 4 }, focus: { names: ["Tempest Touch"], attr: "cha", points: 1 }
+        // (2026-11-10, Cole: "get them working" — its tempest mystery: its granted spells first at their ranks (Electric Arc, Thunderstrike,
+        // Hydraulic Torrent, Chain Lightning), its cursebound oracle feat Foretell Harm, and its curse, Curse of Inclement Headwinds
+        // (fight.js oracleCurse). Mysterious Resolve (7th) and its greater form: a success on a Will save a critical success (SAVE_UPGRADES'
+        // Will at 7th), a critical failure on one a failure at 17th.)
+        caster: { tradition: "divine", attr: "cha", slots: 4, extra: ["Electric Arc"], lead: { 1: ["Thunderstrike"], 4: ["Hydraulic Torrent"], 6: ["Chain Lightning"] } }, focus: { names: ["Tempest Touch"], attr: "cha", points: 1 },
+        build: (lv) => ({ fields: { critSpec: false, foretellHarm: true, curse: { mystery: "tempest", max: lv >= 17 ? 4 : lv >= 11 ? 3 : 2 }, ...(lv >= 17 ? { saveDegrees: [{ saves: ["will"], adjustment: { success: "one-degree-better", criticalFailure: "one-degree-better" } }] } : {}) } })
     },
     psychic: {
         seat: "wizard", hp: 6, attrs: (k, lv) => ({ str: 0, dex: 2, con: casterCon(lv), int: k, wis: minor(lv), cha: 1 }),
         armor: "unarmored", armorSteps: [[1, T], [13, E]],
         fort: [[1, T], [9, E]], ref: [[1, T], [5, E]], will: [[1, E], [11, M], [17, L]], perception: [[1, T], [11, E]],
-        caster: { tradition: "occult", attr: "int", slots: 2, extra: ["Imaginary Weapon"] }, psyche: true
+        caster: { tradition: "occult", attr: "int", slots: 2, extra: ["Imaginary Weapon"] }, psyche: true,
+        // (2026-11-10, Fortress of Will (17th): a critical failure at a Will save a failure — its half damage on a failure not played.)
+        build: (lv) => ({ fields: { critSpec: false, ...(lv >= 17 ? { saveDegrees: [{ saves: ["will"], adjustment: { success: "one-degree-better", criticalFailure: "one-degree-better" } }] } : {}) } })
     },
     ranger: {
         seat: "fighter", hp: 10, attrs: (k, lv) => ({ str: second(lv) - 1, dex: k, con: martialCon(lv), int: 0, wis: minor(lv), cha: 0 }),
@@ -477,7 +533,11 @@ const CLASSES = {
             // damage die.
             hammer.damage.push({ dice: 0, die: 0, bonus: striking(lv), type: "bludgeoning", splash: true });
             const hardness = lv >= 13 ? 10 : lv >= 7 ? 8 : 5;
-            return { strikes: [hammer], spells: runesmithRunes(lv, 10 + lv + rank(lv, [[1, T], [7, E], [15, M], [19, L]]) + a.int), fields: { shield: { ac: 2, hardness, hp: hardness * 4, bt: hardness * 2, broken: false, raised: false }, reactions: { aoo: false, shieldBlock: true },
+            // (2026-11-10: etched too — holtrik, rune of dwarven ramparts, on its shield: +1 status bonus to AC while raised (taken into the
+            // shield's bonus); from 9th, when it etches three, kojastri, rune of insulation, on its armor: fire resistance 4, 1 more every 2
+            // levels (its 2 damage to creatures that touch it not played).)
+            return { strikes: [hammer], spells: runesmithRunes(lv, 10 + lv + rank(lv, [[1, T], [7, E], [15, M], [19, L]]) + a.int), fields: { shield: { ac: 3, hardness, hp: hardness * 4, bt: hardness * 2, broken: false, raised: false }, reactions: { aoo: false, shieldBlock: true },
+                ...(lv >= 9 ? { resistances: [{ type: "fire", value: 4 + Math.floor((lv - 9) / 2), exceptions: [] }] } : {}),
                 ...(lv >= 11 ? { saveDegrees: [{ saves: ["fortitude"], adjustment: { success: "one-degree-better" } }] } : {}) } };
         }
     },
@@ -485,17 +545,22 @@ const CLASSES = {
         seat: "wizard", hp: 6, attrs: (k, lv) => ({ str: 0, dex: 2, con: casterCon(lv), int: 0, wis: minor(lv), cha: k }),
         armor: "unarmored", armorSteps: [[1, T], [13, E]],
         fort: [[1, T], [5, E]], ref: [[1, T], [9, E]], will: [[1, E], [17, M]], perception: [[1, T], [11, E]],
-        caster: { tradition: "arcane", attr: "cha", slots: 4 }, focus: { names: ["Elemental Toss"], attr: "cha", points: 1 }, potency: true
+        // (2026-11-10, Cole: "get them working" — its bloodline, the elemental (fire) one its Elemental Toss is from: primal spells, not arcane;
+        // its sorcerous gifts first at their ranks (Ignition, Breathe Fire, Fireball, Earthquake, Wrathful Storm) and its blood magic,
+        // Elemental Fury: a bloodline spell deals one target 1 fire damage a rank more (spells.js withCasterDamage).)
+        caster: { tradition: "primal", attr: "cha", slots: 4, extra: ["Ignition"], lead: { 1: ["Breathe Fire"], 3: ["Fireball"], 8: ["Earthquake"], 9: ["Wrathful Storm"] } }, focus: { names: ["Elemental Toss"], attr: "cha", points: 1 }, potency: true,
+        build: () => ({ fields: { critSpec: false, bloodMagic: { type: "fire", spells: ["Ignition", "Breathe Fire", "Fireball", "Earthquake", "Wrathful Storm", "Elemental Toss"] } } })
     },
     summoner: {
         seat: "fighter", hp: 10, attrs: (k, lv) => ({ str: 0, dex: 2, con: martialCon(lv), int: 0, wis: minor(lv), cha: k }),
-        armor: "unarmored", armorSteps: [[1, T], [11, E], [19, M]],
-        fort: [[1, E], [15, M]], ref: [[1, T], [9, E]], will: [[1, E], [15, M]], perception: [[1, T], [3, E]],
+        // (2026-11-10: Defensive Robes — expert unarmored at 13th, never master; Twin Juggernauts — Fortitude master at 11th.)
+        armor: "unarmored", armorSteps: [[1, T], [13, E]],
+        fort: [[1, E], [11, M]], ref: [[1, T], [9, E]], will: [[1, E], [15, M]], perception: [[1, T], [3, E]],
         caster: { tradition: "arcane", attr: "cha", topTwo: 2, prof: (lv) => rank(lv, [[1, T], [9, E], [17, M]]) },
         build(lv, a) {
             // The eidolon (a beast eidolon: Strength 4 and up, its unarmed steps, its own AC) as its own body beside the summoner, sharing
             // its Hit Points (fight.js), two actions each (three between them and Act Together's one more); Boost Eidolon among its cantrips.
-            const str = key(lv);
+            const str = key(lv) + (lv >= 17 ? 1 : 0); // (Eidolon Transcendence: +1 to its Strength at 17th.)
             const prof = rank(lv, [[1, T], [5, E], [13, M]]);
             const jaws = weaponStrike(lv, { name: "Jaws", die: 8, type: "piercing", toHit: str, damageAttr: str, prof, group: "brawling", extra: { unarmed: true } });
             const claw = weaponStrike(lv, { name: "Claw", die: 6, type: "slashing", toHit: str, damageAttr: str, prof, group: "brawling", extra: { unarmed: true, agile: true } });
@@ -505,11 +570,19 @@ const CLASSES = {
             const boost = Math.min(8, 2 * striking(lv));
             for (const strike of [jaws, claw]) strike.damage = [...strike.damage, { dice: 0, die: 0, bonus: boost, type: strike.damage[0].type, source: "Boost Eidolon" }];
             const eidolon = (summoner) => ({
-                ...structuredClone(summoner), id: "eidolon", name: "Eidolon", kind: "npc", traits: ["eidolon", "beast"], sharesHpWith: summoner.id, actionsPerTurn: 2,
+                ...structuredClone(summoner), id: "eidolon", name: "Eidolon", kind: "npc", traits: ["eidolon", "beast"], sharesHpWith: summoner.id, actionsPerTurn: 2, actTogether: false, boostEidolon: 0,
                 ac: eidolonAC, strikes: [jaws, claw].map((strike) => ({ ...strike, ...(potency(lv) ? { iwr: { ...strike.iwr, traits: ["magical"] } } : {}) })), spells: (summoner.spells ?? []).filter((entry) => entry.kind === "basic"), spellPools: {},
-                skills: { athletics: lv + rank(lv, [[1, T], [5, E], [13, M]]) + str, intimidation: lv + T }, classDC: null, heroPoints: 0, reactions: { aoo: false, shieldBlock: false }, critSpec: lv >= 7
+                skills: { athletics: lv + rank(lv, [[1, T], [5, E], [13, M]]) + str, intimidation: lv + T }, classDC: null, heroPoints: 0, reactions: { aoo: false, shieldBlock: false }, critSpec: lv >= 7,
+                // (2026-11-10, Cole's pick "All fixes, with impulses": a beast eidolon's abilities — Beast's Charge (1st: Stride twice, then
+                // Strike; its straight-line +1 not played), Primal Roar (7th, Eidolon Symbiosis: Demoralize at each foe within 30 feet with one
+                // Intimidation check, as their Will save against its DC; once a fight for Demoralize's immunity), Whirlwind Maul (17th, Eidolon
+                // Transcendence: a Strike at up to four foes in reach, the same penalty for each).)
+                charges: [{ name: "Beast's Charge", actions: 2, strides: 2, strike: null, attackBonus: 0, damage: null }],
+                ...(lv >= 17 ? { multiStrikes: [{ name: "Whirlwind Maul", actions: 2, strikes: [null], each: true, sameMap: true, max: 4 }] } : {}),
+                ...(lv >= 7 ? { spells: [...(summoner.spells ?? []).filter((entry) => entry.kind === "basic"), roar], spellPools: { "eidolon:roar": 1 } } : {})
             });
-            return { strikes: [], fields: { actionsPerTurn: 1 }, companions: [eidolon] };
+            const roar = lv >= 7 ? { name: "Primal Roar", plan: savePlan("Primal Roar", { actions: 2, traits: ["auditory", "emotion", "fear", "mental", "eidolon"], area: { type: "emanation", value: 30, foes: true }, save: "will", dc: 10 + lv + T, effects: { failure: [["frightened", 1, null]], criticalFailure: [["frightened", 2, null]] } }), castRank: Math.ceil(lv / 2), dc: 10 + lv + T, attack: null, pool: "eidolon:roar", kind: "ability", actionType: "action", rechargeGroup: "Primal Roar" } : null;
+            return { strikes: [], fields: { actionsPerTurn: 2, actTogether: true, boostEidolon: boost }, companions: [eidolon] };
         }
     },
     swashbuckler: {
@@ -542,9 +615,13 @@ const CLASSES = {
         seat: "wizard", hp: 6, attrs: (k, lv) => ({ str: 0, dex: 2, con: casterCon(lv), int: k, wis: minor(lv), cha: 0 }),
         armor: "unarmored", armorSteps: [[1, T], [13, E]],
         fort: [[1, T], [5, E]], ref: [[1, T], [9, E]], will: [[1, E], [17, M]], perception: [[1, T], [11, E]],
-        caster: { tradition: "primal", attr: "int", slots: 3, extra: ["Evil Eye"] },
+        // (2026-11-10, Cole: "get them working" — The Resentment's spell list is occult, not primal; its lesson's spell, Enfeeble, its familiar
+        // knows. Its familiar's abilities beyond its patron's: Lifelink (1st), Spell Battery (6th: a slot three ranks below its highest);
+        // its 12th- and 18th-level ones (Damage Avoidance, Tough and the like) change nothing a fight reads. Patron's Puppet and Phase
+        // Familiar, its familiar's own actions and defence, aren't played: the familiar takes no actions here.)
+        caster: { tradition: "occult", attr: "int", slots: 3, extra: ["Evil Eye"], lead: { 1: ["Enfeeble"] }, battery: 6 },
         // (2026-11-05: its familiar — The Resentment's, whose lesson gives Evil Eye: Familiar of Ongoing Misery —, beside it.)
-        companions: [(c) => familiarFor(c, { hexAbility: "familiar-of-ongoing-misery" })]
+        companions: [(c) => familiarFor(c, { hexAbility: "familiar-of-ongoing-misery", lifelink: true })]
     }
 };
 // Class features that make a save's success a critical success: [level, save] (the pf2e system's class items, 2026-11-06; the monk's Path
@@ -560,10 +637,13 @@ const SAVE_UPGRADES = {
 };
 export const CLASS_SLUGS = Object.freeze([...Object.keys(CLASSES), "fighter", "rogue", "wizard", "cleric"].sort());
 // What a class's PC doesn't play yet (its chassis, spells and weapon are played).
+// (2026-11-10, Cole: "get them working": the class features once listed here are played now — the animist's apparitions, the necromancer's
+// thralls, Consume Thrall and Inevitable Return, the runesmith's runes, the bard's compositions, the sorcerer's blood magic, the psychic's
+// Unleash Psyche and amps, the witch's familiar, the oracle's curse, the kineticist's aura, Rage's -1 AC, the alchemist's research fields,
+// the magus's Arcane Cascade. Left: feats a player picks (an eidolon's evolution feats, a 1st-level class feat) are rated as feats, and the
+// druid is a storm druid — Untamed Form is the untamed order's.)
 export const CLASS_GAPS = Object.freeze({
-    animist: "apparitions", necromancer: "thralls as bodies on the field (foes can't strike them or catch them in areas), Thrall Charge and Consume Thrall", runesmith: "runes other than atryl, ranshu and marssyl (diacritics, shield and support runes, higher-level runes)", summoner: "evolution feats on the eidolon",
-    bard: "compositions other than Courageous Anthem", sorcerer: "blood magic and Sorcerous Potency", psychic: "Unleash Psyche and amps", witch: "familiar abilities other than its patron's and Familiar Focus/Lifelink", oracle: "the curse", druid: "Untamed Form",
-    barbarian: "Rage's -1 AC", alchemist: "mutagens, poisons and the research fields other than bomber", kineticist: "the kinetic aura and impulses other than Elemental Blast", magus: "Arcane Cascade and conflux spells"
+    summoner: "its evolution feats (rated as feats)"
 });
 // The standard party's seat each class sits in (the PC it replaces in classParty).
 export const seatOf = (slug) => (["fighter", "rogue", "wizard", "cleric"].includes(slug) ? slug : CLASSES[slug]?.seat ?? null);
@@ -619,8 +699,20 @@ export function classPC(slug, level, { spell = () => null, basics = [], alchemy 
     c.abilities = a;
     if (def.caster) {
         const base = bookOf(def.caster.tradition);
-        const book = { ...base, slots: def.caster.slots, topTwo: def.caster.topTwo, prof: def.caster.prof, cantrips: [...(def.caster.extra ?? []), ...base.cantrips] };
+        const ranks = def.caster.lead ? Object.fromEntries(Object.entries(base.ranks).map(([r, names]) => [r, [...new Set([...(def.caster.lead[r] ?? []), ...names])]])) : base.ranks;
+        const book = { ...base, ranks, slots: def.caster.slots, topTwo: def.caster.topTwo, prof: def.caster.prof, cantrips: [...new Set([...(def.caster.extra ?? []), ...base.cantrips])] };
         Object.assign(c, preparedSpells(c, book, lv, spellAttr, spell));
+        // (Spell Battery, a familiar's master ability: one more slot, three ranks below its highest.)
+        const top = Math.min(9, Math.ceil(lv / 2));
+        if (def.caster.battery && lv >= def.caster.battery && top >= 4) {
+            const name = (book.ranks[top - 3] ?? []).find((each) => spell(each, top - 3));
+            const found = name ? spell(name, top - 3) : null;
+            const prof = (book.prof ?? spellProf)(lv);
+            if (found) {
+                c.spells.push({ ...found, name: found.name ?? name, castRank: top - 3, dc: 10 + lv + prof + spellAttr, attack: lv + prof + spellAttr, pool: `${slug}:battery`, tradition: book.tradition });
+                c.spellPools[`${slug}:battery`] = 1;
+            }
+        }
     }
     // Focus spells (a champion's Lay on Hands, a druid's order spell, a bloodline's, a revelation, a conflux, grave spells): at half its level
     // rounded up, from a pool of its Focus Points.
@@ -632,14 +724,30 @@ export function classPC(slug, level, { spell = () => null, basics = [], alchemy 
         c.spells ??= [];
         for (const name of def.focus.names) {
             const found = spell(name, castRank);
-            if (found) c.spells.push({ ...found, name: found.name ?? name, castRank, dc: 10 + lv + prof + attr, attack: lv + prof + attr, pool, tradition: def.caster?.tradition ?? "divine" });
+            if (!found) continue;
+            const entry = { ...found, name: found.name ?? name, castRank, dc: 10 + lv + prof + attr, attack: lv + prof + attr, pool, tradition: def.caster?.tradition ?? "divine" };
+            c.spells.push(entry);
         }
-        if (c.spells.some((entry) => entry.pool === pool)) c.spellPools = { ...(c.spellPools ?? {}), [pool]: def.focus.points };
+        const points = typeof def.focus.points === "function" ? def.focus.points(lv) : def.focus.points;
+        if (c.spells.some((entry) => entry.pool === pool)) c.spellPools = { ...(c.spellPools ?? {}), [pool]: points };
     }
     // (Sorcerous Potency: a slot spell's rank more damage. A psychic's Unleash Psyche — twice the rank for its 2 rounds, then a round off —
     // as its rank on every spell, the fight's average.)
     if (def.potency) c.spellDamageBonus = { perRank: 1, slotsOnly: true };
-    if (def.psyche) c.spellDamageBonus = { perRank: 1, slotsOnly: false };
+    // (2026-11-10: the psychic's Unleash Psyche played as it comes and goes — fight.js —; its psi cantrip's amp — The Tangible Dream's
+    // Imaginary Weapon: 2d6 a rank above the 1st, not 1d6, and two targets — for a Focus Point: 2, 3 from Clarity of Focus (5th).)
+    if (def.psyche) {
+        c.unleashPsyche = true;
+        const weapon = (c.spells ?? []).find((entry) => entry.name === "Imaginary Weapon" && !entry.pool);
+        const shared = weapon?.plan?.resolution?.sharedDamage;
+        if (shared?.heightening?.damage) {
+            const amped = structuredClone(weapon.plan);
+            for (const id of Object.keys(amped.resolution.sharedDamage.heightening.damage)) amped.resolution.sharedDamage.heightening.damage[id] = "2d6";
+            amped.targeting = { ...amped.targeting, target: "2 creatures", actorConstraints: { ...amped.targeting.actorConstraints, sourceText: "2 creatures" } };
+            c.spells.push({ ...weapon, name: "Imaginary Weapon (amped)", plan: amped, pool: "psychic:focus" });
+            c.spellPools = { ...(c.spellPools ?? {}), "psychic:focus": lv >= 5 ? 3 : 2 };
+        }
+    }
     // (A runesmith's runes: abilities of its own, runesmithRunes.)
     if (built.spells?.length) c.spells = [...(c.spells ?? []), ...built.spells];
     // (An alchemist's versatile vials and ready bombs.)

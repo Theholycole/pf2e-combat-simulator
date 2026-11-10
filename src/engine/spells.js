@@ -446,11 +446,13 @@ function betterSave(state, statistic, options, result, spell = null, { area = fa
         const key = `${state.round}:${spell?.name ?? statistic}`;
         const singer = state.list.find((c) => c.saveSkill && c.side === saver.side && isActive(c) && (!c.saveSkill.save || c.saveSkill.save === statistic) && (!c.saveSkill.against || c.saveSkill.against.some((trait) => traits.includes(trait)))
             && (c === saver || (c.saveSkill.ally && near(c, c.saveSkill.within) && (!c.saveSkill.allyTrait || (saver.traits ?? []).includes(c.saveSkill.allyTrait))))
-            && (c.saveSkillRoll?.key === key || canReact(c)));
+            && (c.saveSkillRoll?.key === key || (canReact(c) && (!c.saveSkill.pool || (c.spellPools?.[c.saveSkill.pool] ?? 0) > 0))));
         if (singer) {
             if (singer.saveSkillRoll?.key !== key) {
                 singer.reactionUsed = true;
                 state.stats.reactions++;
+                // (2026-11-10, Counter Performance: a focus spell — a Focus Point.)
+                if (singer.saveSkill.pool) singer.spellPools[singer.saveSkill.pool] -= 1;
                 const natural = state.rng.d20();
                 singer.saveSkillRoll = { key, natural, total: natural + skillValue(singer, singer.saveSkill.skill) - statusPenalty(singer, "skill") };
                 log(state, `  ${singer.name} uses ${singer.saveSkill.name}: ${singer.saveSkill.skill} ${singer.saveSkillRoll.total}`);
@@ -2350,6 +2352,8 @@ function forActions(model, actions) {
 function applyNativeEffect(state, caster, spell, target, change, actions = undefined) {
     const { model: offered, key } = outcomeEffect(spell, change);
     let model = pickChoice(state, forActions(offered, actions), target, change.effect?.degree);
+    // (2026-11-10, Lingering Composition: the composition cantrip's 1 round made 3 or 4 — castPlan's state.lingering.)
+    if (model && state.lingering && model.rounds === 1) model = { ...model, rounds: state.lingering };
     // (Magic Stone: disrupting's damage on its stones against undead — runes.js, as a lent rune's.)
     if (model?.stones?.runes?.length) model = { ...model, strikeDeltas: { ...(model.strikeDeltas ?? {}), [STONE_NAME]: model.stones.runes.flatMap((rune) => RUNE_LOANS[rune === "vitalizing" ? "disrupting" : rune]?.parts ?? []) } };
     // (2026-11-03: an emanation's effect with no check and no target of its own — Courageous Anthem's "you and all allies" — helps only the
@@ -3230,6 +3234,13 @@ function applyChanges(state, caster, spell, changes, context, io) {
 // (2026-11-02, classes.js: a sorcerer's Sorcerous Potency — its spell's rank more damage on each creature a slot spell damages — and the like:
 // caster.spellDamageBonus { perRank, slotsOnly }.)
 export function withCasterDamage(caster, spell, changes, state = null) {
+    // (2026-11-10, blood magic — an elemental sorcerer's Elemental Fury: a bloodline spell (a sorcerous gift or a bloodline focus spell) deals
+    // one target 1 damage a rank more, of its element's type; caster.bloodMagic { spells, type }.)
+    const blood = caster?.bloodMagic && !spell.kind && Array.isArray(changes) && caster.bloodMagic.spells.includes(spell.name) ? Math.max(1, Number(spell.castRank) || 1) : 0;
+    if (blood) {
+        const first = changes.findIndex((change) => change.op === "damage" && change.instances?.length && state?.byId?.get(change.target)?.side !== caster.side);
+        if (first >= 0) changes = changes.map((change, index) => (index === first ? { ...change, instances: [...change.instances, { ...change.instances[0], type: caster.bloodMagic.type, amount: blood, persistent: false, precision: false }] } : change));
+    }
     const bonus = caster?.spellDamageBonus;
     if (!bonus || spell.kind || !Array.isArray(changes)) return changes;
     if (bonus.slotsOnly && (!spell.pool || (spell.plan?.traits ?? []).includes("cantrip") || /:focus$/.test(spell.pool))) return changes;
@@ -3335,6 +3346,34 @@ export function castPlan(state, caster, spell, targetIds, actions, options = {})
     const outerBy = state.castingBy;
     state.castingNow = spell;
     state.castingBy = caster;
+    // (2026-11-10, Eidolon: a summoner and eidolon caught in one area effect take only the greater amount — the damage each shared Hit
+    // Point pool has taken from this cast.)
+    const outerShared = state.sharedHits;
+    state.sharedHits = new Map();
+    // (2026-11-10, Lingering Composition, a maestro bard's focus spell: before a 1-round composition cantrip, a Performance check against
+    // the standard DC of the highest-level creature it reaches (the fight's highest level, as the foes') — 3 rounds, 4 on a critical
+    // success, the Focus Point back on a failure. Spent whenever the bard has a point and none of its compositions is up.)
+    // (2026-11-10, Cole: "get them working" — a kineticist's kinetic aura: an overflow impulse deactivates it, and no impulse is used again
+    // this turn; the next turn begins with Channel Elements, whose action brings a 1-action Elemental Blast with it (no action lost: not
+    // played as one).)
+    if (caster.kineticAura && (spell.plan?.traits ?? []).includes("overflow")) (caster.usedThisTurn ??= new Set()).add("aura-down");
+    // (2026-11-10, Unleash Psyche's "you Cast a Spell on your previous turn".)
+    if (isSpellCast(spell)) caster.castRound = state.round;
+    const outerLinger = state.lingering;
+    state.lingering = null;
+    const linger = caster.lingeringComposition;
+    if (linger && (spell.plan?.traits ?? []).includes("composition") && (spell.plan?.traits ?? []).includes("cantrip") && (caster.spellPools?.[linger] ?? 0) > 0
+        && !state.list.some((other) => other.side === caster.side && (other.effects ?? []).some((effect) => effect.sourceId === caster.id && String(effect.model?.name ?? "").includes(spell.name)))) {
+        const level = Math.max(...state.list.filter((other) => isActive(other) && other.side !== caster.side).map((other) => other.level ?? 0), caster.level ?? 0);
+        const natural = state.rng.d20();
+        const degree = degreeOf(natural + skillValue(caster, "performance"), levelDC(level), natural);
+        if (degree >= SUCCESS) {
+            caster.spellPools[linger] -= 1;
+            state.lingering = degree === CRITICAL_SUCCESS ? 4 : 3;
+        }
+        state.stats.lingering = (state.stats.lingering ?? 0) + 1;
+        log(state, `  ${caster.name} uses Lingering Composition: ${state.lingering ?? 1} rounds`);
+    }
     // (2026-11-07, Timeline-Splitting Spell: once a fight, a non-cantrip slot spell with a save cast in two timelines — a second use of its
     // slot spent where it has one, the better result kept (its third action not played).)
     const outerSplit = state.splitting;
@@ -3359,6 +3398,8 @@ export function castPlan(state, caster, spell, targetIds, actions, options = {})
     } finally {
         state.castingNow = outer;
         state.castingBy = outerBy;
+        state.sharedHits = outerShared;
+        state.lingering = outerLinger;
         state.splitting = outerSplit;
     }
 }
@@ -4522,6 +4563,7 @@ export function canCast(c, spell) {
     // (A witch's hexes: one a turn.)
     if (c.usedThisTurn?.has("hex") && isHex(spell)) return false;
     if (spell.oncePerTurn && c.usedThisTurn?.has(`once:${spell.name}`)) return false;
+    if (c.kineticAura && c.usedThisTurn?.has("aura-down") && (spell.plan?.traits ?? []).includes("impulse")) return false;
     // (2026-11-06, Overdrive Ally's "You are currently in overdrive": a feat's spell only under a buff of its caster's — entry.whileBuff.)
     if (spell.whileBuff && !(c.activeBuffs ?? []).some((buff) => buff.name === spell.whileBuff)) return false;
     // (S59, Sure Strike: "can't cast it again for 10 minutes" — once a fight.)
