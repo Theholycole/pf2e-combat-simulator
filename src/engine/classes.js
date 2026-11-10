@@ -611,9 +611,13 @@ const CLASSES = {
         seat: "wizard", hp: 6, attrs: (k, lv) => ({ str: 0, dex: 2, con: casterCon(lv), int: k, wis: minor(lv), cha: 0 }),
         armor: "unarmored", armorSteps: [[1, T], [13, E]],
         fort: [[1, T], [5, E]], ref: [[1, T], [9, E]], will: [[1, E], [17, M]], perception: [[1, T], [11, E]],
-        caster: { tradition: "primal", attr: "int", slots: 3, extra: ["Evil Eye"] },
+        // (2026-11-10, Cole: "get them working" — The Resentment's spell list is occult, not primal; its lesson's spell, Enfeeble, its familiar
+        // knows. Its familiar's abilities beyond its patron's: Lifelink (1st), Spell Battery (6th: a slot three ranks below its highest);
+        // its 12th- and 18th-level ones (Damage Avoidance, Tough and the like) change nothing a fight reads. Patron's Puppet and Phase
+        // Familiar, its familiar's own actions and defence, aren't played: the familiar takes no actions here.)
+        caster: { tradition: "occult", attr: "int", slots: 3, extra: ["Evil Eye"], lead: { 1: ["Enfeeble"] }, battery: 6 },
         // (2026-11-05: its familiar — The Resentment's, whose lesson gives Evil Eye: Familiar of Ongoing Misery —, beside it.)
-        companions: [(c) => familiarFor(c, { hexAbility: "familiar-of-ongoing-misery" })]
+        companions: [(c) => familiarFor(c, { hexAbility: "familiar-of-ongoing-misery", lifelink: true })]
     }
 };
 // Class features that make a save's success a critical success: [level, save] (the pf2e system's class items, 2026-11-06; the monk's Path
@@ -631,7 +635,7 @@ export const CLASS_SLUGS = Object.freeze([...Object.keys(CLASSES), "fighter", "r
 // What a class's PC doesn't play yet (its chassis, spells and weapon are played).
 export const CLASS_GAPS = Object.freeze({
     summoner: "evolution feats on the eidolon",
-    witch: "familiar abilities other than its patron's and Familiar Focus/Lifelink", oracle: "the curse", druid: "Untamed Form",
+    oracle: "the curse", druid: "Untamed Form",
     barbarian: "Rage's -1 AC", alchemist: "mutagens, poisons and the research fields other than bomber", kineticist: "the kinetic aura and impulses other than Elemental Blast", magus: "Arcane Cascade and conflux spells"
 });
 // The standard party's seat each class sits in (the PC it replaces in classParty).
@@ -691,6 +695,17 @@ export function classPC(slug, level, { spell = () => null, basics = [], alchemy 
         const ranks = def.caster.lead ? Object.fromEntries(Object.entries(base.ranks).map(([r, names]) => [r, [...new Set([...(def.caster.lead[r] ?? []), ...names])]])) : base.ranks;
         const book = { ...base, ranks, slots: def.caster.slots, topTwo: def.caster.topTwo, prof: def.caster.prof, cantrips: [...new Set([...(def.caster.extra ?? []), ...base.cantrips])] };
         Object.assign(c, preparedSpells(c, book, lv, spellAttr, spell));
+        // (Spell Battery, a familiar's master ability: one more slot, three ranks below its highest.)
+        const top = Math.min(9, Math.ceil(lv / 2));
+        if (def.caster.battery && lv >= def.caster.battery && top >= 4) {
+            const name = (book.ranks[top - 3] ?? []).find((each) => spell(each, top - 3));
+            const found = name ? spell(name, top - 3) : null;
+            const prof = (book.prof ?? spellProf)(lv);
+            if (found) {
+                c.spells.push({ ...found, name: found.name ?? name, castRank: top - 3, dc: 10 + lv + prof + spellAttr, attack: lv + prof + spellAttr, pool: `${slug}:battery`, tradition: book.tradition });
+                c.spellPools[`${slug}:battery`] = 1;
+            }
+        }
     }
     // Focus spells (a champion's Lay on Hands, a druid's order spell, a bloodline's, a revelation, a conflux, grave spells): at half its level
     // rounded up, from a pool of its Focus Points.
