@@ -3353,9 +3353,9 @@ export function castPlan(state, caster, spell, targetIds, actions, options = {})
     // (2026-11-10, Lingering Composition, a maestro bard's focus spell: before a 1-round composition cantrip, a Performance check against
     // the standard DC of the highest-level creature it reaches (the fight's highest level, as the foes') — 3 rounds, 4 on a critical
     // success, the Focus Point back on a failure. Spent whenever the bard has a point and none of its compositions is up.)
-    // (2026-11-10, Cole: "get them working" — a kineticist's kinetic aura: an overflow impulse deactivates it, and no impulse is used again
-    // this turn; the next turn begins with Channel Elements, whose action brings a 1-action Elemental Blast with it (no action lost: not
-    // played as one).)
+    // (2026-11-10, Cole: "get them working" — a kineticist's kinetic aura: an overflow impulse deactivates it, and its other impulses wait
+    // till Channel Elements brings it back — that action's own 1-action Elemental Blast (actions.js performStrike) —, at once or as its next
+    // turn begins (not played as an action of its own: the blast comes with it).)
     if (caster.kineticAura && (spell.plan?.traits ?? []).includes("overflow")) (caster.usedThisTurn ??= new Set()).add("aura-down");
     // (2026-11-10, Unleash Psyche's "you Cast a Spell on your previous turn".)
     if (isSpellCast(spell)) caster.castRound = state.round;

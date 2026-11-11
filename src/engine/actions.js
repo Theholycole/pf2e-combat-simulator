@@ -399,6 +399,9 @@ function insteadOfAC(c, ac) {
 
 // (M38: harm in a reaction — a Reactive Strike at a creature leaving — doesn't count as refusing its surrender.)
 export function performStrike(state, attacker, target, strike, options = {}) {
+    // (2026-11-11: a kineticist's Elemental Blast with its aura down is Channel Elements' own 1-action blast — the aura up again, so its
+    // other impulses with it (spells.js canCast).)
+    if (attacker.kineticAura && strike.impulse) attacker.usedThisTurn?.delete("aura-down");
     // (An attack ends Take Cover.)
     attacker.tookCover = false;
     // (2026-11-06, Blade of Law's "has attempted a hostile action against you since your previous turn": who Struck it since its turn ended.)
