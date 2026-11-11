@@ -176,8 +176,6 @@ export function isOffGuard(c) {
 // A Strike a disarmed creature can't make until it picks its weapon up (Disarm),
 // or a two-handed one while a hand carries an objective's item.
 export function strikeUsable(c, strike) {
-    // (2026-11-10, a kineticist's aura gone with an overflow impulse: no impulse — its Elemental Blast — till its next turn's Channel Elements.)
-    if (strike.impulse && c.usedThisTurn?.has("aura-down")) return false;
     return !strike.underwaterBlocked && !strike.weatherBlocked && !c.dropped?.has(strike.name) && !(c.carrying && strike.hands === 2) && (!strike.ammo || ammoLeft(c, strike) > 0) && !(c.hindrances?.length && hinderedBy(c, "muzzled") && MOUTH.test(String(strike.name ?? "")));
 }
 
