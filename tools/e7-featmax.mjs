@@ -164,6 +164,34 @@ async function builds() {
     list["gws-feat-gear-max-party"] = () => PCS.reduce((party, pc) => withPC(pc, GWS[pc] ? then(featGear(pc), gws(pc)) : featGear(pc), party), partyFor(CAP));
     // (The single purchase on the plain 7th-level party, rated by the "rate" phase as e7-power rates an E7 feat.)
     for (const pc of Object.keys(GWS)) list[`gws-plain-${pc}`] = () => withPC(pc, gws(pc));
+    // Improved Weapon Proficiency as an E7 post-cap feat (Cole, 2026-11-12: "increase the proficiency bonus on only 1 weapon type and can
+    // only be taken once. All martials should benefit from this but only fighter and gunslinger can go to Legendary with it"): one rank up
+    // in the PC's main weapon only (its first Strike: the fighter's greatsword, master to legendary; the rogue's rapier, expert to master):
+    // +2 to hit, and weapon specialization a step up with the rank (+3 to +4, +2 to +3). Its backups, other weapons, stay as they were.
+    const IWP = { fighter: { hit: 2, damage: 1 }, rogue: { hit: 2, damage: 1 } };
+    const iwp = (pc) => (c) => {
+        c.strikes = c.strikes.map((s, i) => (i ? s : { ...s, bonus: s.bonus + IWP[pc].hit, damage: s.damage.map((d, j) => (j ? d : { ...d, bonus: (d.bonus ?? 0) + IWP[pc].damage })) }));
+    };
+    for (const pc of Object.keys(IWP)) {
+        list[`iwp-feat-max-${pc}`] = () => withPC(pc, then(featMax(pc), iwp(pc)));
+        list[`iwp-feat-gear-max-${pc}`] = () => withPC(pc, then(featGear(pc), iwp(pc)));
+        list[`iwp-plain-${pc}`] = () => withPC(pc, iwp(pc));
+    }
+    // (Exploratory, not proposed as written: what it would take to bring the fighter up. "legend": legendary in every weapon it carries — the
+    // 13th-level fighter's Weapon Legend — +2 to hit and specialization +3 to +4 on each; "legend-gws": that, and the 15th-level fighter's
+    // greater weapon specialization, legendary's +4 doubled to +8.)
+    const legend = (c) => (c.strikes = c.strikes.map((s) => ({ ...s, bonus: s.bonus + 2, damage: s.damage.map((d, j) => (j ? d : { ...d, bonus: (d.bonus ?? 0) + 1 })) })));
+    const legendGws = (c) => { legend(c); strikeUp(c, 0, { damage: 4 }); };
+    for (const [name, step] of [["legend", legend], ["legend-gws", legendGws]]) {
+        list[`${name}-feat-max-fighter`] = () => withPC("fighter", then(featMax("fighter"), step));
+        list[`${name}-feat-gear-max-fighter`] = () => withPC("fighter", then(featGear("fighter"), step));
+    }
+    // (Exploratory: Improved Weapon Proficiency and the fighter in all seven Resiliency archetypes, as the 8-HP classes are — the HP limit
+    // waived for it: 7 × 20 × 3 HP in place of 2 × 20 × 3, +300.)
+    const allResiliency = (c) => hp(c, (7 - 2) * 20 * 3);
+    list["iwp-res7-feat-max-fighter"] = () => withPC("fighter", then(featMax("fighter"), iwp("fighter"), allResiliency));
+    list["iwp-res7-feat-gear-max-fighter"] = () => withPC("fighter", then(featGear("fighter"), iwp("fighter"), allResiliency));
+    list["iwp-feat-gear-max-party"] = () => PCS.reduce((party, pc) => withPC(pc, IWP[pc] ? then(featGear(pc), iwp(pc)) : featGear(pc), party), partyFor(CAP));
     return list;
 }
 
@@ -204,15 +232,17 @@ else {
     const { TIERS, KINDS } = await import("./lib/e7-power.mjs");
     if (phase === "run") {
         const only = process.argv.find((a) => a.startsWith("--ids="))?.slice(6);
-        const ids = Object.keys(await builds()).filter((id) => !id.startsWith("gws-plain-") && (!only || new RegExp(only).test(id)));
+        const ids = Object.keys(await builds()).filter((id) => !/-plain-/.test(id) && (!only || new RegExp(only).test(id)));
         const tasks = ids.flatMap((id) => Object.keys(TIERS).flatMap((tier) => KINDS.map((encounter) => ({ id, tier, encounter }))));
         // (A run of some builds only, --ids=<regex>, to a file of its own beside the others: e7-featmax-<name>.jsonl, --name= or "ids".)
         const name = process.argv.find((a) => a.startsWith("--name="))?.slice(7) ?? (only ? "ids" : null);
         await runPool({ workerUrl: new URL(import.meta.url), workers: WORKERS, tasks, path: `${out}/e7-featmax${name ? `-${name}` : ""}.jsonl` });
     } else if (phase === "rate") {
-        const ids = ["gws-plain-fighter", "level-8-fighter", "gws-plain-rogue", "level-8-rogue"];
+        // (--feat=gws|iwp: that feat's single purchase on the fighter and the rogue, beside each one's 8th-level yardstick.)
+        const feat = process.argv.find((a) => a.startsWith("--feat="))?.slice(7) ?? "gws";
+        const ids = [`${feat}-plain-fighter`, "level-8-fighter", `${feat}-plain-rogue`, "level-8-rogue"];
         const tasks = Object.keys(TIERS).flatMap((tier) => KINDS.map((encounter) => ({ kind: "rate", ids, tier, encounter })));
-        await runPool({ workerUrl: new URL(import.meta.url), workers: WORKERS, tasks, path: `${out}/e7-gws-rate.jsonl` });
+        await runPool({ workerUrl: new URL(import.meta.url), workers: WORKERS, tasks, path: `${out}/e7-${feat}-rate.jsonl` });
     } else if (phase === "report") {
         if (!maxOut || !gearOut) throw new Error("report needs the e7-max and e7-gear out folders");
         const read = (path) => fs.readFileSync(path, "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l));
@@ -231,26 +261,39 @@ else {
         for (const pc of PCS) { const rung = (L) => `${pc}-${L}`; lines.push(`| ${pc} | ${cell(`max-${pc}`, rung)} | ${cell(`feat-max-${pc}`, rung)} | ${cell(`gear-max-${pc}`, rung)} | ${cell(`feat-gear-max-${pc}`, rung)} |`); }
         const party = (L) => `party-${L}`;
         lines.push(`| Whole party | ${cell("max-party", party)} | ${cell("feat-max-party", party)} | ${cell("gear-max-party", party)} | ${cell("feat-gear-max-party", party)} |`);
-        if (rows.some((x) => String(x.id).startsWith("gws-"))) {
-            lines.push("", "Greater Weapon Specialization as an E7 feat (weapon specialization doubled: fighter master +3 to +6, rogue expert +2 to +4):", "", "| Build | Without GWS | Plays like | With GWS | Plays like |", "|---|---:|---:|---:|---:|");
+        const featSection = (feat, title) => {
+            if (!rows.some((x) => String(x.id).startsWith(`${feat}-`))) return;
+            lines.push("", title, "", `| Build | Without | Plays like | With ${feat.toUpperCase()} | Plays like |`, "|---|---:|---:|---:|---:|");
             for (const pc of ["fighter", "rogue"]) {
                 const rung = (L) => `${pc}-${L}`;
-                lines.push(`| ${pc}: max + feats | ${cell(`feat-max-${pc}`, rung)} | ${cell(`gws-feat-max-${pc}`, rung)} |`);
-                lines.push(`| ${pc}: max + gear + feats | ${cell(`feat-gear-max-${pc}`, rung)} | ${cell(`gws-feat-gear-max-${pc}`, rung)} |`);
+                lines.push(`| ${pc}: max + feats | ${cell(`feat-max-${pc}`, rung)} | ${cell(`${feat}-feat-max-${pc}`, rung)} |`);
+                lines.push(`| ${pc}: max + gear + feats | ${cell(`feat-gear-max-${pc}`, rung)} | ${cell(`${feat}-feat-gear-max-${pc}`, rung)} |`);
             }
-            lines.push(`| Whole party: max + gear + feats | ${cell("feat-gear-max-party", party)} | ${cell("gws-feat-gear-max-party", party)} |`);
-            if (fs.existsSync(`${out}/e7-gws-rate.jsonl`)) {
-                const rate = read(`${out}/e7-gws-rate.jsonl`).filter((x) => !x.error);
-                const lv = (id, tier) => { const r = rate.filter((x) => x.tier === tier && x.out?.[id]); return r.reduce((a, x) => a + x.out[id].levels, 0) / r.length; };
-                const se = (id, tier) => { const r = rate.filter((x) => x.tier === tier && x.out?.[id]); return Math.sqrt(r.reduce((a, x) => a + x.out[id].se ** 2, 0)) / r.length; };
-                lines.push("", "As a single purchase on the plain 7th-level party (levels of foe, as e7-power rates an E7 feat; share of the 8th-level yardstick, XP = 1,000 × share):", "", "| PC | At the cap | Above it | Mean | Yardstick (a level) | Share | XP |", "|---|---:|---:|---:|---:|---:|---:|");
-                for (const pc of ["fighter", "rogue"]) {
-                    const g = (tier) => lv(`gws-plain-${pc}`, tier), y = (tier) => lv(`level-8-${pc}`, tier);
-                    const mean = (g("cap") + g("above")) / 2, yard = (y("cap") + y("above")) / 2;
-                    lines.push(`| ${pc} | ${g("cap").toFixed(3)} ± ${se(`gws-plain-${pc}`, "cap").toFixed(3)} | ${g("above").toFixed(3)} ± ${se(`gws-plain-${pc}`, "above").toFixed(3)} | ${mean.toFixed(3)} | ${yard.toFixed(3)} | ${(mean / yard).toFixed(2)} | ${Math.round(mean / yard * 100) * 10} |`);
-                }
+            lines.push(`| Whole party: max + gear + feats | ${cell("feat-gear-max-party", party)} | ${cell(`${feat}-feat-gear-max-party`, party)} |`);
+            if (!fs.existsSync(`${out}/e7-${feat}-rate.jsonl`)) return;
+            const rate = read(`${out}/e7-${feat}-rate.jsonl`).filter((x) => !x.error);
+            const lv = (id, tier) => { const r = rate.filter((x) => x.tier === tier && x.out?.[id]); return r.reduce((a, x) => a + x.out[id].levels, 0) / r.length; };
+            const se = (id, tier) => { const r = rate.filter((x) => x.tier === tier && x.out?.[id]); return Math.sqrt(r.reduce((a, x) => a + x.out[id].se ** 2, 0)) / r.length; };
+            lines.push("", "As a single purchase on the plain 7th-level party (levels of foe, as e7-power rates an E7 feat; share of the 8th-level yardstick, XP = 1,000 × share):", "", "| PC | At the cap | Above it | Mean | Yardstick (a level) | Share | XP |", "|---|---:|---:|---:|---:|---:|---:|");
+            for (const pc of ["fighter", "rogue"]) {
+                const g = (tier) => lv(`${feat}-plain-${pc}`, tier), y = (tier) => lv(`level-8-${pc}`, tier);
+                const mean = (g("cap") + g("above")) / 2, yard = (y("cap") + y("above")) / 2;
+                lines.push(`| ${pc} | ${g("cap").toFixed(3)} ± ${se(`${feat}-plain-${pc}`, "cap").toFixed(3)} | ${g("above").toFixed(3)} ± ${se(`${feat}-plain-${pc}`, "above").toFixed(3)} | ${mean.toFixed(3)} | ${yard.toFixed(3)} | ${(mean / yard).toFixed(2)} | ${Math.round(mean / yard * 100) * 10} |`);
+            }
+        };
+        featSection("gws", "Greater Weapon Specialization as an E7 feat (weapon specialization doubled: fighter master +3 to +6, rogue expert +2 to +4):");
+        if (rows.some((x) => String(x.id).startsWith("legend"))) {
+            const fr = (L) => `fighter-${L}`;
+            lines.push("", "Exploratory: what it would take for the fighter (legendary in every weapon; and that with the 15th-level greater weapon specialization):", "", "| Build | Plain | Plays like | All weapons legendary | Plays like | Legendary + GWS | Plays like |", "|---|---:|---:|---:|---:|---:|---:|");
+            lines.push(`| fighter: max + feats | ${cell("feat-max-fighter", fr)} | ${cell("legend-feat-max-fighter", fr)} | ${cell("legend-gws-feat-max-fighter", fr)} |`);
+            lines.push(`| fighter: max + gear + feats | ${cell("feat-gear-max-fighter", fr)} | ${cell("legend-feat-gear-max-fighter", fr)} | ${cell("legend-gws-feat-gear-max-fighter", fr)} |`);
+            if (rows.some((x) => String(x.id).startsWith("iwp-res7"))) {
+                lines.push("", "Exploratory: Improved Weapon Proficiency, and the fighter allowed all seven Resiliency archetypes (+300 HP, as the 8-HP classes get):", "", "| Build | With IWP | Plays like | IWP + all Resiliency | Plays like |", "|---|---:|---:|---:|---:|");
+                lines.push(`| fighter: max + feats | ${cell("iwp-feat-max-fighter", fr)} | ${cell("iwp-res7-feat-max-fighter", fr)} |`);
+                lines.push(`| fighter: max + gear + feats | ${cell("iwp-feat-gear-max-fighter", fr)} | ${cell("iwp-res7-feat-gear-max-fighter", fr)} |`);
             }
         }
+        featSection("iwp", "Improved Weapon Proficiency as an E7 feat (one weapon, one rank, once: fighter's greatsword master to legendary, rogue's rapier expert to master; +2 to hit, specialization a step up):");
         lines.push("", "The feats (rating: levels of foe, docs/e7-ratings.json's classFeats; what the fights play):", "");
         const ratings = JSON.parse(fs.readFileSync(new URL("../docs/e7-ratings.json", import.meta.url), "utf8")).classFeats;
         for (const pc of PCS) {
