@@ -30,6 +30,8 @@ const FEATS = {
     cleric: []
 };
 const SCROLL_RANKS = [5, 6, 7, 8, 9];
+const CLASS_IWP = ["magus", "gunslinger"];
+const CLASS_LADDER = [7, 8, 9, 10, 11, 12, 13];
 const BUFF_SCROLLS = [["Heroism", 9, 2], ["Girzanje's March", 7, 2]];
 const ENERGY_RUNES = [["greaterFlaming", "fire"], ["greaterFrost", "cold"], ["greaterShock", "electricity"]];
 
@@ -191,6 +193,24 @@ async function builds() {
     const allResiliency = (c) => hp(c, (7 - 2) * 20 * 3);
     list["iwp-res7-feat-max-fighter"] = () => withPC("fighter", then(featMax("fighter"), iwp("fighter"), allResiliency));
     list["iwp-res7-feat-gear-max-fighter"] = () => withPC("fighter", then(featGear("fighter"), iwp("fighter"), allResiliency));
+    // (Exploratory, the partial fix: the fighter counting N of the seven Resiliency archetypes — N × 20 × 3 HP in place of 2 × 20 × 3 — with
+    // Improved Weapon Proficiency; and the whole party so, IWP on the fighter and the rogue.)
+    for (const n of [3, 4, 5]) {
+        const resN = (c) => hp(c, (n - 2) * 20 * 3);
+        list[`iwp-res${n}-feat-max-fighter`] = () => withPC("fighter", then(featMax("fighter"), iwp("fighter"), resN));
+        list[`iwp-res${n}-feat-gear-max-fighter`] = () => withPC("fighter", then(featGear("fighter"), iwp("fighter"), resN));
+        list[`iwp-res${n}-feat-gear-max-party`] = () => PCS.reduce((party, pc) => withPC(pc, pc === "fighter" ? then(featGear(pc), iwp(pc), resN) : IWP[pc] ? then(featGear(pc), iwp(pc)) : featGear(pc), party), partyFor(CAP));
+    }
+    // Improved Weapon Proficiency on other weapon users (Cole, 2026-11-12: "can you test IWP for half caster that use weapons too such as
+    // Magus"), seated in the 7th-level party as the class ratings seat them (classPartyFor: the fighter's seat): the magus's greatsword expert
+    // to master (+2 to hit, specialization +2 to +3), the gunslinger's arquebus master to legendary (+2, +3 to +4). No maxed E7 build for
+    // them: the plain 7th-level PC, and its own ladder (that class leveled up in the 7th-level party) for the level it plays like.
+    const { classPartyFor } = await import("./lib/deadliness.mjs");
+    for (const cls of CLASS_IWP) {
+        const at7 = () => classPartyFor(cls, CAP);
+        list[`iwp-plain-${cls}`] = () => withPC(cls, (c) => { c.strikes = c.strikes.map((s, i) => (i ? s : { ...s, bonus: s.bonus + 2, damage: s.damage.map((d, j) => (j ? d : { ...d, bonus: (d.bonus ?? 0) + 1 })) })); }, at7());
+        for (const L of CLASS_LADDER) list[`${cls}-${L}`] = () => at7().map((c) => (c.id === cls ? classPartyFor(cls, L).find((x) => x.id === cls) : c));
+    }
     list["iwp-feat-gear-max-party"] = () => PCS.reduce((party, pc) => withPC(pc, IWP[pc] ? then(featGear(pc), iwp(pc)) : featGear(pc), party), partyFor(CAP));
     return list;
 }
@@ -215,8 +235,31 @@ async function rateTask({ ids, tier, encounter }) {
     return { kind: "rate", tier, encounter, step: plain.step, out };
 }
 
+// The same for a class seated in the 7th-level party (classPartyFor): its own plain scores and scale step (foes a level up and down), and
+// its own 8th-level yardstick (`${cls}-8`).
+async function rateClassTask({ cls, tier, encounter }) {
+    const { dayFights, casterFoes, TIERS, FIGHTS } = await import("./lib/e7-power.mjs");
+    const { classPartyFor } = await import("./lib/deadliness.mjs");
+    const all = await builds();
+    const base = classPartyFor(cls, 7);
+    const level = TIERS[tier];
+    const avg = (xs) => xs.reduce((a, b) => a + b, 0) / xs.length;
+    const plain = dayFights(base, casterFoes(encounter, level), 0, FIGHTS);
+    const step = Math.max(0.02, (avg(dayFights(base, casterFoes(encounter, level + 1), 0, FIGHTS)) - avg(dayFights(base, casterFoes(encounter, level - 1), 0, FIGHTS))) / 2);
+    const out = {};
+    for (const id of [`iwp-plain-${cls}`, `${cls}-8`]) {
+        const scores = dayFights(all[id](), casterFoes(encounter, level), 0, FIGHTS);
+        const diffs = scores.map((x, i) => x - plain[i]);
+        const m = avg(diffs);
+        const sd = Math.sqrt(diffs.reduce((a, b) => a + (b - m) ** 2, 0) / Math.max(1, diffs.length - 1));
+        out[id] = { levels: -m / step, se: sd / Math.sqrt(diffs.length) / step };
+    }
+    return { kind: "rate-class", cls, tier, encounter, step, out };
+}
+
 async function runTask(task) {
     if (task.kind === "rate") return rateTask(task);
+    if (task.kind === "rate-class") return rateClassTask(task);
     const { id, tier, encounter } = task;
     const { dayFights, casterFoes, TIERS, FIGHTS } = await import("./lib/e7-power.mjs");
     const party = (await builds())[id]();
@@ -232,7 +275,7 @@ else {
     const { TIERS, KINDS } = await import("./lib/e7-power.mjs");
     if (phase === "run") {
         const only = process.argv.find((a) => a.startsWith("--ids="))?.slice(6);
-        const ids = Object.keys(await builds()).filter((id) => !/-plain-/.test(id) && (!only || new RegExp(only).test(id)));
+        const ids = Object.keys(await builds()).filter((id) => !/-plain-(fighter|rogue)$/.test(id) && (!only || new RegExp(only).test(id)));
         const tasks = ids.flatMap((id) => Object.keys(TIERS).flatMap((tier) => KINDS.map((encounter) => ({ id, tier, encounter }))));
         // (A run of some builds only, --ids=<regex>, to a file of its own beside the others: e7-featmax-<name>.jsonl, --name= or "ids".)
         const name = process.argv.find((a) => a.startsWith("--name="))?.slice(7) ?? (only ? "ids" : null);
@@ -243,6 +286,9 @@ else {
         const ids = [`${feat}-plain-fighter`, "level-8-fighter", `${feat}-plain-rogue`, "level-8-rogue"];
         const tasks = Object.keys(TIERS).flatMap((tier) => KINDS.map((encounter) => ({ kind: "rate", ids, tier, encounter })));
         await runPool({ workerUrl: new URL(import.meta.url), workers: WORKERS, tasks, path: `${out}/e7-${feat}-rate.jsonl` });
+    } else if (phase === "rate-class") {
+        const tasks = CLASS_IWP.flatMap((cls) => Object.keys(TIERS).flatMap((tier) => KINDS.map((encounter) => ({ kind: "rate-class", cls, tier, encounter }))));
+        await runPool({ workerUrl: new URL(import.meta.url), workers: WORKERS, tasks, path: `${out}/e7-iwp-class-rate.jsonl` });
     } else if (phase === "report") {
         if (!maxOut || !gearOut) throw new Error("report needs the e7-max and e7-gear out folders");
         const read = (path) => fs.readFileSync(path, "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l));
@@ -292,8 +338,28 @@ else {
                 lines.push(`| fighter: max + feats | ${cell("iwp-feat-max-fighter", fr)} | ${cell("iwp-res7-feat-max-fighter", fr)} |`);
                 lines.push(`| fighter: max + gear + feats | ${cell("iwp-feat-gear-max-fighter", fr)} | ${cell("iwp-res7-feat-gear-max-fighter", fr)} |`);
             }
+            const counts = [3, 4, 5].filter((n) => rows.some((x) => x.id === `iwp-res${n}-feat-gear-max-fighter`));
+            if (counts.length) {
+                lines.push("", "Exploratory, the partial fix: Improved Weapon Proficiency, and the fighter counting N of the seven Resiliency archetypes (N × 60 HP; 2 as now, 7 as the 8-HP classes):", "", "| Archetypes | Resiliency HP | Max + feats | Plays like | Max + gear + feats | Plays like | Whole party (gear + feats, IWP) | Plays like |", "|---:|---:|---:|---:|---:|---:|---:|---:|");
+                lines.push(`| 2 | 120 | ${cell("iwp-feat-max-fighter", fr)} | ${cell("iwp-feat-gear-max-fighter", fr)} | ${cell("iwp-feat-gear-max-party", party)} |`);
+                for (const n of counts) lines.push(`| ${n} | ${n * 60} | ${cell(`iwp-res${n}-feat-max-fighter`, fr)} | ${cell(`iwp-res${n}-feat-gear-max-fighter`, fr)} | ${cell(`iwp-res${n}-feat-gear-max-party`, party)} |`);
+                lines.push(`| 7 | 420 | ${cell("iwp-res7-feat-max-fighter", fr)} | ${cell("iwp-res7-feat-gear-max-fighter", fr)} | — | — |`);
+            }
         }
         featSection("iwp", "Improved Weapon Proficiency as an E7 feat (one weapon, one rank, once: fighter's greatsword master to legendary, rogue's rapier expert to master; +2 to hit, specialization a step up):");
+        if (fs.existsSync(`${out}/e7-iwp-class-rate.jsonl`)) {
+            const rate = read(`${out}/e7-iwp-class-rate.jsonl`).filter((x) => !x.error);
+            const lv = (cls, id, tier) => { const r = rate.filter((x) => x.cls === cls && x.tier === tier && x.out?.[id]); return r.reduce((a, x) => a + x.out[id].levels, 0) / r.length; };
+            lines.push("", "Improved Weapon Proficiency on other weapon users, the plain 7th-level PC seated in the fighter's place (magus: greatsword expert to master; gunslinger: arquebus master to legendary):", "", "| Class | Without | Plays like | With IWP | Plays like | Levels of foe (cap / above) | Yardstick (a level) | Share | XP |", "|---|---:|---:|---:|---:|---:|---:|---:|---:|");
+            for (const cls of CLASS_IWP) {
+                const rung = (L) => `${cls}-${L}`;
+                const g = (tier) => lv(cls, `iwp-plain-${cls}`, tier), y = (tier) => lv(cls, `${cls}-8`, tier);
+                const mean = (g("cap") + g("above")) / 2, yard = (y("cap") + y("above")) / 2;
+                const pts = CLASS_LADDER.map((L) => [L, score(rung(L))]).filter(([, v]) => v != null);
+                const pl = (s) => { if (s == null) return "—"; if (s >= pts[0][1]) return `≤${pts[0][0]}`; for (let i = 1; i < pts.length; i++) if (s >= pts[i][1]) { const [L0, a] = pts[i - 1], [L1, b] = pts[i]; return (L0 + (a - s) / Math.max(1e-9, a - b) * (L1 - L0)).toFixed(1); } return `>${pts.at(-1)[0]}`; };
+                lines.push(`| ${cls} | ${score(`${cls}-7`)?.toFixed(3)} | ${pl(score(`${cls}-7`))} | ${score(`iwp-plain-${cls}`)?.toFixed(3)} | ${pl(score(`iwp-plain-${cls}`))} | ${g("cap").toFixed(3)} / ${g("above").toFixed(3)} | ${yard.toFixed(3)} | ${(mean / yard).toFixed(2)} | ${Math.round(mean / yard * 100) * 10} |`);
+            }
+        }
         lines.push("", "The feats (rating: levels of foe, docs/e7-ratings.json's classFeats; what the fights play):", "");
         const ratings = JSON.parse(fs.readFileSync(new URL("../docs/e7-ratings.json", import.meta.url), "utf8")).classFeats;
         for (const pc of PCS) {
