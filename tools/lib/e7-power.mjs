@@ -231,3 +231,6 @@ export function e7FeatTask({ ref, tier, encounter: kind, plain }) {
     const sd = Math.sqrt(diffs.reduce((sum, value) => sum + (value - m) ** 2, 0) / Math.max(1, diffs.length - 1));
     return { ...head, host: built.host, played: built.played, levels: -m / plain.step, se: sd / Math.sqrt(diffs.length) / plain.step };
 }
+
+// (For tools/e7-max.mjs: the maxed builds.)
+export { withPC, addSlots, spellBonus, strikeUp, conUp };
