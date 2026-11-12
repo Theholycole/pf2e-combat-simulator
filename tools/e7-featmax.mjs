@@ -1,0 +1,199 @@
+// The E7 max and gear builds (tools/e7-max.mjs, tools/e7-gear.mjs) with each PC's best class feats above 7th level (Cole, 2026-11-12, on
+// why the maxed fighter "plays like" the lowest level: give the maxed builds their strong class feats and see how the comparison changes).
+// Same foes, days and ladder; the ladder and the feat-less builds are read from e7-max's and e7-gear's own rows.
+//
+//   node tools/e7-featmax.mjs <out folder> run [--workers=N]                              the feat builds against every tier and encounter
+//   node tools/e7-featmax.mjs <out folder> report <e7-max out folder> <e7-gear out folder>   <out>/e7-featmax.md
+//
+// The feats: each PC's class feats of levels 8–15 (Veteran and Exceptional Hero) rated above zero in docs/e7-ratings.json's classFeats,
+// the best four, played at 7th level by the feat module as the E7 feats phase plays them; none that swaps the PC's weapons for a loadout
+// (Two-Weapon Flurry and Twin Riposte need two one-handed weapons in place of the fighter's greatsword). AI picks, not forced use
+// (FEAT_FORCE=0), so a PC with several feats chooses among them and its other actions. Each feat's additions to the PC — its actions,
+// Strike activities, reactions, stance, pools — are taken from the feat module's party with that feat alone, and added to the build's PC.
+//   fighter: Haft Beatdown (in Haft Striker Stance), Certain Strike, Rock the Boat, Brutal Finish
+//   rogue:   Coordinated Distraction, Nimble Strike, Opportune Backstab, Sly Striker
+//   wizard:  Quickened Casting (its only class feat of 8–15 rated above zero)
+//   cleric:  none (its best, Sapping Symbol −0.003 and Replenishment of War −0.005, rate at or below zero)
+process.env.FEAT_FIGHTS ??= "100";
+process.env.FEAT_FORCE = "0";
+import fs from "node:fs";
+import { isMainThread } from "node:worker_threads";
+import { defaultWorkers, runPool, workerLoop } from "./lib/pool.mjs";
+
+const LADDER = Array.from({ length: 14 }, (_, i) => 7 + i);
+const PCS = ["fighter", "rogue", "wizard", "cleric"];
+const FEATS = {
+    fighter: ["Haft Beatdown", "Certain Strike", "Rock The Boat", "Brutal Finish"],
+    rogue: ["Coordinated Distraction", "Nimble Strike", "Opportune Backstab", "Sly Striker"],
+    wizard: ["Quickened Casting"],
+    cleric: []
+};
+const SCROLL_RANKS = [5, 6, 7, 8, 9];
+const BUFF_SCROLLS = [["Heroism", 9, 2], ["Girzanje's March", 7, 2]];
+const ENERGY_RUNES = [["greaterFlaming", "fire"], ["greaterFrost", "cold"], ["greaterShock", "electricity"]];
+
+// Each feat's additions to its PC: the fields of the feat module's PC with the feat that differ from the plain 7th-level PC — new entries
+// of a list, new keys of an object (its pools), anything else as it is. The feat on its own class's seat; a feat of several classes'
+// traits (Quickened Casting: bard first) on the PC named.
+const S = (x) => JSON.stringify(x);
+let additions = null;
+async function featAdditions() {
+    if (additions) return additions;
+    const lib = await import("./lib/feat-power.mjs");
+    const { classFeatRefs, CAP } = await import("./lib/e7-power.mjs");
+    const { partyFor } = await import("./lib/deadliness.mjs");
+    const refs = classFeatRefs();
+    additions = {};
+    for (const pc of PCS) {
+        additions[pc] = [];
+        for (const name of FEATS[pc]) {
+            const ref = refs.find((r) => r.name === name);
+            if (!ref) throw new Error(`${name}: not among the class feats`);
+            const doc = lib.docsOf(ref.path).get(ref.id);
+            let built = lib.partyWithFeat(doc, CAP);
+            if (built.skipped || built.host !== pc) built = lib.partyWithFeat(doc, CAP, { party: partyFor(CAP), hostId: pc });
+            if (built.skipped) throw new Error(`${name}: ${built.reason}`);
+            if (built.loadout) throw new Error(`${name}: needs the ${built.loadout} loadout`);
+            const base = partyFor(CAP).find((c) => c.id === pc), withFeat = built.party.find((c) => c.id === pc);
+            const add = {};
+            for (const key of Object.keys(withFeat)) {
+                if (S(base[key]) === S(withFeat[key])) continue;
+                if (key === "strikes") throw new Error(`${name}: changes the Strikes`);
+                const was = base[key], now = withFeat[key];
+                if (Array.isArray(now)) add[key] = { list: now.filter((e) => !(was ?? []).some((b) => S(b) === S(e))) };
+                else if (now && typeof now === "object" && was && typeof was === "object") add[key] = { keys: Object.fromEntries(Object.entries(now).filter(([k, v]) => S(was[k]) !== S(v))) };
+                else add[key] = { value: now };
+            }
+            additions[pc].push({ name, played: built.played, add });
+        }
+    }
+    return additions;
+}
+function withFeats(c, list) {
+    for (const { add } of list) {
+        for (const [key, how] of Object.entries(add)) {
+            if (how.list) c[key] = [...(c[key] ?? []), ...structuredClone(how.list)];
+            else if (how.keys) c[key] = { ...(c[key] ?? {}), ...structuredClone(how.keys) };
+            else c[key] = structuredClone(how.value);
+        }
+    }
+}
+
+async function builds() {
+    const { withPC, addSlots, spellBonus, strikeUp, conUp, CAP } = await import("./lib/e7-power.mjs");
+    const { partyFor, spell } = await import("./lib/deadliness.mjs");
+    const feats = await featAdditions();
+    // The e7-max builds, as e7-max.mjs makes them.
+    const RESILIENCY = { wizard: 7 * 20 * 3, cleric: 7 * 20 * 3, rogue: 7 * 20 * 3, fighter: 2 * 20 * 3 };
+    const hp = (c, n) => (c.hp = { value: c.hp.max + n, max: c.hp.max + n });
+    const SAVE_RANKS = { fighter: { fortitude: 1, reflex: 1, will: 1 }, rogue: { fortitude: 0, reflex: 2, will: 1 }, wizard: { fortitude: 0, reflex: 0, will: 1 }, cleric: { fortitude: 0, reflex: 0, will: 1 } };
+    const ARMOR_UP = { fighter: 2, rogue: 2, wizard: 2, cleric: 2 };
+    const max = {
+        fighter: (c) => { strikeUp(c, 1, { damage: 1, melee: true }); strikeUp(c, 1, { melee: false }); c.classDC += 1; conUp(c); c.ac += 1; c.saves.reflex += 1; c.saves.will += 1; },
+        rogue: (c) => { strikeUp(c, 1, { damage: 1 }); c.saves.reflex += 1; conUp(c); strikeUp(c, 0); c.saves.will += 1; },
+        wizard: (c) => { spellBonus(c, 1 + 2); conUp(c); c.ac += 1; c.saves.reflex += 1; c.saves.will += 1; addSlots(c, [5, 6, 7, 8, 9]); addSlots(c, [4], 10); },
+        cleric: (c) => { spellBonus(c, 1 + 2); c.saves.will += 1; c.perception += 1; conUp(c); c.ac += 1; c.saves.reflex += 1; strikeUp(c, 2); addSlots(c, [5, 6, 7, 8, 9]); addSlots(c, [4], 10); }
+    };
+    const maxed = (pc) => (c) => {
+        max[pc](c);
+        for (const [save, rank] of Object.entries(SAVE_RANKS[pc])) c.saves[save] += 2 * (2 - rank);
+        c.ac += ARMOR_UP[pc];
+        hp(c, c.level + RESILIENCY[pc]);
+    };
+    // The gear, as e7-gear.mjs gives it.
+    const weapon = (c) => {
+        const cleric = c.id === "cleric";
+        c.strikes = c.strikes.map((s) => {
+            const had = s.potency ?? (cleric ? 1 : 0);
+            const [first, ...rest] = s.damage;
+            return {
+                ...s, bonus: s.bonus + (3 - had), potency: 3,
+                iwr: { ...(s.iwr ?? {}), traits: [...new Set([...(s.iwr?.traits ?? []), "magical"])], runes: [...(s.iwr?.runes ?? []), ...ENERGY_RUNES.map(([rune]) => rune)] },
+                damage: [{ ...first, dice: 4 }, ...rest, ...ENERGY_RUNES.map(([, type]) => ({ dice: 1, die: 6, bonus: 0, type }))]
+            };
+        });
+    };
+    const apex = {
+        fighter: (c) => { strikeUp(c, 1, { damage: 1, melee: true }); c.classDC += 1; if (c.skills.athletics != null) c.skills = { ...c.skills, athletics: c.skills.athletics + 1 }; },
+        rogue: (c) => { strikeUp(c, 1, { damage: 1 }); c.saves.reflex += 1; c.classDC += 1; },
+        wizard: (c) => spellBonus(c, 1),
+        cleric: (c) => spellBonus(c, 1)
+    };
+    const scrolls = (c) => {
+        addSlots(c, SCROLL_RANKS, 3);
+        if (c.id !== "cleric") return;
+        const base = c.spells.find((e) => !e.kind && e.pool);
+        for (const [name, castRank, uses] of BUFF_SCROLLS) {
+            const found = spell(name, castRank);
+            if (!found) continue;
+            const pool = `${c.id}:scroll:${name}`;
+            c.spells.push({ ...found, name: found.name ?? name, castRank, dc: base.dc, attack: base.attack, pool, tradition: "divine" });
+            c.spellPools[pool] = uses;
+        }
+    };
+    const ring = (c) => (c.spells = c.spells.map((e) => (!e.kind && e.attack != null ? { ...e, attack: e.attack + 2 } : e)));
+    const geared = (pc) => (c) => {
+        weapon(c);
+        c.ac += 2;
+        for (const save of Object.keys(c.saves)) c.saves[save] += 3;
+        apex[pc](c);
+        if (pc === "wizard" || pc === "cleric") { scrolls(c); ring(c); }
+    };
+    // (The feats last: added to the PC as the build leaves it, gear's strikes included.)
+    const featMax = (pc) => (c) => { maxed(pc)(c); withFeats(c, feats[pc]); };
+    const featGear = (pc) => (c) => { maxed(pc)(c); geared(pc)(c); withFeats(c, feats[pc]); };
+
+    const list = {};
+    for (const pc of PCS) {
+        list[`feat-max-${pc}`] = () => withPC(pc, featMax(pc));
+        list[`feat-gear-max-${pc}`] = () => withPC(pc, featGear(pc));
+    }
+    list["feat-max-party"] = () => PCS.reduce((party, pc) => withPC(pc, featMax(pc), party), partyFor(CAP));
+    list["feat-gear-max-party"] = () => PCS.reduce((party, pc) => withPC(pc, featGear(pc), party), partyFor(CAP));
+    return list;
+}
+
+async function runTask({ id, tier, encounter }) {
+    const { dayFights, casterFoes, TIERS, FIGHTS } = await import("./lib/e7-power.mjs");
+    const party = (await builds())[id]();
+    const scores = dayFights(party, casterFoes(encounter, TIERS[tier]), 0, FIGHTS);
+    return { id, tier, encounter, mean: scores.reduce((s, x) => s + x, 0) / scores.length, fights: scores.length };
+}
+
+if (!isMainThread) workerLoop(runTask);
+else {
+    const [out, phase, maxOut, gearOut] = process.argv.slice(2).filter((a) => !a.startsWith("--"));
+    const WORKERS = Number(process.argv.find((a) => a.startsWith("--workers="))?.split("=")[1]) || defaultWorkers();
+    fs.mkdirSync(out, { recursive: true });
+    const { TIERS, KINDS } = await import("./lib/e7-power.mjs");
+    if (phase === "run") {
+        const ids = Object.keys(await builds());
+        const tasks = ids.flatMap((id) => Object.keys(TIERS).flatMap((tier) => KINDS.map((encounter) => ({ id, tier, encounter }))));
+        await runPool({ workerUrl: new URL(import.meta.url), workers: WORKERS, tasks, path: `${out}/e7-featmax.jsonl` });
+    } else if (phase === "report") {
+        if (!maxOut || !gearOut) throw new Error("report needs the e7-max and e7-gear out folders");
+        const read = (path) => fs.readFileSync(path, "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l));
+        const rows = [...read(`${out}/e7-featmax.jsonl`), ...read(`${maxOut}/e7-max.jsonl`), ...read(`${gearOut}/e7-gear.jsonl`)];
+        const score = (id) => { const r = rows.filter((x) => x.id === id && !x.error); return r.length ? r.reduce((s, x) => s + x.mean, 0) / r.length : null; };
+        const playsLike = (s, rung) => {
+            const pts = LADDER.map((L) => [L, score(rung(L))]).filter(([, v]) => v != null);
+            if (s >= pts[0][1]) return `≤${pts[0][0]}`;
+            for (let i = 1; i < pts.length; i++) if (s >= pts[i][1]) { const [L0, a] = pts[i - 1], [L1, b] = pts[i]; return (L0 + (a - s) / Math.max(1e-9, a - b) * (L1 - L0)).toFixed(1); }
+            return `>${pts.at(-1)[0]} (best rung ${Math.min(...pts.map((p) => p[1])).toFixed(3)})`;
+        };
+        const cell = (id, rung) => { const s = score(id); return `${s?.toFixed(3) ?? "—"} | ${s == null ? "—" : playsLike(s, rung)}`; };
+        const feats = await featAdditions();
+        const lines = ["# E7: the maxed builds with their best class feats above 7th level", "", `Made by \`node tools/e7-featmax.mjs <out> run|report\` on ${new Date().toISOString().slice(0, 10)}. The e7-max and e7-gear builds with each PC's best-rated class feats of levels 8–15 (docs/e7-ratings.json), played by the AI's own picks (FEAT_FORCE=0), against the same foes and days. **Score**: damage taken over the party's Hit Points, downs, deaths and wipes (lower is stronger). **Plays like**: the level of that PC (in a 7th-level party) or of a plain party that scores the same.`, "", "| Build | Max | Plays like | Max + feats | Plays like | Gear max | Plays like | Gear max + feats | Plays like |", "|---|---:|---:|---:|---:|---:|---:|---:|---:|"];
+        for (const pc of PCS) { const rung = (L) => `${pc}-${L}`; lines.push(`| ${pc} | ${cell(`max-${pc}`, rung)} | ${cell(`feat-max-${pc}`, rung)} | ${cell(`gear-max-${pc}`, rung)} | ${cell(`feat-gear-max-${pc}`, rung)} |`); }
+        const party = (L) => `party-${L}`;
+        lines.push(`| Whole party | ${cell("max-party", party)} | ${cell("feat-max-party", party)} | ${cell("gear-max-party", party)} | ${cell("feat-gear-max-party", party)} |`);
+        lines.push("", "The feats (rating: levels of foe, docs/e7-ratings.json's classFeats; what the fights play):", "");
+        const ratings = JSON.parse(fs.readFileSync(new URL("../docs/e7-ratings.json", import.meta.url), "utf8")).classFeats;
+        for (const pc of PCS) {
+            if (!feats[pc].length) { lines.push(`- ${pc}: none rated above zero`); continue; }
+            for (const f of feats[pc]) { const r = ratings.find((x) => x.name === f.name && x.seat === pc); lines.push(`- ${pc}: ${f.name} (level ${r?.level}, ${r?.levels >= 0 ? "+" : ""}${r?.levels?.toFixed(3)}): ${f.played}`); }
+        }
+        fs.writeFileSync(`${out}/e7-featmax.md`, lines.join("\n") + "\n");
+        console.log(lines.slice(4).join("\n"));
+    }
+}
