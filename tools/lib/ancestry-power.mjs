@@ -128,15 +128,47 @@ export function ancestryTask(task) {
 export const PARAGON = process.env.ANCESTRY_PARAGON === "1";
 export const ANCESTRY_FEAT_SLOTS = Object.freeze(PARAGON ? [1, 1, 3, 5, 7, 9, 11, 13, 15, 17, 19] : [1, 5, 9, 13, 17]);
 let featRatings = null;
+let allRatings = null;
+const ratingsRows = (scalePath) => (allRatings ??= JSON.parse(fs.readFileSync(scalePath.replace(/scale\.jsonl$/, "ratings.json"), "utf8")).rated);
 // The feat ratings' rated ancestry feats ({ name, level, levels }), best first: <out>/ratings.json, next to the scale. Only feats
 // better than none beyond the noise (rating at least its standard error): a +0.01 within the noise, rated on the fighter, put a
 // Strike or Rage feat on the wizard (Human's Multitalented, Dwarf's Clan's Edge) and cost it far more than the noise it won.
 function ratedAncestryFeats(scalePath) {
-    if (!featRatings) {
-        const path = scalePath.replace(/scale\.jsonl$/, "ratings.json");
-        featRatings = JSON.parse(fs.readFileSync(path, "utf8")).rated.filter((row) => row.category === "Ancestry" && row.levels > 0 && row.levels >= (row.se ?? 0)).sort((a, b) => b.levels - a.levels);
-    }
+    if (!featRatings) featRatings = ratingsRows(scalePath).filter((row) => row.category === "Ancestry" && row.levels > 0 && row.levels >= (row.se ?? 0)).sort((a, b) => b.levels - a.levels);
     return featRatings;
+}
+
+// (2026-11-13, Cole: "free archetype rated with the best and worst options picked. Then compare ancestry paragon and free archetype …
+// which is strongest potentially, weakest potentially and which has a higher average". ANCESTRY_PICK=best (the default) | worst |
+// random: which feats fill the slots — the best-rated it plays, the worst-rated it plays (every rated feat, the harmful ones first), or
+// a seeded shuffle (a player picking without regard to power; the mean over ancestries and seeds is the average).)
+export const PICK = process.env.ANCESTRY_PICK ?? "best";
+function seeded(text) {
+    let h = 2166136261;
+    for (const ch of String(text)) h = Math.imul(h ^ ch.charCodeAt(0), 16777619);
+    return () => {
+        h = Math.imul(h ^ (h >>> 15), 2246822507) ^ Math.imul(h ^ (h >>> 13), 3266489909);
+        return ((h >>>= 0) % 1e6) / 1e6;
+    };
+}
+function shuffled(list, seed) {
+    const rand = seeded(seed);
+    const out = [...list];
+    for (let i = out.length - 1; i > 0; i--) {
+        const j = Math.floor(rand() * (i + 1));
+        [out[i], out[j]] = [out[j], out[i]];
+    }
+    return out;
+}
+// Rated rows in pick order.
+function inPickOrder(rows, pick, seed) {
+    if (pick === "worst") return [...rows].sort((a, b) => a.levels - b.levels);
+    if (pick === "random") return shuffled(rows, seed);
+    return [...rows].sort((a, b) => b.levels - a.levels);
+}
+function ancestryCandidates(scalePath) {
+    if (PICK === "best") return ratedAncestryFeats(scalePath);
+    return ratingsRows(scalePath).filter((row) => row.category === "Ancestry" && Number.isFinite(row.levels));
 }
 
 // The ancestry's PC with the best of its feats the ratings found (by their rating, a slot at a time from the 1st, each feat of the slot's
@@ -145,7 +177,7 @@ export function ancestryWithFeats(ancestry, level, hostId, scalePath) {
     let party = structuredClone(partyFor(level));
     applyAncestry(party.find((c) => c.id === hostId), ancestry, level);
     const slug = ancestry.system?.slug ?? ancestry.name.toLowerCase();
-    const candidates = ratedAncestryFeats(scalePath)
+    const candidates = inPickOrder(ancestryCandidates(scalePath), PICK, `${slug}|${level}|${hostId}`)
         .map((row) => ({ row, doc: packs().feats.get(row.name.toLowerCase()) }))
         .filter(({ doc }) => doc && (doc.system?.traits?.value ?? []).includes(slug));
     const used = new Set();
@@ -171,6 +203,110 @@ function ancestryFeatsTask(task) {
     // (No feat it plays here: the ancestry's own rating stands, the report takes it.)
     if (!feats.length) return { ...head, feats, noFeats: true };
     return { ...head, feats, ...pairedResults(party, null, task.level) };
+}
+
+// --- Free Archetype (2026-11-13) ----------------------------------------------------------
+// The Free Archetype variant: an extra class feat at every even level (2nd, 4th … 20th), for archetype feats only. On one PC of the
+// standard party: one archetype — its dedication at 2nd, then its feats — chosen by ANCESTRY_PICK-style task.pick: "best" the archetype
+// whose rated feats in those slots add up highest (its best feats), "worst" the lowest (its worst feats), "random" a seeded archetype and
+// feats (the average, over seeds). Only feats the full re-rate rated (ratings.json) and the PC plays without a change of weapons count;
+// a dedication the simulator doesn't play still takes its slot. Best fills slots only with feats that help, worst only with ones that
+// hurt (a slot with none left takes a feat no fight uses); a second archetype once the first has two feats. Left out: mythic destinies, the
+// PC's own class's multiclass dedication.
+// Prerequisites other than the dedication (a skill rank, another feat) aren't checked.
+export const FA_SLOTS = Object.freeze([2, 4, 6, 8, 10, 12, 14, 16, 18, 20]);
+let archetypes = null;
+function archetypeList(scalePath) {
+    if (archetypes) return archetypes;
+    const rated = new Map(ratingsRows(scalePath).filter((row) => Number.isFinite(row.levels)).map((row) => [row.name.toLowerCase(), row]));
+    const feats = docs("feats").filter((doc) => doc.type === "feat");
+    const dedications = feats.filter((doc) => (doc.system?.traits?.value ?? []).includes("dedication") && !(doc.system?.traits?.value ?? []).includes("mythic"));
+    archetypes = [];
+    for (const ded of dedications) {
+        const base = ded.name.replace(/ Dedication$/, "");
+        const key = `${base} dedication`.toLowerCase();
+        const members = feats.filter((doc) => doc !== ded && (doc.system?.traits?.value ?? []).includes("archetype") && !(doc.system?.traits?.value ?? []).includes("dedication") && (doc.system?.prerequisites?.value ?? []).some((pre) => String(pre.value ?? "").toLowerCase().includes(key)));
+        const rows = members.map((doc) => ({ doc, row: rated.get(doc.name.toLowerCase()) })).filter(({ row }) => row);
+        archetypes.push({ name: base, slug: base.toLowerCase(), dedication: ded, dedRow: rated.get(ded.name.toLowerCase()) ?? null, rows });
+    }
+    return archetypes;
+}
+// An archetype's picks into the free slots given (each slot's level): [{ doc, row }], the dedication first; the slots it filled are taken
+// off the list.
+function archetypePicks(arch, freeSlots, pick, seed) {
+    const dedLevel = Number(arch.dedication.system?.level?.value ?? 2);
+    const first = freeSlots.findIndex((slot) => slot >= dedLevel);
+    if (first < 0) return [];
+    const picks = [{ doc: arch.dedication, row: arch.dedRow }];
+    freeSlots.splice(first, 1);
+    // (Best: only feats that help — a slot with none left takes a feat no fight uses. Worst: only the ones that hurt.)
+    const pool = arch.rows.map(({ doc, row }) => ({ ...row, doc })).filter((row) => (pick === "best" ? row.levels > 0 : pick === "worst" ? row.levels < 0 : true));
+    const order = inPickOrder(pool, pick, seed);
+    for (const row of order) {
+        const at = freeSlots.findIndex((slot) => slot >= first && slot >= Number(row.doc.system?.level?.value ?? row.level));
+        if (at < 0) continue;
+        freeSlots.splice(at, 1);
+        picks.push({ doc: row.doc, row });
+    }
+    return picks;
+}
+const ownClass = (arch, hostId) => arch.slug === hostId;
+// The archetypes and feats in the slots up to the level. Random: one archetype, its feats shuffled (a player picking without regard to
+// power). Best and worst: the archetype whose picks add up highest (lowest), then — once it has two feats besides its dedication, as
+// PF2e asks before another dedication — the next, into the slots left.
+export function freeArchetypePicks(level, hostId, pick, seed, scalePath) {
+    const list = archetypeList(scalePath).filter((arch) => !ownClass(arch, hostId) && (arch.rows.length || arch.dedRow));
+    const slots = FA_SLOTS.filter((slot) => slot <= level);
+    const sum = (picks) => picks.reduce((total, { row }) => total + (row?.levels ?? 0), 0);
+    if (pick === "random") {
+        const arch = shuffled(list, seed)[0];
+        return arch ? [{ arch, picks: archetypePicks(arch, [...slots], pick, seed) }] : [];
+    }
+    const out = [];
+    const free = [...slots];
+    const used = new Set();
+    while (free.length) {
+        const scored = list.filter((arch) => !used.has(arch)).map((arch) => {
+            const trial = [...free];
+            const picks = archetypePicks(arch, trial, pick, seed);
+            return { arch, picks, trial, total: sum(picks) };
+        }).filter((entry) => entry.picks.length);
+        if (!scored.length) break;
+        scored.sort((a, b) => (pick === "worst" ? a.total - b.total : b.total - a.total));
+        const top = scored[0];
+        if (out.length && (pick === "worst" ? top.total >= 0 : top.total <= 0)) break;
+        out.push({ arch: top.arch, picks: top.picks });
+        used.add(top.arch);
+        free.splice(0, free.length, ...top.trial);
+        if (top.picks.length < 3) break;
+    }
+    return out;
+}
+export function freeArchetypeParty(level, hostId, pick, seed, scalePath) {
+    let party = structuredClone(partyFor(level));
+    const feats = [];
+    const chosen = freeArchetypePicks(level, hostId, pick, seed, scalePath);
+    for (const { picks } of chosen) for (const { doc } of picks) {
+        const built = lib.partyWithFeat(doc, level, { hostId, party });
+        if (built.skipped || built.loadout) continue;
+        party = built.party;
+        feats.push(doc.name);
+    }
+    return { party, archetype: chosen.map(({ arch }) => arch.name).join(" + ") || null, feats };
+}
+function freeArchetypeTask(task) {
+    const head = { kind: task.kind, pick: task.pick, seed: task.seed, level: task.level, host: task.host };
+    const { party, archetype, feats } = freeArchetypeParty(task.level, task.host, task.pick, `${task.seed}|${task.level}|${task.host}`, task.scalePath);
+    if (!feats.length) return { ...head, archetype, feats, levels: 0, se: 0, noFeats: true };
+    return { ...head, archetype, feats, ...pairedResults(party, null, task.level) };
+}
+export function freeArchetypeTasks(scalePath, seeds = 8) {
+    const tasks = [];
+    for (const level of LEVELS.filter((each) => each >= 2)) for (const host of HOSTS) {
+        for (const pick of ["best", "worst"]) tasks.push({ kind: "free-archetype", pick, seed: 0, level, host, scalePath });
+        for (let seed = 1; seed <= seeds; seed++) tasks.push({ kind: "free-archetype", pick: "random", seed, level, host, scalePath });
+    }
+    return tasks;
 }
 
 // --- Backgrounds --------------------------------------------------------------------
@@ -254,5 +390,5 @@ export function ancestryTasks(scalePath) {
 
 export function runAncestryTask(task) {
     if (task.scalePath) lib.loadScaleOnce(task.scalePath);
-    return task.kind === "background" ? backgroundTask(task) : task.kind === "ancestry-feats" ? ancestryFeatsTask(task) : ancestryTask(task);
+    return task.kind === "background" ? backgroundTask(task) : task.kind === "ancestry-feats" ? ancestryFeatsTask(task) : task.kind === "free-archetype" ? freeArchetypeTask(task) : ancestryTask(task);
 }
