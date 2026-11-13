@@ -6,6 +6,7 @@
 //                                                    --resume goes on with a stopped run; --only=<a name, an id or a ref; or a file of them>
 //   node tools/feat-power.mjs <out folder> basics    the basic actions, each left out of every PC
 //   node tools/feat-power.mjs <out folder> report    docs/feat-power.md and <out>/ratings.json (--write=<path> for the json)
+//   (compendium, which writes src/data/feat-ratings.json, then refits the rough power score on it: tools/rough-power.mjs; ROUGH_REFIT=0 skips)
 //   node tools/feat-power.mjs <out folder> classes   every class's PC in its seat of the standard party, levels 1–20 (classes-report: the table; --only=<class,class>)
 //   node tools/feat-power.mjs <out folder> deviant   the deviant abilities: plain, without backlash, each awakening (deviant-report: the table)
 //
@@ -201,6 +202,14 @@ if (!isMainThread) {
         const target = process.argv.find((arg) => arg.startsWith("--write="))?.split("=")[1] ?? "src/data/feat-ratings.json";
         fs.writeFileSync(target, `${JSON.stringify(data)}\n`);
         console.log(`${Object.values(data.ratings).reduce((sum, pack) => sum + Object.keys(pack).length, 0)} feats and actions → ${target}`);
+        // (2026-11-13, Cole: "adjust the rough rating scoring method so they are more accurate in the future as simulations are done":
+        // the committed ratings changed, so the rough score refits on them — its blocks' values and its neighbours' corrections.
+        // ROUGH_REFIT=0 skips it.)
+        if (target === "src/data/feat-ratings.json" && process.env.ROUGH_REFIT !== "0") {
+            const { spawnSync } = await import("node:child_process");
+            const refit = spawnSync(process.execPath, [new URL("./rough-power.mjs", import.meta.url).pathname], { stdio: "inherit" });
+            if (refit.status !== 0) console.error("The rough power refit failed; docs/rough-power.json is the old one.");
+        }
     } else if (phase === "report") {
         const { featReport } = await import("./lib/feat-report.mjs");
         const target = process.argv.find((arg) => arg.startsWith("--write="))?.split("=")[1] ?? `${out}/ratings.json`;
