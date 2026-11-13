@@ -54,6 +54,20 @@ const resiliencyArchetypes = (hpPerLevel) => (hpPerLevel <= 8 ? 7 : hpPerLevel <
 const ENERGY_RUNES = [["greaterFlaming", "fire"], ["greaterFrost", "cold"], ["greaterShock", "electricity"]];
 const BUFF_SCROLLS = [["Heroism", 9, 2], ["Girzanje's March", 7, 2]];
 const S = (x) => JSON.stringify(x);
+// Class-neutral E7 rule sets to try (Cole, 2026-11-12: "we need to equalize these numbers"): resiliency "limit" (the printed HP limits),
+// "all" (the HP limits removed: seven archetypes for everyone), "one" (one Resiliency feat counts, for everyone: 60 HP); gearCap: weapons
+// +2 greater striking with one property rune, armor +2 greater resilient (saves +2), 1 scroll a rank 5–9.
+const RULESETS = {
+    "current": {},
+    "res-all": { resiliency: "all" },
+    "res-one": { resiliency: "one" },
+    "res-one-gearcap": { resiliency: "one", gearCap: true },
+    "res-all-gearcap": { resiliency: "all", gearCap: true }
+};
+// (Class feats a player wouldn't keep: the ablation found them a loss on that class — the necromancer's three, 1.9 levels; the oracle's
+// Quickened Casting, 0.5 — left out under the rule sets.)
+const FEAT_DROP = new Set(["necromancer", "oracle"]);
+const ABLATIONS = ["con", "attributes", "saves", "armor", "iwp", "spells", "resiliency", "feats", "weapon", "armorgear", "apex", "scrolls"];
 
 async function libs() {
     const { CLASS_SLUGS, classArmor } = await import("../src/engine/classes.js");
@@ -164,9 +178,9 @@ async function builds(out) {
             }
         };
         const keyMartial = !p.slots;
-        const attributes = (c, holders) => {
+        const attributes = (c, holders, skip = new Set()) => {
             for (const h of holders) strikeUp(h, 1, { damage: keyMartial ? 1 : 0 });
-            conUp(c);
+            if (!skip.has("con")) conUp(c);
             c.saves.reflex += 1; c.saves.will += 1; c.perception += 1;
             if ((p.a.dex ?? 0) + 1 <= ARMOR_CAP[p.armor]) c.ac += 1;
             if (p.slots) spellBonus(c, 1);
@@ -178,43 +192,45 @@ async function builds(out) {
             const spec = NO_SPEC.has(slug) ? 0 : 1;
             for (const h of holders) h.strikes = h.strikes.map((s, i) => ((slug === "kineticist" ? s.impulse : i === 0) ? { ...s, bonus: s.bonus + 2, damage: s.damage.map((d, j) => (j ? d : { ...d, bonus: (d.bonus ?? 0) + spec })) } : s));
         };
-        const maxed = (party) => {
+        const maxed = (party, skip = new Set(), rules = {}) => {
             const c = party.find((x) => x.id === slug);
             const holders = weaponHolders(c, party);
-            attributes(c, holders);
-            for (const [save, r] of Object.entries(p.ranks)) c.saves[save] += Math.max(0, M - r);
-            c.ac += 2;
-            iwp(holders);
+            if (!skip.has("attributes")) attributes(c, holders, skip);
+            if (!skip.has("saves")) for (const [save, r] of Object.entries(p.ranks)) c.saves[save] += Math.max(0, M - r);
+            if (!skip.has("armor")) c.ac += 2;
+            if (!skip.has("iwp")) iwp(holders);
             // (Master Spellcasting Proficiency: +2 from expert; the magus and summoner, trained at 7th, +4.)
-            if (p.slots) { spellBonus(c, TRAINED_CASTERS.has(slug) ? 4 : 2); addClassSlots(c, [5, 6, 7, 8, 9], 1); addClassSlots(c, [4], 10); }
-            const extra = c.level + resiliencyArchetypes(p.hpPerLevel) * 60;
+            if (p.slots && !skip.has("spells")) { spellBonus(c, TRAINED_CASTERS.has(slug) ? 4 : 2); addClassSlots(c, [5, 6, 7, 8, 9], 1); addClassSlots(c, [4], 10); }
+            const archetypes = rules.resiliency === "all" ? 7 : rules.resiliency === "one" ? Math.min(1, 7) : resiliencyArchetypes(p.hpPerLevel);
+            const extra = (skip.has("con") ? 0 : c.level) + (skip.has("resiliency") ? 0 : archetypes * 60);
             c.hp = { value: c.hp.max + extra, max: c.hp.max + extra };
-            withFeats(c, picks[slug]?.picks ?? []);
+            if (!skip.has("feats") && !(rules.dropBadFeats && FEAT_DROP.has(slug))) withFeats(c, picks[slug]?.picks ?? []);
             for (const comp of companions(party)) { comp.saves = { ...c.saves }; comp.ac += c.ac - pc0.ac; }
         };
-        const geared = (party) => {
+        const geared = (party, skip = new Set(), rules = {}) => {
             const c = party.find((x) => x.id === slug);
             const holders = weaponHolders(c, party);
-            for (const h of holders) h.strikes = h.strikes.map((s) => {
-                if (s.impulse) return { ...s, bonus: s.bonus + 2 };
+            if (!skip.has("weapon")) for (const h of holders) h.strikes = h.strikes.map((s) => {
+                if (s.impulse) return { ...s, bonus: s.bonus + (rules.gearCap ? 1 : 2) };
                 // (An alchemist's bombs: the major bomb's +3 item bonus and four dice.)
-                if (s.splashKind === "bomb") return { ...s, bonus: s.bonus + 3 - (s.itemBonus ?? 1), damage: s.damage.map((d, j) => (j ? d : { ...d, dice: Math.max(d.dice ?? 0, 4) })) };
+                if (s.splashKind === "bomb") return { ...s, bonus: s.bonus + (rules.gearCap ? 2 : 3) - (s.itemBonus ?? 1), damage: s.damage.map((d, j) => (j ? d : { ...d, dice: Math.max(d.dice ?? 0, rules.gearCap ? 3 : 4) })) };
                 if (s.splashKind === "bomb" || s.potency == null && slug !== "summoner") return s;
                 const had = s.potency ?? 1;
                 const [first, ...rest] = s.damage;
+                const top = rules.gearCap ? 2 : 3, runes = rules.gearCap ? ENERGY_RUNES.slice(0, 1) : ENERGY_RUNES;
                 return {
-                    ...s, bonus: s.bonus + (3 - had), potency: 3,
-                    iwr: { ...(s.iwr ?? {}), traits: [...new Set([...(s.iwr?.traits ?? []), "magical"])], runes: [...(s.iwr?.runes ?? []), ...ENERGY_RUNES.map(([rune]) => rune)] },
-                    damage: [{ ...first, dice: 4 }, ...rest, ...ENERGY_RUNES.map(([, type]) => ({ dice: 1, die: 6, bonus: 0, type }))]
+                    ...s, bonus: s.bonus + (top - had), potency: top,
+                    iwr: { ...(s.iwr ?? {}), traits: [...new Set([...(s.iwr?.traits ?? []), "magical"])], runes: [...(s.iwr?.runes ?? []), ...runes.map(([rune]) => rune)] },
+                    damage: [{ ...first, dice: rules.gearCap ? 3 : 4 }, ...rest, ...runes.map(([, type]) => ({ dice: 1, die: 6, bonus: 0, type }))]
                 };
             });
-            c.ac += 2;
-            for (const save of Object.keys(c.saves)) c.saves[save] += 3;
+            if (!skip.has("armorgear")) { c.ac += rules.gearCap ? 1 : 2; for (const save of Object.keys(c.saves)) c.saves[save] += rules.gearCap ? 2 : 3; }
             // (Apex: the key attribute again.)
-            if (p.slots) spellBonus(c, 1);
+            if (skip.has("apex")) {}
+            else if (p.slots) spellBonus(c, 1);
             else { for (const h of holders) strikeUp(h, 1, { damage: 1 }); c.spells = (c.spells ?? []).map((e) => (!e.kind && e.dc != null ? { ...e, dc: e.dc + 1 } : e)); }
-            if (p.slots) {
-                addClassSlots(c, [5, 6, 7, 8, 9], 3);
+            if (p.slots && !skip.has("scrolls")) {
+                addClassSlots(c, [5, 6, 7, 8, 9], rules.gearCap ? 1 : 3);
                 const base = c.spells.find((e) => !e.kind && e.pool);
                 if (["divine", "occult"].includes(base?.tradition)) for (const [name, castRank, uses] of BUFF_SCROLLS) {
                     const found = spell(name, castRank);
@@ -225,12 +241,21 @@ async function builds(out) {
                 }
                 c.spells = c.spells.map((e) => (!e.kind && e.attack != null ? { ...e, attack: e.attack + 2 } : e));
             }
-            for (const comp of companions(party)) { comp.saves = { ...c.saves }; comp.ac += 2; }
+            for (const comp of companions(party)) { comp.saves = { ...c.saves }; comp.ac += rules.gearCap ? 1 : 2; }
         };
         const fresh = () => structuredClone(at7());
         list[`all-max-${slug}`] = () => { const party = fresh(); maxed(party); return party; };
         list[`all-gear-max-${slug}`] = () => { const party = fresh(); maxed(party); geared(party); return party; };
         for (const Lv of LADDER) list[`${slug}-${Lv}`] = () => seated(lib, slug, Lv);
+        // (The rule sets: the maxed and the maxed + gear builds under each.)
+        for (const [name, rules] of Object.entries(RULESETS)) {
+            const r = { ...rules, dropBadFeats: true };
+            list[`rule-${name}-max-${slug}`] = () => { const party = fresh(); maxed(party, new Set(), r); return party; };
+            list[`rule-${name}-gear-max-${slug}`] = () => { const party = fresh(); maxed(party, new Set(), r); geared(party, new Set(), r); return party; };
+        }
+        // (Ablations: the maxed + gear build with one part left out — what each part is worth to that class; only the parts it has.)
+        const applies = { iwp: p.weapon != null, spells: p.slots, scrolls: p.slots, resiliency: resiliencyArchetypes(p.hpPerLevel) > 0, feats: (picks[slug]?.picks ?? []).length > 0 };
+        for (const part of ABLATIONS.filter((x) => applies[x] ?? true)) list[`abl-${part}-${slug}`] = () => { const party = fresh(); const skip = new Set([part]); maxed(party, skip); geared(party, skip); return party; };
     }
     return (buildsCache = list);
 }
