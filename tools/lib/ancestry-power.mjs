@@ -123,7 +123,10 @@ export function ancestryTask(task) {
 // --- An ancestry with its ancestry feats (2026-11-02, Cole: "rank ancestry power by including their ancestry feats") -------------
 
 // The ancestry feat slots a PC has by a level: 1st, 5th, 9th, 13th and 17th.
-export const ANCESTRY_FEAT_SLOTS = Object.freeze([1, 5, 9, 13, 17]);
+// (2026-11-13, Cole: "rank the ancestry feats based on the ancestry Paragon rules". ANCESTRY_PARAGON=1: GM Core's Ancestry Paragon
+// variant — two at 1st, then one at every odd level, 11 in all.)
+export const PARAGON = process.env.ANCESTRY_PARAGON === "1";
+export const ANCESTRY_FEAT_SLOTS = Object.freeze(PARAGON ? [1, 1, 3, 5, 7, 9, 11, 13, 15, 17, 19] : [1, 5, 9, 13, 17]);
 let featRatings = null;
 // The feat ratings' rated ancestry feats ({ name, level, levels }), best first: <out>/ratings.json, next to the scale. Only feats
 // better than none beyond the noise (rating at least its standard error): a +0.01 within the noise, rated on the fighter, put a

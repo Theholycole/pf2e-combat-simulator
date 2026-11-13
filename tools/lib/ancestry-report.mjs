@@ -1,5 +1,5 @@
 // The ancestry, heritage and background table (tools/ancestry-power.mjs report): docs/ancestry-power.md and its json.
-import { HERITAGE_LEVELS, HOSTS, LEVELS } from "./ancestry-power.mjs";
+import { HERITAGE_LEVELS, HOSTS, LEVELS, PARAGON } from "./ancestry-power.mjs";
 
 const signed = (value, digits = 2) => (Math.round(value * 10 ** digits) === 0 ? (0).toFixed(digits) : `${value > 0 ? "+" : "−"}${Math.abs(value).toFixed(digits)}`);
 const verdictOf = (levels, se) => (Math.abs(levels) < Math.max(0.03, 2 * se) ? "no clear effect" : levels >= 0.25 ? "strong" : levels >= 0.1 ? "good" : levels > 0 ? "minor" : levels > -0.1 ? "slightly worse" : "hurts");
@@ -80,7 +80,7 @@ export function ancestryReport(rows) {
             ? [
                   "## Ancestries with their ancestry feats",
                   "",
-                  `Each ancestry on each PC and level again, now with the best of its ancestry feats in its slots (1st, 5th, 9th, 13th and 17th level): the feats with the best feat ratings (docs/feat-power.md) that the PC plays, a slot at a time, ranked by the feat ratings and left out where they'd need another weapon or rate at 0 or worse. Their prerequisites (a heritage, another feat) aren't checked. Where the PC plays none of its feats, the ancestry's own rating stands. Against the same human without feats as below.`,
+                  `Each ancestry on each PC and level again, now with the best of its ancestry feats in its slots (${PARAGON ? "Ancestry Paragon: two at 1st, then every odd level, 11 in all" : "1st, 5th, 9th, 13th and 17th level"}): the feats with the best feat ratings (docs/feat-power.md) that the PC plays, a slot at a time, ranked by the feat ratings and left out where they'd need another weapon or rate at 0 or worse. Their prerequisites (a heritage, another feat) aren't checked. Where the PC plays none of its feats, the ancestry's own rating stands. Against the same human without feats as below.`,
                   "",
                   "| # | Ancestry | With feats | Ancestry alone | Feats add | Fighter | Rogue | Wizard | Cleric | Lvl 1 | Lvl 5 | Lvl 11 | Lvl 17 | Feats it plays | Verdict |",
                   "|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|---|",

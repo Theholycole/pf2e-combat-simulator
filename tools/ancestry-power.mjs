@@ -5,6 +5,7 @@
 //   node tools/ancestry-power.mjs <out folder> report    docs/ancestry-power.md's table and <out>/ancestry-ratings.json
 //
 //   --workers N (default: the cores less two); ANCESTRY_FIGHTS=200 fights an encounter (the default, FEAT_FIGHTS's)
+//   ANCESTRY_PARAGON=1: the Ancestry Paragon variant's feat slots (two at 1st, then every odd level) for --kind=ancestry-feats
 import fs from "node:fs";
 import { isMainThread } from "node:worker_threads";
 import { defaultWorkers, runPool, workerLoop } from "./lib/pool.mjs";
