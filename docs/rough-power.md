@@ -1,10 +1,10 @@
 # Rough power score
 
-Generated 2026-11-04 by tools/rough-power.mjs from the simulator's ratings in /tmp/claude-build/run (feat ratings: whole fights, with vs without, 2026-11-04).
+Generated 2026-11-13 by tools/rough-power.mjs from the simulator's ratings in src/data/feat-ratings.json and docs/ancestry-ratings.json (feat ratings: whole fights, with vs without, 2026-11-11).
 
 Each feat, action, heritage and background is read into building blocks from its own text and rules: damage weighted by the four degrees of success and by targets, healing, conditions by kind and value, bonuses and penalties, resistances, spells it grants, action cost, uses a fight, drawbacks. The reading is the same whether the simulator played it or not. Amounts are in each level's own units (damage over a moderate creature's Strike damage at that level, healing over its Hit Points), so one value holds at every level.
 
-Two fits give each block a value in levels (a ridge regression of the simulator's ratings on the blocks, each block counted as log(1 + amount)). **Activities** (actions, reactions, free actions): the value of one use — the rating over the times the simulator used it in a fight —, then × the uses a fight: the average the simulator gave tested activities with the same allowance (1.2 for once a minute or rarer, 3.1 for a reaction, 4.1 for no frequency). **Passives**, heritages and backgrounds: the whole-fight rating. Ancestries get a small fit of their own. A rating the simulator's AI used the activity in less than 0.5 times a fight is left out of the fit (it says little of its value per use) and scored like the untested.
+Two fits give each block a value in levels (a ridge regression of the simulator's ratings on the blocks, each block counted as log(1 + amount)). **Activities** (actions, reactions, free actions): the value of one use — the rating over the times the simulator used it in a fight —, then × the uses a fight: the average the simulator gave tested activities with the same allowance (1.6 for once a minute or rarer, 2.3 for a reaction, 4.0 for no frequency). **Passives**, heritages and backgrounds: the whole-fight rating. Ancestries get a small fit of their own. A rating the simulator's AI used the activity in less than 0.5 times a fight is left out of the fit (it says little of its value per use) and scored like the untested.
 
 Every check below is out of sample: each tested thing was scored by values fitted without it (10 folds), before its own rating was looked at.
 
@@ -12,128 +12,147 @@ Every check below is out of sample: each tested thing was scored by values fitte
 
 | Family | Tested | Correlation | Rank correlation | Mean error (levels) | Guessing the average |
 |---|---|---|---|---|---|
-| Activities, per use | 576 | 0.20 | 0.31 | 0.050 | 0.054 |
-| Activities, whole fight (per use × the simulator's uses) | 576 | 0.41 | 0.39 | 0.134 | — |
-| Passives, heritages, backgrounds | 741 | 0.40 | 0.46 | 0.051 | 0.062 |
-| Ancestries | 51 | 0.72 | 0.68 | 0.004 | 0.006 |
+| Activities, per use | 1066 | 0.20 | 0.34 | 0.048 | 0.051 |
+| Activities, whole fight (per use × the simulator's uses) | 1066 | 0.39 | 0.45 | 0.112 | — |
+| Passives, heritages, backgrounds | 1329 | 0.31 | 0.29 | 0.063 | 0.070 |
+| Ancestries | 51 | 0.71 | 0.68 | 0.004 | 0.006 |
 | Spells (one cast; the same blocks, own fit, a cross-check) | 814 | 0.36 | 0.30 | 0.042 | 0.048 |
 
 By family (whole fight, out of sample):
 
 | Family | Tested | Correlation | Mean error |
 |---|---|---|---|
-| activity: class feat | 443 | 0.36 | 0.149 |
-| class feat | 328 | 0.36 | 0.063 |
-| ancestry feat | 301 | 0.39 | 0.053 |
-| heritage | 104 | 0.28 | 0.010 |
-| activity: ancestry feat | 71 | 0.82 | 0.068 |
-| activity: action | 49 | 0.78 | 0.091 |
-| activity: skill feat | 10 | -0.53 | 0.160 |
-| general feat | 6 | -0.15 | 0.022 |
+| activity: class feat | 801 | 0.37 | 0.121 |
+| class feat | 722 | 0.57 | 0.067 |
+| ancestry feat | 397 | 0.58 | 0.066 |
+| activity: ancestry feat | 144 | 0.67 | 0.071 |
+| heritage | 104 | 0.20 | 0.013 |
+| activity: action | 102 | 0.53 | 0.084 |
+| background | 92 | 0.05 | 0.010 |
+| activity: skill feat | 15 | -0.61 | 0.188 |
+| general feat | 7 | 0.59 | 0.032 |
+| skill feat | 5 | 0.00 | 0.029 |
 
 Bands, whole fight (rows: the simulator's; columns: the rough score's, out of sample):
 
 | Simulator \ Rough | strong (≥ 0.15) | useful (0.05–0.15) | about nothing (±0.05) | harmful (≤ −0.05) |
 |---|---|---|---|---|
-| strong (≥ 0.15) | 0 | 0 | 21 | 20 |
-| useful (0.05–0.15) | 0 | 2 | 56 | 24 |
-| about nothing (±0.05) | 0 | 7 | 594 | 154 |
-| harmful (≤ −0.05) | 0 | 5 | 128 | 306 |
+| strong (≥ 0.15) | 6 | 37 | 54 | 28 |
+| useful (0.05–0.15) | 7 | 72 | 128 | 62 |
+| about nothing (±0.05) | 11 | 91 | 968 | 228 |
+| harmful (≤ −0.05) | 8 | 19 | 214 | 462 |
 
-Same band: 902 of 1317 (68%). Two or more bands off: 70.
+Same band: 1508 of 2395 (63%). Two or more bands off: 182.
 
 ## The building blocks' values
 
 ### Activities, one use
 
-Base (intercept): -0.028. λ = 300. Amounts here are for one use ("× uses" in a label is 1).
+Base (intercept): -0.005. λ = 300. Amounts here are for one use ("× uses" in a label is 1).
 
 | Block | Value (levels per log(1 + amount)) | Tested with it |
 |---|---|---|
-| spell it grants (its one-cast rating) |  0.046 | 15 |
-| PF2e rule: extra damage dice |  0.035 | 22 |
-| skill-check bonus |  0.028 | 14 |
-| Strikes made (× uses) |  0.026 | 229 |
-| level/20 |  0.021 | 576 |
-| cat_class |  0.019 | 443 |
-| press |  0.015 | 13 |
-| stance |  0.014 | 30 |
-| area damage (× moderate damage × 2 targets × uses) |  0.013 | 75 |
-| persistent damage (× 2 rounds) |  0.012 | 30 |
-| AC bonus (per +1) |  0.011 | 46 |
-| companion/summon |  0.010 | 10 |
-| other damage (degree-weighted) |  0.010 | 36 |
-| single-target save damage (× moderate damage, basic save 0.8) |  0.010 | 10 |
-| PF2e rule: attack |  0.010 | 17 |
-| hard condition on foes (stunned 1.6, slowed 1.4, paralyzed 3 … × value × degree share × uses) |  0.009 | 77 |
-| has a trigger |  0.008 | 35 |
-| cat_skill |  0.007 | 10 |
-| incapacitation |  0.003 | 15 |
-| save bonus (per +1) |  0.001 | 16 |
-| Speed bonus (per 10 ft) |  0.001 | 9 |
-| a reaction |  0.001 | 31 |
-| uses a fight |  0.000 | 576 |
-| flourish | -0.002 | 66 |
-| cat_offensive | -0.003 | 36 |
-| limited (once a minute or less) | -0.003 | 139 |
-| reroll/fortune | -0.004 | 8 |
-| soft condition on foes (frightened 1, sickened 1, off-guard 0.7, prone 0.6 … × value × degree share × uses) | -0.004 | 183 |
-| Strike extra damage (× moderate Strike damage, a hit 0.45 + crit 0.1×2, × uses) | -0.005 | 34 |
-| foe Speed penalty | -0.006 | 10 |
-| has a requirement | -0.007 | 164 |
-| movement | -0.011 | 86 |
-| archetype | -0.017 | 160 |
-| grants an item | -0.022 | 12 |
-| cat_ancestry | -0.022 | 71 |
-| actions spent (× uses) | -0.022 | 539 |
-| attack bonus (per +1) | -0.029 | 15 |
-| condition on yourself (drawback) | -0.035 | 16 |
-| resistance (× moderate damage) | -0.089 | 19 |
-| temporary HP (× moderate HP × 3) | -0.103 | 13 |
+| temporary HP (× moderate HP × 3) |  0.104 | 27 |
+| spell it grants (its one-cast rating) |  0.074 | 41 |
+| Speed bonus (per 10 ft) |  0.063 | 13 |
+| quickened on you or allies |  0.036 | 17 |
+| PF2e rule: extra damage dice |  0.036 | 35 |
+| single-target save damage (× moderate damage, basic save 0.8) |  0.035 | 24 |
+| AC bonus (per +1) |  0.029 | 66 |
+| a reaction |  0.029 | 117 |
+| area damage (× moderate damage × 2 targets × uses) |  0.028 | 80 |
+| skill-check bonus |  0.025 | 23 |
+| cat_skill |  0.023 | 15 |
+| cat_interaction |  0.019 | 13 |
+| has a trigger |  0.019 | 154 |
+| stance |  0.019 | 62 |
+| Strikes made (× uses) |  0.016 | 428 |
+| grants an item |  0.016 | 14 |
+| PF2e rule: attack |  0.013 | 23 |
+| flourish |  0.013 | 108 |
+| condition on yourself (drawback) |  0.011 | 31 |
+| has a requirement |  0.011 | 345 |
+| level/20 |  0.010 | 1066 |
+| cat_offensive |  0.008 | 77 |
+| exploration/downtime/knowledge |  0.008 | 8 |
+| companion/summon |  0.005 | 35 |
+| cat_defensive |  0.004 | 9 |
+| archetype |  0.003 | 298 |
+| foe Speed penalty |  0.003 | 15 |
+| reroll/fortune |  0.002 | 25 |
+| press |  0.002 | 22 |
+| uses a fight |  0.000 | 1066 |
+| other damage (degree-weighted) | -0.000 | 66 |
+| hard condition on foes (stunned 1.6, slowed 1.4, paralyzed 3 … × value × degree share × uses) | -0.000 | 125 |
+| persistent damage (× 2 rounds) | -0.001 | 38 |
+| cat_ancestry | -0.002 | 144 |
+| cat_class | -0.002 | 801 |
+| limited (once a minute or less) | -0.003 | 254 |
+| incapacitation | -0.003 | 23 |
+| a free action | -0.004 | 51 |
+| PF2e rule: skills | -0.008 | 10 |
+| PF2e rule: AC | -0.008 | 11 |
+| soft condition on foes (frightened 1, sickened 1, off-guard 0.7, prone 0.6 … × value × degree share × uses) | -0.012 | 280 |
+| foe save penalty | -0.015 | 11 |
+| save bonus (per +1) | -0.016 | 25 |
+| movement | -0.018 | 150 |
+| attack bonus (per +1) | -0.018 | 26 |
+| Strike extra damage (× moderate Strike damage, a hit 0.45 + crit 0.1×2, × uses) | -0.026 | 79 |
+| actions spent (× uses) | -0.031 | 898 |
+| resistance (× moderate damage) | -0.038 | 30 |
+| damage bonus (per +1/4 of moderate damage) | -0.056 | 13 |
+| damage you take | -0.089 | 9 |
 
 ### Passives, heritages, backgrounds (whole fight)
 
-Base (intercept): -0.028. λ = 30. 
+Base (intercept):  0.001. λ = 100. 
 
 | Block | Value (levels per log(1 + amount)) | Tested with it |
 |---|---|---|
-| PF2e rule: Hit Points |  0.246 | 10 |
-| PF2e rule: Speed |  0.072 | 18 |
-| resistance (× moderate damage) |  0.061 | 97 |
-| level/20 |  0.058 | 741 |
-| damage bonus (per +1/4 of moderate damage) |  0.044 | 9 |
-| AC bonus (per +1) |  0.043 | 10 |
-| senses |  0.038 | 35 |
-| PF2e rule: saves |  0.026 | 123 |
-| PF2e rule: damage |  0.022 | 12 |
-| other damage (degree-weighted) |  0.021 | 76 |
-| movement |  0.021 | 23 |
-| skill-check bonus |  0.019 | 12 |
-| Perception/initiative bonus |  0.017 | 13 |
-| cat_class |  0.016 | 328 |
-| cat_heritage |  0.016 | 104 |
-| PF2e rule: Perception |  0.011 | 19 |
-| a new Strike (unarmed attack) |  0.010 | 78 |
-| soft condition on foes (frightened 1, sickened 1, off-guard 0.7, prone 0.6 … × value × degree share × uses) |  0.006 | 48 |
-| hard condition on foes (stunned 1.6, slowed 1.4, paralyzed 3 … × value × degree share × uses) |  0.003 | 22 |
-| save bonus (per +1) |  0.001 | 115 |
-| passive |  0.000 | 741 |
-| condition on yourself (drawback) | -0.004 | 9 |
-| PF2e rule: AC | -0.012 | 9 |
-| grants an item | -0.012 | 66 |
-| companion/summon | -0.015 | 16 |
-| PF2e rule: skills | -0.016 | 17 |
-| cat_ancestry | -0.020 | 301 |
-| archetype | -0.055 | 213 |
-| exploration/downtime/knowledge | -0.073 | 9 |
-| spell it grants (its one-cast rating) | -0.181 | 202 |
+| PF2e rule: Hit Points |  0.179 | 10 |
+| resistance (× moderate damage) |  0.070 | 104 |
+| quickened on you or allies |  0.051 | 19 |
+| companion/summon |  0.042 | 118 |
+| PF2e rule: damage |  0.041 | 15 |
+| PF2e rule: Speed |  0.036 | 22 |
+| temporary HP (× moderate HP × 3) |  0.032 | 10 |
+| AC bonus (per +1) |  0.027 | 14 |
+| Perception/initiative bonus |  0.021 | 16 |
+| cat_class |  0.020 | 722 |
+| senses |  0.015 | 39 |
+| movement |  0.015 | 39 |
+| Strike extra damage (× moderate Strike damage, a hit 0.45 + crit 0.1×2, × uses) |  0.015 | 12 |
+| persistent damage (× 2 rounds) |  0.013 | 17 |
+| PF2e rule: saves |  0.011 | 131 |
+| skill-check bonus |  0.010 | 20 |
+| condition on yourself (drawback) |  0.005 | 15 |
+| a new Strike (unarmed attack) |  0.005 | 79 |
+| other damage (degree-weighted) |  0.005 | 90 |
+| soft condition on foes (frightened 1, sickened 1, off-guard 0.7, prone 0.6 … × value × degree share × uses) |  0.004 | 86 |
+| hard condition on foes (stunned 1.6, slowed 1.4, paralyzed 3 … × value × degree share × uses) |  0.002 | 37 |
+| PF2e rule: Perception |  0.001 | 22 |
+| passive |  0.000 | 1329 |
+| damage bonus (per +1/4 of moderate damage) | -0.002 | 10 |
+| save bonus (per +1) | -0.004 | 126 |
+| cat_background | -0.004 | 92 |
+| cat_heritage | -0.008 | 104 |
+| cat_ancestry | -0.019 | 397 |
+| archetype | -0.019 | 393 |
+| grants an item | -0.020 | 181 |
+| reroll/fortune | -0.024 | 8 |
+| PF2e rule: skills | -0.026 | 23 |
+| PF2e rule: AC | -0.026 | 9 |
+| level/20 | -0.028 | 1329 |
+| exploration/downtime/knowledge | -0.029 | 19 |
+| PF2e rule: extra damage dice | -0.051 | 19 |
+| spell it grants (its one-cast rating) | -0.200 | 326 |
 
 ### Ancestries
 
 | Block | Value |
 |---|---|
 | base | -0.064 |
-| ancestry Hit Points (per 2) |  0.039 |
+| ancestry Hit Points (per 2) |  0.038 |
 | Speed (per 5 ft over 25) |  0.008 |
 | Small or Tiny |  0.003 |
 | Large |  0.007 |
@@ -179,175 +198,175 @@ Base (intercept):  0.186. λ = 100.
 
 | Name | Family | Level | Simulator | Rough | Simulator's uses |
 |---|---|---|---|---|---|
-| Scattering Shout | activity, class | 14 | -1.45 | -0.10 | 5.1 |
-| Silencing Strike | activity, class | 10 | -1.20 |  0.08 | 17.0 |
-| Thrash | activity, class | 8 | -1.26 | -0.23 | 15.1 |
-| Spike Skin | activity, class | 8 |  0.38 | -0.60 | 12.3 |
-| Dissolution's Sovereignty | ancestry | 17 | -1.00 | -0.03 | passive |
-| Reflect Foe | ancestry | 17 | -1.00 | -0.04 | passive |
-| Feign Innocence | activity, class | 12 |  0.10 | -0.85 | 25.8 |
-| Scattering Charge | activity, class | 12 | -1.12 | -0.18 | 4.6 |
-| Upset Balance | activity, class | 6 | -0.75 |  0.11 | 8.8 |
-| Unbalancing Sweep | activity, class | 12 | -1.00 | -0.15 | 4.4 |
-| Pin to the Spot | activity, class | 14 |  0.71 | -0.09 | 4.2 |
-| Peony's Flourish | activity, class | 14 | -0.98 | -0.20 | 6.3 |
-| Sheltering Pulse | activity, class | 8 | -0.17 | -0.83 | 20.5 |
-| Song of Grace and Speed | activity, class | 16 |  0.49 | -0.15 | 5.0 |
-| Lightning Dash | activity, class | 4 |  0.54 | -0.10 | 3.5 |
-| Scare to Death | activity, skill | 15 |  0.45 | -0.17 | 3.6 |
-| Clear the Way | activity, class | 6 | -0.78 | -0.16 | 3.7 |
-| Blazing Wave | activity, class | 4 |  0.57 | -0.04 | 1.1 |
-| Impossible Volley | activity, class | 18 | -0.86 | -0.25 | 10.5 |
-| Purifying Breeze | activity, class | 14 | -1.00 | -0.39 | 16.7 |
-| Gossamer Blade | activity, class | 4 | -0.73 | -0.16 | 7.8 |
-| Flourishing Finish | activity, class | 12 | -0.92 | -0.34 | 14.8 |
-| Fey Ascension | ancestry | 9 | -0.62 | -0.07 | passive |
-| Perplex | activity, class | 14 | -0.67 | -0.13 | 3.9 |
-| Muckraking | activity, class | 16 | -0.61 | -0.07 | 4.2 |
-| Infernal Anguish | activity, class | 8 |  0.15 | -0.38 | 9.1 |
-| Silk Bracelet | activity, class | 6 | -0.57 | -0.04 | 4.3 |
-| Prayer Attack | activity, class | 14 | -0.68 | -0.16 | 16.6 |
-| Say That Again! | activity, skill | 6 | -0.49 |  0.03 | 3.0 |
-| Quickening Banner | activity, class | 14 |  0.48 | -0.04 | 5.1 |
+| Upset Balance | activity, class | 6 | -0.53 |  0.59 | 11.2 |
+| Fear of God | activity, skill | 14 | -0.85 |  0.26 | 20.7 |
+| Dissolution's Sovereignty | ancestry | 17 | -1.14 | -0.20 | passive |
+| Reflect Foe | ancestry | 17 | -1.14 | -0.23 | passive |
+| Feign Innocence | activity, class | 12 |  0.22 | -0.58 | 23.8 |
+| Dragon Transformation | activity, class | 16 | -0.73 |  0.06 | 1.0 |
+| Purifying Breeze | activity, class | 14 | -0.91 | -0.14 | 9.2 |
+| Scattering Shout | activity, class | 14 | -0.88 | -0.11 | 5.0 |
+| Pin to the Spot | activity, class | 14 |  0.59 | -0.15 | 5.8 |
+| Head of the Night Parade | activity, class | 20 | -0.94 | -0.20 | 3.9 |
+| Fearsome Familiar | activity, class | 6 | -1.00 | -0.27 | 1.0 |
+| Pennant of Victory | activity, class | 20 |  0.73 |  0.00 | 1.0 |
+| Paralyzing Slash | activity, class | 8 |  0.51 | -0.19 | 7.9 |
+| Anatomical Quartering | activity, class | 16 | -0.75 | -0.08 | 3.0 |
+| Magical Onslaught | activity, class | 10 |  0.00 | -0.66 | 15.5 |
+| Silencing Strike | activity, class | 10 | -0.98 | -0.33 | 17.9 |
+| Eidolon's Trample | activity, class | 16 |  0.00 | -0.64 | 15.0 |
+| Impossible Volley | activity, class | 18 | -0.77 | -0.13 | 8.6 |
+| One Moment till Glory | activity, action | 1 | -0.74 | -0.10 | 7.0 |
+| Sacral Lord | class | 4 | -0.69 | -0.05 | passive |
+| Dance of Intercession | activity, class | 20 | -0.65 | -0.04 | 1.6 |
+| Whirlwind Toss | activity, class | 18 |  0.24 | -0.37 | 8.3 |
+| Monstrosity Shape | class | 16 |  0.59 | -0.01 | passive |
+| Thrash | activity, class | 8 | -0.73 | -0.14 | 16.0 |
+| Gossamer Blade | activity, class | 4 | -0.63 | -0.05 | 9.8 |
+| Silk Bracelet | activity, class | 6 | -0.66 | -0.08 | 4.9 |
+| Chastise | activity, class | 16 | -0.92 | -0.35 | 9.9 |
+| Stay Down! | activity, class | 14 | -0.34 |  0.22 | 10.6 |
+| Storied Companion | activity, class | 2 |  0.00 |  0.56 | 6.6 |
+| Words of Unraveling | class | 12 | -0.62 | -0.08 | passive |
 
 ## Not yet tested: the rough score
 
-6506 feats, actions, heritages and backgrounds out of the fit (never rated, or rated with the simulator's AI hardly using them), scored by the values above: whole fight, activities at the uses a fight the tested ones with the same frequency got. The full list (every score and block) is in docs/rough-power.json. A score near the base means the text has none of the blocks the fit values — often nothing a fight uses.
+5428 feats, actions, heritages and backgrounds out of the fit (never rated, or rated with the simulator's AI hardly using them), scored by the values above: whole fight, activities at the uses a fight the tested ones with the same frequency got. The full list (every score and block) is in docs/rough-power.json. A score near the base means the text has none of the blocks the fit values — often nothing a fight uses.
 
-### Class feats (3585)
-
-Highest 15 and lowest 5:
-
-| Name | Level | Rough | Rated (AI rarely used it) |
-|---|---|---|---|
-| Relinquish Control | 1 |  0.15 |  |
-| Reactive Transformation | 14 |  0.12 |  |
-| Rebounding Smite | 16 |  0.11 |  |
-| All in My Head | 18 |  0.11 |  |
-| Release Me! | 14 |  0.10 |  |
-| Lethal Finisher | 18 |  0.10 |  |
-| Soulforger Dedication | 2 |  0.10 |  |
-| Multishot Stance | 16 |  0.09 |  |
-| Not This Time | 18 |  0.09 |  |
-| Graceful Poise | 16 |  0.08 |  |
-| Triumphant Inspiration | 14 |  0.08 |  |
-| Arc of Destruction | 8 |  0.08 |  |
-| Shield from Arrows | 8 |  0.08 |  |
-| Cutthroat Grapple | 16 |  0.08 |  0.00 |
-| Armored Counterattack | 12 |  0.08 |  |
-| Swipe Souvenir | 8 | -0.31 |  |
-| Astral Tether | 4 | -0.31 |  |
-| Klingegeist | 10 | -0.32 |  |
-| Shining Glory | 18 | -0.34 |  |
-| Feast | 4 | -0.56 |  |
-
-### Ancestry feats (1241)
+### Class feats (2833)
 
 Highest 15 and lowest 5:
 
 | Name | Level | Rough | Rated (AI rarely used it) |
 |---|---|---|---|
-| Home in the Deep | 9 |  0.05 |  |
-| Greater Enhance Venom | 17 |  0.04 |  |
-| Striking Retribution | 1 |  0.04 |  |
-| Hardy Traveler | 9 |  0.03 |  |
-| Shory Aerialist | 13 |  0.03 |  |
-| Scrutinizing Gaze | 13 |  0.02 |  |
-| Moderate Enhance Venom | 9 |  0.02 |  |
-| Iruxi Armaments | 1 |  0.01 |  |
-| Heart of Earth | 13 |  0.01 |  |
-| Battleforger | 9 |  0.01 |  |
-| Tough Skin | 1 |  0.01 |  |
-| Stronger Debilitating Venom | 13 |  0.01 |  |
-| Lesser Enhance Venom | 1 |  0.00 |  |
-| Persistent Odor | 9 |  0.00 |  |
-| Wild-Haired Fury | 13 |  0.00 |  |
-| Mask of Fear | 13 | -0.39 |  |
-| Ratfolk Roll | 5 | -0.40 |  |
-| Tunnel Roll | 5 | -0.40 |  |
-| Radiant Circuitry | 1 | -0.43 |  0.00 |
-| Crystal Luminescence | 1 | -0.43 |  |
+| Self Destruct | 12 |  0.32 |  |
+| Instant Return | 16 |  0.24 |  0.00 |
+| Guardian's Deflection (Fighter) | 6 |  0.22 |  0.02 |
+| Advanced Breakthrough | 6 |  0.22 |  |
+| Reactive Transformation | 14 |  0.22 |  |
+| Pin the Spears in the Lamb | 4 |  0.22 |  |
+| Advanced Field Training | 6 |  0.20 |  |
+| Rebounding Smite | 16 |  0.20 |  |
+| Arc of Destruction | 8 |  0.20 |  0.00 |
+| Advanced Hunter's Trick | 6 |  0.20 |  |
+| Shield from Arrows | 8 |  0.19 |  0.00 |
+| Additional Companion | 4 |  0.19 |  |
+| Guardian's Deflection (Swashbuckler) | 4 |  0.19 |  0.03 |
+| Advanced Thaumaturgy | 6 |  0.18 |  |
+| Standard-Bearer's Sacrifice | 10 |  0.18 |  |
+| Induce Imbalance | 14 | -0.32 |  |
+| Wake to Strife | 8 | -0.32 |  0.00 |
+| Primal Evolution | 4 | -0.33 |  |
+| Ostentatious Arrival | 6 | -0.35 |  |
+| Dragon Arcana | 4 | -0.42 |  |
 
-### Backgrounds (540)
-
-Highest 15 and lowest 5:
-
-| Name | Level | Rough | Rated (AI rarely used it) |
-|---|---|---|---|
-| Magical Experiment | 1 |  0.02 |  |
-| Saved by Clockwork | 1 |  0.01 |  |
-| Trusted Rival | 1 |  0.00 |  |
-| Feral Child | 1 |  0.00 |  |
-| Escaped from Time | 1 | -0.00 |  |
-| Friend of a Friend | 1 | -0.01 |  |
-| Runelord Researcher | 1 | -0.01 |  |
-| Once Possessed | 1 | -0.01 |  |
-| Energy Scarred | 1 | -0.01 |  |
-| Reborn Soul | 1 | -0.01 |  |
-| Demon Hunted | 1 | -0.01 |  |
-| Fleshwarp Researcher | 1 | -0.02 |  |
-| Guest of Sedeq Lodge | 1 | -0.02 |  |
-| Curse-Marked | 1 | -0.02 |  |
-| Brevic Outcast | 1 | -0.02 |  |
-| Folklore Enthusiast | 1 | -0.09 |  |
-| Sign Bound | 1 | -0.15 |  |
-| Elementally Infused | 1 | -0.15 |  |
-| Local Savior | 1 | -0.16 |  |
-| Zodiac Bound | 1 | -0.20 |  |
-
-### Actions (534)
+### Ancestry feats (1072)
 
 Highest 15 and lowest 5:
 
 | Name | Level | Rough | Rated (AI rarely used it) |
 |---|---|---|---|
-| Energy Shot | 1 |  0.05 |  |
-| Disarming Interception | 1 |  0.05 |  0.00 |
-| One Shot, One Kill | 1 |  0.02 |  |
-| Master Strike | 1 |  0.02 |  |
-| Erupting Spurs | 1 |  0.02 |  |
-| Surprising Anatomy | 1 |  0.01 |  |
-| Salt Wound | 1 |  0.01 |  0.00 |
-| Aid | 1 |  0.01 |  |
-| Dancing Dodge | 1 |  0.01 |  |
-| Redistribute | 1 |  0.01 |  |
-| Runelord's Response | 1 |  0.00 |  0.00 |
-| Wicked Thorns | 1 |  0.00 |  0.00 |
-| Final Spite | 1 |  0.00 |  |
-| Barbed Quills | 1 | -0.01 |  0.00 |
-| Mirror-Trickery | 1 | -0.01 |  |
-| Crawl | 1 | -0.26 |  |
-| Run Over | 1 | -0.26 |  |
-| Balance | 1 | -0.27 |  |
-| Climb | 1 | -0.29 |  |
-| Blazing Conflagration | 1 | -0.90 |  |
+| Hop Up | 13 |  0.13 |  0.00 |
+| Empathetic Plea | 1 |  0.12 |  0.00 |
+| Undead Companion | 5 |  0.11 |  |
+| Cantorian Restoration | 17 |  0.11 |  |
+| Call to Battle | 5 |  0.11 |  0.00 |
+| Collapse | 1 |  0.10 |  0.08 |
+| Bold Defiance | 5 |  0.10 |  |
+| Rampaging Ferocity | 17 |  0.10 |  0.00 |
+| Crafter's Instinct | 13 |  0.10 |  |
+| Deflecting Jewel | 5 |  0.10 |  0.00 |
+| Brightness Seeker | 9 |  0.10 |  |
+| Fell Rider | 9 |  0.09 |  |
+| Quick Root | 5 |  0.09 |  |
+| Healer's Halo | 5 |  0.09 |  |
+| Shed Tail | 5 |  0.09 |  0.00 |
+| Pounding Leap | 5 | -0.21 |  |
+| Adapted Cantrip | 1 | -0.24 |  |
+| Arboreal Conversationalist | 13 | -0.25 |  |
+| Dance of the Jester | 13 | -0.28 |  0.00 |
+| Dissolution's Sight | 9 | -0.30 |  0.00 |
 
-### Skill feats (328)
+### Actions (481)
 
 Highest 15 and lowest 5:
 
 | Name | Level | Rough | Rated (AI rarely used it) |
 |---|---|---|---|
-| Legendary Medic | 15 |  0.01 |  |
-| Legendary Performer | 15 |  0.00 |  |
-| Legendary Professional | 15 |  0.00 |  |
-| Legendary Thief | 15 |  0.00 |  |
-| Cloud Jump | 15 |  0.00 |  |
-| Legendary Survivalist | 15 |  0.00 |  |
-| Legendary Tattoo Artist | 15 |  0.00 |  |
-| Legendary Guide | 15 |  0.00 |  |
-| Legendary Codebreaker | 15 |  0.00 |  |
-| Divine Guidance | 15 |  0.00 |  |
-| Unified Theory | 15 |  0.00 |  |
-| Legendary Linguist | 15 |  0.00 |  |
-| Craft Anything | 15 |  0.00 |  |
-| Risky Surgery | 1 |  0.00 |  |
-| Calm and Centered | 8 |  0.00 |  |
-| Dead Reckoning | 4 | -0.23 |  |
-| No Cause for Alarm | 1 | -0.23 |  |
-| Ashen Veil | 7 | -0.24 |  |
-| Treat Condition | 4 | -0.25 |  |
-| Commitment to Equality | 4 | -0.44 |  |
+| Blazing Conflagration | 1 |  1.13 |  |
+| Unleash Realm | 1 |  0.24 |  |
+| Pistolero's Retort | 1 |  0.21 |  |
+| Mobbing Assault | 1 |  0.20 |  |
+| Runelord's Response | 1 |  0.20 |  |
+| Energy Shot | 1 |  0.18 |  |
+| Fight with Fear | 1 |  0.17 |  |
+| Defend Life | 1 |  0.16 |  |
+| Foresight | 1 |  0.16 |  |
+| One Shot, One Kill | 1 |  0.16 |  |
+| Life Block | 1 |  0.15 |  |
+| Recall Ammunition | 1 |  0.15 |  |
+| Spring the Trap | 1 |  0.14 |  |
+| Once Bitten | 1 |  0.14 |  |
+| Overload Vision | 1 |  0.14 |  |
+| Coughing Dragon | 1 | -0.26 |  |
+| Swarm Forth | 1 | -0.26 |  |
+| Mirror-Trickery | 1 | -0.27 |  |
+| Activate Resonant Reflection | 1 | -0.27 |  |
+| Destructive Vengeance | 1 | -0.54 |  |
+
+### Backgrounds (448)
+
+Highest 15 and lowest 5:
+
+| Name | Level | Rough | Rated (AI rarely used it) |
+|---|---|---|---|
+| Lost Loved One | 1 |  0.05 |  |
+| Haunted | 1 |  0.05 |  |
+| Blooded by the Dead | 1 |  0.04 |  |
+| Mammoth Herder | 1 |  0.04 |  |
+| Horizon Hunters | 1 |  0.04 |  |
+| Vigilant Seal | 1 |  0.03 |  |
+| Eagle Hunter | 1 |  0.03 |  |
+| Osprey Scion | 1 |  0.03 |  |
+| Megafauna Hunter | 1 |  0.03 |  |
+| Guest of Sedeq Lodge | 1 |  0.03 |  |
+| Scholar of the Sky Key | 1 |  0.03 |  |
+| Mammoth Speaker | 1 |  0.03 |  |
+| Borderlands Pioneer | 1 |  0.03 |  |
+| Printer | 1 |  0.03 |  |
+| Defiant Noble | 1 |  0.03 |  |
+| Silk Farmer | 1 | -0.13 |  |
+| Discarded Duplicate | 1 | -0.14 |  |
+| Sign Bound | 1 | -0.22 |  |
+| Elementally Infused | 1 | -0.22 |  |
+| Zodiac Bound | 1 | -0.29 |  |
+
+### Skill feats (320)
+
+Highest 15 and lowest 5:
+
+| Name | Level | Rough | Rated (AI rarely used it) |
+|---|---|---|---|
+| Diverse Recognition | 8 |  0.16 |  |
+| Recognize Threat | 8 |  0.15 |  |
+| Cushion Landing | 4 |  0.14 |  |
+| Diabolic Certitude | 4 |  0.13 |  |
+| Kreighton's Cognitive Crossover | 4 |  0.13 |  |
+| Distracting Flattery | 4 |  0.12 |  |
+| Malleable Movement | 2 |  0.12 |  |
+| Vicious Critique | 1 |  0.09 |  |
+| Bonded Animal | 2 |  0.09 |  |
+| Recognize Spell | 1 |  0.09 |  |
+| Skill Training | 1 |  0.09 |  |
+| Kip Up | 7 |  0.08 |  0.00 |
+| That's Not Natural! | 4 |  0.07 |  |
+| Mounting Leap | 4 |  0.06 |  |
+| Train Animal | 1 |  0.06 |  |
+| Ashen Veil | 7 | -0.11 |  |
+| Legendary Negotiation | 15 | -0.12 |  |
+| Snap Out of It! (Pathfinder Agent) | 8 | -0.17 |  |
+| Battle Prayer | 7 | -0.19 |  |
+| No Cause for Alarm | 1 | -0.20 |  |
 
 ### Heritages (230)
 
@@ -355,89 +374,85 @@ Highest 15 and lowest 5:
 
 | Name | Level | Rough | Rated (AI rarely used it) |
 |---|---|---|---|
-| Coral Athamaru | 1 |  0.06 |  |
-| Warden Human (BB) | 1 |  0.05 |  |
-| Titan Nagaji | 1 |  0.05 |  |
-| Bakuwa Lizardfolk | 1 |  0.05 |  |
-| Rite of Reinforcement | 1 |  0.05 |  |
-| Oathkeeper Dwarf | 1 |  0.04 |  |
-| Rock Dwarf | 1 |  0.02 |  |
-| Strong Oak | 1 |  0.02 |  |
-| House Drake | 1 |  0.02 |  |
-| Littlehorn Minotaur | 1 |  0.02 |  |
-| Hardshell Surki | 1 |  0.02 |  |
-| Root Leshy | 1 |  0.01 |  |
-| Courageous Tanuki | 1 |  0.01 |  |
-| Observant Halfling | 1 |  0.01 |  |
-| Insightful Goloma | 1 |  0.01 |  |
-| Liminal Catfolk | 1 | -0.06 |  |
-| Scalekeeper Vishkanya | 1 | -0.07 |  |
-| Makari Lizardfolk | 1 | -0.08 |  |
-| Bright Fetchling | 1 | -0.08 |  |
-| Born of Elements | 1 | -0.19 |  |
+| Oathkeeper Dwarf | 1 |  0.06 |  |
+| Towering Bugbear | 1 |  0.05 |  |
+| Unseen Lizardfolk | 1 |  0.05 |  |
+| Ancient Ash | 1 |  0.04 |  |
+| Observant Halfling | 1 |  0.04 |  |
+| Hunter Automaton | 1 |  0.04 |  |
+| Warden Human (BB) | 1 |  0.04 |  |
+| Versatile Human | 1 |  0.04 |  |
+| Born of Celestial | 1 |  0.03 |  |
+| New Moon Sarangay | 1 |  0.03 |  |
+| Budding Speaker Centaur | 1 |  0.03 |  |
+| Respite of Loam and Leaf | 1 |  0.03 |  |
+| Witch Kholo | 1 |  0.03 |  |
+| Empty Sky Kitsune | 1 |  0.03 |  |
+| Full Moon Sarangay | 1 |  0.02 |  |
+| Shadow of the Smith | 1 | -0.12 |  |
+| Reflection | 1 | -0.15 |  |
+| Born of Elements | 1 | -0.15 |  |
+| Shadow of the Courtier | 1 | -0.17 |  |
+| Kijimuna Gnome | 1 | -0.18 |  |
 
-### General feats (34)
-
-Highest 15 and lowest 5:
-
-| Name | Level | Rough | Rated (AI rarely used it) |
-|---|---|---|---|
-| Axuma's Vigor | 11 |  0.02 |  |
-| True Perception | 19 |  0.01 |  |
-| Thorough Search | 3 |  0.00 |  |
-| Incredible Investiture | 11 | -0.00 |  |
-| Caravan Leader | 11 | -0.00 |  |
-| Axuma's Awakening | 11 | -0.00 |  |
-| Expeditious Search | 7 | -0.01 |  |
-| Numb to Death | 7 | -0.01 |  |
-| Prescient Consumable | 7 | -0.01 |  |
-| Hireling Manager | 3 | -0.01 |  |
-| Different Worlds | 1 | -0.01 |  |
-| Untrained Improvisation | 3 | -0.02 |  |
-| Additional Circus Trick | 3 | -0.02 |  |
-| Prescient Planner | 3 | -0.02 |  |
-| Skitter | 3 | -0.02 |  |
-| Shield Block | 1 | -0.06 |  |
-| Pick up the Pace | 3 | -0.07 |  |
-| Keen Follower | 3 | -0.07 |  |
-| Steel Your Resolve | 3 | -0.17 |  |
-| Improvised Repair | 3 | -0.23 |  |
-
-### Bonus feats (11)
+### General feats (33)
 
 Highest 15 and lowest 5:
 
 | Name | Level | Rough | Rated (AI rarely used it) |
 |---|---|---|---|
-| Disillusionment | 1 | -0.03 |  |
-| Sturdy Bindings | 1 | -0.03 |  |
-| Locate Lawbreakers | 1 | -0.03 |  |
-| Dedication to the Five | 1 | -0.03 |  |
-| Blessing of the Five | 1 | -0.06 |  |
-| Devil Allies | 1 | -0.07 |  |
-| Reveal Beasts | 1 | -0.07 |  |
-| Seek Injustice | 1 | -0.07 |  |
-| Righteous Resistance | 1 | -0.07 |  |
-| Trailblazing Stride | 1 | -0.08 |  |
+| Shield Block | 1 |  0.08 |  0.10 |
+| Pet | 1 |  0.08 |  |
+| Ride | 1 |  0.08 |  |
+| Additional Circus Trick | 3 |  0.08 |  |
+| Ancestral Paragon | 3 |  0.03 |  |
+| Prescient Planner | 3 |  0.02 |  |
+| Prescient Consumable | 7 |  0.02 |  |
+| Incredible Investiture | 11 |  0.02 |  |
+| Numb to Death | 7 |  0.01 |  |
+| Weapon Proficiency | 1 |  0.01 |  |
+| Incredible Scout | 11 |  0.01 |  |
+| Keen Follower | 3 |  0.01 |  |
+| Thorough Search | 3 |  0.01 |  |
+| Different Worlds | 1 |  0.00 |  |
+| Fast Recovery | 1 |  0.00 |  |
+| A Home in Every Port | 11 | -0.03 |  |
+| Supertaster | 7 | -0.05 |  |
+| Steel Your Resolve | 3 | -0.09 |  |
+| Axuma's Awakening | 11 | -0.14 |  |
+| Improvised Repair | 3 | -0.15 |  |
+
+### Bonus feats (9)
+
+Highest 15 and lowest 5:
+
+| Name | Level | Rough | Rated (AI rarely used it) |
+|---|---|---|---|
+| Trailblazing Stride | 1 |  0.01 |  |
+| Disillusionment | 1 |  0.01 |  |
+| Locate Lawbreakers | 1 |  0.01 |  |
+| Dedication to the Five | 1 | -0.01 |  |
+| Reveal Beasts | 1 | -0.01 |  |
+| Sturdy Bindings | 1 | -0.02 |  |
+| Righteous Resistance | 1 | -0.03 |  |
+| Seek Injustice | 1 | -0.04 |  |
 | Silence Heresy | 1 | -0.14 |  |
-| Reveal Beasts | 1 | -0.07 |  |
-| Seek Injustice | 1 | -0.07 |  |
-| Righteous Resistance | 1 | -0.07 |  |
-| Trailblazing Stride | 1 | -0.08 |  |
+| Reveal Beasts | 1 | -0.01 |  |
+| Sturdy Bindings | 1 | -0.02 |  |
+| Righteous Resistance | 1 | -0.03 |  |
+| Seek Injustice | 1 | -0.04 |  |
 | Silence Heresy | 1 | -0.14 |  |
 
-### Classfeature feats (3)
+### Classfeature feats (2)
 
 Highest 15 and lowest 5:
 
 | Name | Level | Rough | Rated (AI rarely used it) |
 |---|---|---|---|
-| Mystic Life Force | 20 |  0.01 |  |
-| Deathless Servant | 18 |  0.01 |  |
-| One Among the Masses | 14 | -0.01 |  |
-| Mystic Life Force | 20 |  0.01 |  |
-| Deathless Servant | 18 |  0.01 |  |
-| One Among the Masses | 14 | -0.01 |  |
+| Mystic Life Force | 20 |  0.00 |  |
+| One Among the Masses | 14 | -0.06 |  |
+| Mystic Life Force | 20 |  0.00 |  |
+| One Among the Masses | 14 | -0.06 |  |
 
 ## Ancestries
 
@@ -451,11 +466,11 @@ Highest 15 and lowest 5:
 | Tanuki |  0.01 |  0.01 |
 | Conrasu |  0.01 |  0.00 |
 | Nagaji |  0.01 |  0.00 |
-| Lizardfolk |  0.00 | -0.00 |
 | Sarangay |  0.00 | -0.00 |
+| Lizardfolk |  0.00 | -0.00 |
 | Anadi |  0.00 | -0.00 |
-| Kholo |  0.00 | -0.00 |
 | Automaton |  0.00 | -0.00 |
+| Kholo |  0.00 | -0.00 |
 | Kitsune |  0.00 | -0.00 |
 | Wayang |  0.00 |  0.00 |
 | Catfolk |  0.00 | -0.00 |
@@ -476,20 +491,20 @@ Highest 15 and lowest 5:
 | Shisk |  0.00 | -0.00 |
 | Dwarf | -0.00 | -0.00 |
 | Poppet | -0.00 | -0.01 |
-| Ratfolk | -0.00 | -0.01 |
+| Tengu | -0.01 | -0.01 |
 | Kobold | -0.01 | -0.01 |
 | Halfling | -0.01 | -0.01 |
+| Ratfolk | -0.01 | -0.01 |
 | Vanara | -0.01 | -0.01 |
 | Tripkee | -0.01 | -0.01 |
 | Shoony | -0.01 | -0.01 |
 | Goblin | -0.01 | -0.01 |
-| Tengu | -0.01 | -0.01 |
 | Goloma | -0.01 |  0.00 |
 | Centaur | -0.01 |  0.02 |
 | Dragonet | -0.01 | -0.00 |
 | Athamaru | -0.01 | -0.01 |
-| Azarketi | -0.01 | -0.01 |
 | Elf | -0.01 | -0.00 |
+| Azarketi | -0.01 | -0.01 |
 | Sprite | -0.02 | -0.01 |
 | Merfolk | -0.02 | -0.01 |
 | Skeleton | -0.03 | -0.01 |

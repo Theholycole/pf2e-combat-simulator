@@ -11,13 +11,16 @@
 //      a value in levels. Ancestries get their own small fit (Hit Points, Speed, size, vision, attribute boosts).
 //   3. Check: 10-fold cross-validation — each tested thing scored by values fitted without it — before anything is scored blind.
 //   4. Score: everything not yet tested gets value · amounts.
-// Usage: node tools/rough-power.mjs [runDir=/tmp/claude-build/run] → docs/rough-power.md, docs/rough-power.json
+// Usage: node tools/rough-power.mjs [runDir] → docs/rough-power.md, docs/rough-power.json
+//   With no runDir (2026-11-13, the user: "adjust the rough rating scoring method so they are more accurate in the future as simulations are
+//   done"), it reads the committed ratings — src/data/feat-ratings.json (feats and actions) and docs/ancestry-ratings.json (ancestries,
+//   heritages, backgrounds) —, so every rating run that updates them refits it; tools/feat-power.mjs's report runs it at the end.
 import fs from "node:fs";
 import { featRefs, docsOf } from "./lib/feat-power.mjs";
 import { readDocuments, PACK_ROOT } from "./lib/pack-creatures.mjs";
 import { moderate } from "../src/engine/creature-tables.js";
 
-const RUN = process.argv[2] ?? "/tmp/claude-build/run";
+const RUN = process.argv[2] ?? null;
 const ROOT = new URL("../", import.meta.url);
 
 // --- Text -------------------------------------------------------------------------
@@ -427,8 +430,42 @@ function fitModel(rows, keys, { lambdas = [0.1, 1, 3, 10, 30, 100, 300] } = {}) 
 const IS_MAIN = import.meta.url === `file://${fs.realpathSync(process.argv[1] ?? "")}`;
 if (IS_MAIN) {
 
-const ratings = JSON.parse(fs.readFileSync(`${RUN}/ratings.json`, "utf8"));
+// The ratings: a run folder's report (ratings.json, ancestry.jsonl), or the committed ones.
+const COLLECTION_REF = { "pf2e.feats-srd": "pf2e:feats", "pf2e.actionspf2e": "pf2e:actions" };
+function committedRatings() {
+    const data = JSON.parse(fs.readFileSync(new URL("src/data/feat-ratings.json", ROOT), "utf8"));
+    const rows = [];
+    for (const [collection, byId] of Object.entries(data.ratings ?? {})) {
+        const prefix = COLLECTION_REF[collection] ?? collection.replace(/\./, ":");
+        for (const [id, levels] of Object.entries(byId)) {
+            const d = data.detail?.[collection]?.[id] ?? {};
+            rows.push({ ref: `${prefix}:${id}`, levels, se: d.se ?? null, uses: d.uses ?? null, situational: false, played: d.played ?? null });
+        }
+    }
+    return { method: data.method, generated: data.run ?? data.generated, rated: rows };
+}
+function committedAncestryRows() {
+    let data;
+    try {
+        data = JSON.parse(fs.readFileSync(new URL("docs/ancestry-ratings.json", ROOT), "utf8"));
+    } catch {
+        return [];
+    }
+    const rows = [];
+    for (const [kind, key] of [["ancestry", "ancestries"], ["heritage", "heritages"], ["background", "backgrounds"]]) for (const row of data[key]?.rated ?? []) rows.push({ kind, id: row.id, levels: row.levels, se: row.se });
+    return rows;
+}
+const ratings = RUN ? JSON.parse(fs.readFileSync(`${RUN}/ratings.json`, "utf8")) : committedRatings();
 const rated = new Map(ratings.rated.map((row) => [row.ref, row]));
+// ROUGH_KEEP=<0..1>: a forward check — fit on that share of the ratings only, then score the rest blind against their real ratings (how
+// well it would have guessed them before they were simulated). Printed at the end; the docs aren't written.
+const KEEP = Number(process.env.ROUGH_KEEP) || 1;
+const heldOut = new Map();
+if (KEEP < 1) for (const [ref, row] of [...rated]) {
+    let h = 0;
+    for (const ch of ref) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+    if ((h % 1000) / 1000 >= KEEP) heldOut.set(ref, row), rated.delete(ref);
+}
 // ROUGH_STALE=<json [{ref}]>: rated rows today's code would skip (a re-screen pending), left out.
 for (const file of (process.env.ROUGH_STALE ?? "").split(",").filter(Boolean)) for (const row of JSON.parse(fs.readFileSync(file, "utf8"))) rated.delete(row.ref);
 // ROUGH_OVERLAY=<screen jsonl>[,…]: newer rows (a forced re-rate still running) over the report's.
@@ -440,7 +477,46 @@ for (const file of (process.env.ROUGH_OVERLAY ?? "").split(",").filter(Boolean))
         rated.set(row.ref.ref, { ref: row.ref.ref, levels: row.levels, se: row.se, uses, forced: true });
     }
 }
-const ancestryRows = fs.readFileSync(`${RUN}/ancestry.jsonl`, "utf8").trim().split("\n").map((line) => JSON.parse(line));
+const ancestryRows = RUN && fs.existsSync(`${RUN}/ancestry.jsonl`) ? fs.readFileSync(`${RUN}/ancestry.jsonl`, "utf8").trim().split("\n").map((line) => JSON.parse(line)) : committedAncestryRows();
+
+// Groups (2026-11-13): a feat's traits, its compendium folders (its class, archetype or ancestry) and the dedication it needs, each a
+// block of its own. The ridge gives a group a value only as far as its tested members agree, so every rating run that tests more of a
+// class's or an archetype's feats moves the rough score of the rest of them. Off by default (ROUGH_TAGS=1 turns it on): with the
+// neighbours below it scored worse in the forward check (0.37 against 0.40 at 75% of the ratings), as the neighbours already find a group.
+const TAGS = process.env.ROUGH_TAGS === "1";
+const FOLDERS = new Map();
+const foldersOf = (path) => {
+    if (!FOLDERS.has(path)) {
+        let rows = [];
+        try {
+            rows = readDocuments(path).filter((d) => d.collection === "folders");
+        } catch {}
+        FOLDERS.set(path, new Map(rows.map((f) => [f._id, f])));
+    }
+    return FOLDERS.get(path);
+};
+const SKIP_TRAITS = new Set(["common", "uncommon", "rare", "unique", "general", "skill", "class", "archetype", "ancestry"]);
+function tagsOf(doc, path) {
+    const tags = {};
+    for (const trait of doc.system?.traits?.value ?? []) if (!SKIP_TRAITS.has(trait)) tags[`trait:${trait}`] = 1;
+    const folders = foldersOf(path);
+    for (let id = doc.folder, guard = 0; id && guard < 5; guard++) {
+        const folder = folders.get(id);
+        if (!folder) break;
+        if (!/^level[- ]?\d+$/i.test(folder.name) && !/^(Archetype|Class|Ancestry|General|Skill|Bonus|Mythic|Miscellaneous)$/i.test(folder.name)) tags[`group:${folder.name.toLowerCase()}`] = 1;
+        id = folder.folder;
+    }
+    for (const pre of doc.system?.prerequisites?.value ?? []) for (const m of String(pre.value ?? "").matchAll(/([\w' -]+?) Dedication/gi)) tags[`group:${m[1].trim().toLowerCase()}`] = 1;
+    return tags;
+}
+// Words of a feat's name and text for the neighbours' correction below.
+const STOP = new Set("a an the of to and or in on you your it its is are be as at by for with that this from can if when while than then each one any not into their they them which who have has once per until end start turn round".split(" "));
+function wordsOf(doc) {
+    const text = `${doc.name} ${doc.name} ${(doc.system?.traits?.value ?? []).join(" ")} ${plain(doc.system?.description?.value, level1(doc.system?.level?.value ?? 1))}`.toLowerCase();
+    const counts = new Map();
+    for (const w of text.match(/[a-z][a-z'-]{2,}/g) ?? []) if (!STOP.has(w)) counts.set(w, (counts.get(w) ?? 0) + 1);
+    return counts;
+}
 
 // Feats and actions.
 const things = [];
@@ -450,7 +526,8 @@ for (const ref of featRefs()) {
     const { L, blocks: whole, fightUses, active } = blocksOf(doc, "feat");
     const blocks = active ? blocksOf(doc, "feat", { perUse: true }).blocks : whole;
     const row = rated.get(ref.ref);
-    things.push({ kind: ref.pack === "actions" ? "action" : "feat", ref: ref.ref, name: doc.name, level: L, category: doc.system?.category ?? doc.type, source: ref.source, blocks, levels: row?.levels ?? null, se: row?.se ?? null, uses: row?.uses ?? null, forced: !!row?.forced, active, fightUses, situational: row?.situational ?? false });
+    if (TAGS) Object.assign(blocks, tagsOf(doc, ref.path));
+    things.push({ kind: ref.pack === "actions" ? "action" : "feat", ref: ref.ref, name: doc.name, level: L, category: doc.system?.category ?? doc.type, source: ref.source, blocks, levels: row?.levels ?? null, se: row?.se ?? null, uses: row?.uses ?? null, forced: !!row?.forced, active, fightUses, situational: row?.situational ?? false, words: wordsOf(doc) });
 }
 // Heritages and backgrounds: averaged over the hosts and levels the ancestry run tried.
 const averaged = (kind) => {
@@ -469,7 +546,7 @@ for (const [pack, kind] of [["heritages", "heritage"], ["backgrounds", "backgrou
     for (const doc of readDocuments(`${PACK_ROOT}/${pack}`).filter((d) => d.collection === "items" && d.type === kind)) {
         const { L, blocks } = blocksOf(doc, kind);
         const row = done.get(doc._id);
-        things.push({ kind, ref: `pf2e:${pack}:${doc._id}`, name: doc.name, level: L, category: kind, source: "pf2e", blocks, levels: row?.levels ?? null, se: row?.se ?? null });
+        things.push({ kind, ref: `pf2e:${pack}:${doc._id}`, name: doc.name, level: L, category: kind, source: "pf2e", blocks, levels: row?.levels ?? null, se: row?.se ?? null, words: wordsOf(doc) });
     }
 }
 
@@ -509,6 +586,56 @@ for (const t of things) {
     t.rough = t.active ? t.perUse * usesFor(t) : passiveModel.score(t.blocks);
 }
 const tested = [...activeRows, ...passiveRows];
+
+// Neighbours (2026-11-13): what the blocks miss, the simulator's ratings of the most alike tested feats (their words, tf-idf cosine)
+// tell. Each thing's score moves by its 10 nearest tested neighbours' misses (rating − the blocks' out-of-sample score), weighted by
+// likeness and shrunk toward none: Σ sim·miss / (Σ sim + K). A tested thing never counts itself, so the check stays out of sample.
+// More rated feats, more and closer neighbours: the correction grows as simulations are done (ROUGH_KNN=0 turns it off).
+const KNN = process.env.ROUGH_KNN !== "0";
+const KNN_K = Number(process.env.ROUGH_KNN_K) || 10;
+const KNN_SHRINK = Number(process.env.ROUGH_KNN_SHRINK ?? 1);
+const KNN_ALPHA = Number(process.env.ROUGH_KNN_ALPHA ?? 1);
+if (KNN) {
+    const df = new Map();
+    for (const t of things) for (const w of t.words.keys()) df.set(w, (df.get(w) ?? 0) + 1);
+    const N = things.length;
+    for (const t of things) {
+        const v = new Map();
+        let norm = 0;
+        for (const [w, c] of t.words) {
+            const x = (1 + Math.log(c)) * Math.log(N / (df.get(w) ?? 1));
+            if (x > 0) v.set(w, x), (norm += x * x);
+        }
+        norm = Math.sqrt(norm) || 1;
+        for (const [w, x] of v) v.set(w, x / norm);
+        t.vec = v;
+    }
+    // Postings of tested things only.
+    const postings = new Map();
+    tested.forEach((t, i) => {
+        t.miss = t.levels - t.oof;
+        for (const [w, x] of t.vec) (postings.get(w) ?? postings.set(w, []).get(w)).push([i, x]);
+    });
+    const neighbours = (t) => {
+        const acc = new Map();
+        for (const [w, x] of t.vec) for (const [i, y] of postings.get(w) ?? []) acc.set(i, (acc.get(i) ?? 0) + x * y);
+        return [...acc].filter(([i]) => tested[i] !== t).sort((a, b) => b[1] - a[1]).slice(0, KNN_K);
+    };
+    const correction = (t) => {
+        let num = 0, den = 0;
+        for (const [i, sim] of neighbours(t)) {
+            const w = sim * sim;
+            num += w * tested[i].miss;
+            den += w;
+        }
+        return den ? KNN_ALPHA * num / (den + KNN_SHRINK * 0.1) : 0;
+    };
+    for (const t of things) {
+        t.neighbourFix = correction(t);
+        t.rough += t.neighbourFix;
+    }
+    for (const t of tested) t.oof += t.neighbourFix;
+}
 const testedCounts = Object.fromEntries([...new Set([...Object.keys(activeCounts), ...Object.keys(passiveCounts)])].map((k) => [k, (activeCounts[k] ?? 0) + (passiveCounts[k] ?? 0)]));
 
 // Ancestries: Hit Points, Speed, size, vision, boosts and flaws.
@@ -554,7 +681,7 @@ const fmt = (x, d = 2) => (x >= 0 ? " " : "") + x.toFixed(d);
 const corr = (rows, a, b) => (rows.length > 2 ? pearson(rows.map(a), rows.map(b)) : NaN);
 const meanAbs = (rows, a, b) => rows.reduce((sum, t) => sum + Math.abs(a(t) - b(t)), 0) / (rows.length || 1);
 const lines = [];
-lines.push("# Rough power score", "", `Generated ${new Date().toISOString().slice(0, 10)} by tools/rough-power.mjs from the simulator's ratings in ${RUN} (feat ratings: ${ratings.method}, ${ratings.generated?.slice(0, 10)}${process.env.ROUGH_OVERLAY ? `; newer forced-use rows laid over them from ${process.env.ROUGH_OVERLAY}` : ""}).`, "");
+lines.push("# Rough power score", "", `Generated ${new Date().toISOString().slice(0, 10)} by tools/rough-power.mjs from the simulator's ratings in ${RUN ?? "src/data/feat-ratings.json and docs/ancestry-ratings.json"} (feat ratings: ${ratings.method}, ${ratings.generated?.slice(0, 10)}${process.env.ROUGH_OVERLAY ? `; newer forced-use rows laid over them from ${process.env.ROUGH_OVERLAY}` : ""}).`, "");
 lines.push("Each feat, action, heritage and background is read into building blocks from its own text and rules: damage weighted by the four degrees of success and by targets, healing, conditions by kind and value, bonuses and penalties, resistances, spells it grants, action cost, uses a fight, drawbacks. The reading is the same whether the simulator played it or not. Amounts are in each level's own units (damage over a moderate creature's Strike damage at that level, healing over its Hit Points), so one value holds at every level.", "");
 lines.push(`Two fits give each block a value in levels (a ridge regression of the simulator's ratings on the blocks, each block counted as log(1 + amount)). **Activities** (actions, reactions, free actions): the value of one use — the rating over the times the simulator used it in a fight —, then × the uses a fight: the average the simulator gave tested activities with the same allowance (${Object.entries(USES).map(([k, v]) => `${v.toFixed(1)} for ${k === "3" ? "no frequency" : k === "2" ? "a reaction" : k === "1" ? "once a minute or rarer" : `allowance ${k}`}`).join(", ")}). **Passives**, heritages and backgrounds: the whole-fight rating. Ancestries get a small fit of their own. A rating the simulator's AI used the activity in less than ${MIN_USES} times a fight is left out of the fit (it says little of its value per use) and scored like the untested.`, "");
 lines.push("Every check below is out of sample: each tested thing was scored by values fitted without it (10 folds), before its own rating was looked at.", "");
@@ -611,6 +738,12 @@ for (const [kind, rows] of Object.entries(byKind).sort((a, b) => b[1].length - a
 lines.push("## Ancestries", "", "| Ancestry | Simulator | Rough (out of sample) |", "|---|---|---|");
 for (const a of [...ancestries].sort((p, q) => (q.levels ?? q.rough) - (p.levels ?? p.rough))) lines.push(`| ${a.name} | ${a.levels === null ? "—" : fmt(a.levels)} | ${fmt(a.oof ?? a.rough)} |`);
 
+if (KEEP < 1) {
+    const blind = things.filter((t) => heldOut.has(t.ref) && heldOut.get(t.ref).levels !== null);
+    const real = blind.map((t) => heldOut.get(t.ref).levels);
+    console.log(`forward check: fitted on ${tested.length}, ${blind.length} held out: r ${pearson(blind.map((t) => t.rough), real).toFixed(3)}, rho ${spearman(blind.map((t) => t.rough), real).toFixed(3)}, mean error ${(blind.reduce((s, t, i) => s + Math.abs(t.rough - real[i]), 0) / blind.length).toFixed(3)}`);
+    process.exit(0);
+}
 fs.writeFileSync(new URL("docs/rough-power.md", ROOT), lines.join("\n") + "\n");
 const valuesOf = (model) => Object.fromEntries([["base", model.beta[0]], ...model.keys.map((key, i) => [key, model.beta[i + 1]])]);
 const r3 = (x) => (x === null || x === undefined || !Number.isFinite(x) ? null : Math.round(x * 1000) / 1000);
