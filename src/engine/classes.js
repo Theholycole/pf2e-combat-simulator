@@ -651,14 +651,14 @@ const CLASSES = {
 //               the user, taken as always); Point-Blank Fury (7th): a die more on a creature adjacent to the user; Blinding Speed (13th): a
 //               reaction Strike at a creature that comes into its reach.
 //   long        Range A, Precision B, Power C (tendril d8), Speed C, Durability D, Potential E. Remote Eyes and Far Eyes: senses, nothing a
-//               fight here plays; Long Arm (13th): its Stand Ability's range doubles (Flame at 60 feet).
+//               fight here plays; Distant Precision (7th, 2026-11-24): a die more on a creature not adjacent to the user; Long Arm (13th): its Stand Ability's range doubles (Flame at 60 feet).
 //   automatic   Durability A, Power B (ram d8), Speed C, Range C, Precision D, Potential E (2026-11-24: Precision D or E → D, no −1). Its Program's end-of-turn action and Feed the
 //               Program come to Act Together's actions here; Relentless and Undying Program (out of sight, destroyed) nothing a fight
 //               here plays. "stand-automatic-dart": its own Melting Dart (Ratt, automatic only) for Flame: 1 action, 30 feet, D acid with
 //               an attack roll; persistent 1d6 acid on a hit from 5th; a surge from 9th, darts at up to 3 creatures, half S each; clumsy 1
 //               on a critical hit from 13th.
 //   colony      Precision A, Speed B, Power C (many hands d8), Durability C, Range D, Potential E. Many Hands: weakness to area damage, half
-//               its level; Spread Thin (7th): its ghostly resistance half its level more against Strikes (as physical damage; 2026-11-24: it stacks); Overwhelm (13th): 2 actions,
+//               its level; (2026-11-24: Spread Thin from 1st, Overwhelm from 7th, its area 20 feet from 13th) Spread Thin: its ghostly resistance half its level more against Strikes (as physical damage; 2026-11-24: it stacks); Overwhelm (13th): 2 actions,
 //               its fist's damage at each foe in a 15-foot area, basic Reflex against the stand DC (allies left out of it here).
 //   bound       Durability A, Power B (blade d8), Precision C, Range C, Speed D, Potential E. Vessel: the user Strikes with the bound
 //               weapon at the stand's attack modifier and damage; the stand acts through it (its body, the animated vessel, beside it).
@@ -696,7 +696,9 @@ function standUser(type, { rush = false, ability = "flame" } = {}) {
         build(lv, a) {
             const str = key(lv) + (lv >= 17 ? 1 : 0); // (Stand Transcendence: +1 to its Strength at 17th.)
             const prof = rank(lv, [[1, T], [5, E], [13, M]]);
-            const fury = type === "close" && lv >= 7 ? { partnerDie: true } : {};
+            // (2026-11-24, Cole's pick "Give both an earlier combat perk": a long-range stand's Distant Precision at 7th, close-range's Point-Blank
+            // Fury mirrored — a die more on a creature not adjacent to the user.)
+            const fury = type === "close" && lv >= 7 ? { partnerDie: true } : type === "long" && lv >= 7 ? { partnerDie: "far" } : {};
             const runes = (strike) => ({ ...strike, iwr: { ...strike.iwr, ...(potency(lv) ? { traits: ["magical"] } : {}), runes: ["ghost-touch"] } });
             const main = runes(weaponStrike(lv, { name: names[0], die: primaryDie, type: "bludgeoning", toHit: str + prec, damageAttr: str, prof, group: "brawling", extra: { unarmed: true, ...(type === "close" ? { forceful: true } : {}), ...fury } }));
             const second = runes(weaponStrike(lv, { name: names[1], die: 6, type: type === "bound" ? "bludgeoning" : type === "automatic" ? "piercing" : "bludgeoning", toHit: str + prec, damageAttr: str, prof, group: "brawling", extra: { unarmed: true, agile: true, finesse: true, ...fury } }));
@@ -740,9 +742,9 @@ function standUser(type, { rush = false, ability = "flame" } = {}) {
                 spells.push(make("Air Shots (surge, three bubbles)", { actions: 2, damage: halfS("bludgeoning"), kind: "bludgeoning", attackRoll: true, target: "up to 3 creatures", surge: true }));
             }
             // (Overwhelm, the colony's 13th: the stand's own 2-action area Strike.)
-            const overwhelm = type === "colony" && lv >= 13 ? (() => {
+            const overwhelm = type === "colony" && lv >= 7 ? (() => {
                 const part = main.damage[0];
-                const entry = make("Overwhelm", { actions: 2, damage: `${part.dice}d${part.die}+${part.bonus}[bludgeoning]`, kind: "bludgeoning", area: { type: "burst", value: 15, foes: true } });
+                const entry = make("Overwhelm", { actions: 2, damage: `${part.dice}d${part.die}+${part.bonus}[bludgeoning]`, kind: "bludgeoning", area: { type: "burst", value: lv >= 13 ? 20 : 15, foes: true } });
                 return { ...entry, rechargeGroup: null };
             })() : null;
             const spellPools = spells.some((entry) => entry.pool) ? { [pool]: 2 } : {};
@@ -756,7 +758,7 @@ function standUser(type, { rush = false, ability = "flame" } = {}) {
             const stand = (user) => ({
                 ...structuredClone(user), id: "stand", name: "Stand", kind: "npc", traits: ["eidolon", "stand"], sharesHpWith: user.id, actionsPerTurn: 2, actTogether: false, boostEidolon: 0,
                 ac: standAC,
-                resistances: [...(user.resistances ?? []), ...ghostly, ...(type === "colony" && lv >= 7 ? ["bludgeoning", "piercing", "slashing"].map((kind) => ({ type: kind, value: half + durRes + half, exceptions: [] })) : [])],
+                resistances: [...(user.resistances ?? []), ...ghostly, ...(type === "colony" ? ["bludgeoning", "piercing", "slashing"].map((kind) => ({ type: kind, value: half + durRes + half, exceptions: [] })) : [])],
                 ...(type === "colony" ? { weaknesses: [...(user.weaknesses ?? []), { type: "area-damage", value: half, exceptions: [] }] } : {}),
                 strikes: [main, second],
                 spells: [...(user.spells ?? []).filter((entry) => entry.kind === "basic"), ...(overwhelm ? [overwhelm] : [])], spellPools: {},

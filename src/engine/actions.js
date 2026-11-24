@@ -412,7 +412,8 @@ export function performStrike(state, attacker, target, strike, options = {}) {
     // you" — its user in the target's Melee.)
     if (strike?.partnerDie && attacker.sharesHpWith) {
         const user = state.byId.get(attacker.sharesHpWith);
-        if (user && isActive(user) && sameMelee(user, target)) strike = { ...strike, damage: strike.damage.map((part, index) => (index === 0 ? { ...part, dice: (part.dice ?? 0) + 1 } : part)) };
+        // (A long-range stand's Distant Precision, "far": a creature not adjacent to its user.)
+        if (user && isActive(user) && (strike.partnerDie === "far" ? !sameMelee(user, target) : sameMelee(user, target))) strike = { ...strike, damage: strike.damage.map((part, index) => (index === 0 ? { ...part, dice: (part.dice ?? 0) + 1 } : part)) };
     }
     if (!options.reaction) {
         const result = strikeOnce(state, attacker, target, strike, options);
