@@ -585,6 +585,20 @@ const CLASSES = {
             return { strikes: [], fields: { actionsPerTurn: 2, actTogether: true, boostEidolon: boost }, companions: [eidolon] };
         }
     },
+    // (2026-11-24, Cole: "get the stand class archetype working in the simulator and run it to see how well it performs in teams and
+    // solo".) A summoner with the Stand User class archetype (homebrew, the PF2e Stand Class Archetype module, Cole's design doc "JoJo
+    // Stands in PF2e"): no spell slots, no Boost Eidolon, no beast eidolon abilities. Its eidolon is a close-range power stand (Power A:
+    // the primary die one step up; Point-Blank Power: forceful within 10 feet of the user, taken as always — the type keeps them together;
+    // Point-Blank Fury at 7th: a die more on a creature adjacent to the user; Blinding Speed at 13th: a reaction Strike at a creature
+    // that comes into its reach), ghostly (resistance to all damage, half its level, but force, spirit and ghost touch). Its Stand Ability
+    // is Flame (Magician's Red): 1 action, a creature within 30 feet, D fire (1d6, a die more at 5/9/13/17) basic Reflex against its
+    // stand DC (the summoner's spell DC steps); a surge for a Stand Point from 5th, 2 actions, a 15-foot cone of S fire (2d6, 2d6 more
+    // every odd level), from 13th six ankhs at up to 6 creatures within 30 feet, half S each; a critical failure on the ankh grabs it a
+    // round from 9th; from 17th 2d6 persistent fire on any failed save. Stand Points: 2 (focus).
+    //   "stand-user-rush" is the same with Barrage Rush (its 1st-level class feat: 2 actions, three stand Strikes at one target at the
+    //   normal multiple attack penalty, once a turn; Undying Barrage at 12th not played).
+    "stand-user": standUser(false),
+    "stand-user-rush": standUser(true),
     swashbuckler: {
         seat: "rogue", hp: 10, attrs: (k, lv) => ({ str: second(lv) - 1, dex: k, con: martialCon(lv), int: 0, wis: minor(lv), cha: second(lv) - 1 }),
         armor: "light", armorSteps: [[1, T], [13, E], [19, M]],
@@ -624,6 +638,48 @@ const CLASSES = {
         companions: [(c) => familiarFor(c, { hexAbility: "familiar-of-ongoing-misery", lifelink: true })]
     }
 };
+// The Stand User (CLASSES "stand-user"): the summoner chassis with a close-range power stand and Flame.
+function standUser(rush) {
+    return {
+        seat: "fighter", hp: 10, attrs: (k, lv) => ({ str: 0, dex: 2, con: martialCon(lv), int: 0, wis: minor(lv), cha: k }),
+        armor: "unarmored", armorSteps: [[1, T], [13, E]],
+        fort: [[1, E], [11, M]], ref: [[1, T], [9, E]], will: [[1, E], [15, M]], perception: [[1, T], [3, E]],
+        // (Stand DC: the summoner's spellcasting steps — expert at 9th, master at 17th — with Charisma.)
+        classDC: [[1, T], [9, E], [17, M]],
+        build(lv, a) {
+            const str = key(lv) + (lv >= 17 ? 1 : 0); // (Stand Transcendence: +1 to its Strength at 17th.)
+            const prof = rank(lv, [[1, T], [5, E], [13, M]]);
+            const fist = weaponStrike(lv, { name: "Fist", die: 10, type: "bludgeoning", toHit: str, damageAttr: str, prof, group: "brawling", extra: { unarmed: true, forceful: true, ...(lv >= 7 ? { partnerDie: true } : {}) } });
+            const kick = weaponStrike(lv, { name: "Kick", die: 6, type: "bludgeoning", toHit: str, damageAttr: str, prof, group: "brawling", extra: { unarmed: true, agile: true, finesse: true, ...(lv >= 7 ? { partnerDie: true } : {}) } });
+            const standAC = 10 + lv + rank(lv, [[1, T], [11, E], [19, M]]) + 2 + 3 + armorPotency(lv);
+            const ghostly = [{ type: "all-damage", value: Math.max(1, Math.floor(lv / 2)), exceptions: ["force", "ghost-touch", "spirit"] }];
+            const stand = (user) => ({
+                ...structuredClone(user), id: "stand", name: "Stand", kind: "npc", traits: ["eidolon", "stand"], sharesHpWith: user.id, actionsPerTurn: 2, actTogether: false, boostEidolon: 0,
+                ac: standAC, resistances: [...(user.resistances ?? []), ...ghostly],
+                strikes: [fist, kick].map((strike) => ({ ...strike, iwr: { ...strike.iwr, ...(potency(lv) ? { traits: ["magical"] } : {}), runes: ["ghost-touch"] } })),
+                spells: (user.spells ?? []).filter((entry) => entry.kind === "basic"), spellPools: {},
+                skills: { athletics: lv + prof + str, intimidation: lv + T }, classDC: null, heroPoints: 0, reactions: { aoo: false, shieldBlock: false }, critSpec: lv >= 7,
+                ...(lv >= 13 ? { reactionStrikes: [{ name: "Blinding Speed", triggers: ["approach"], strike: null, penalty: 0, disrupts: false }] } : {}),
+                ...(rush ? { multiStrikes: [{ name: "Barrage Rush", actions: 2, strikes: ["Fist", "Kick", "Kick"], oncePerTurn: true, sameTarget: true }] } : {})
+            });
+            const dc = 10 + lv + rank(lv, [[1, T], [9, E], [17, M]]) + a.cha;
+            const D = `${1 + steps(lv)}d6[fire]`;
+            const S = `${2 * Math.ceil(lv / 2)}d6[fire]`;
+            const halfS = `${Math.ceil(lv / 2)}d6[fire]`;
+            const burn = lv >= 17 ? { failure: ["2d6[persistent,fire]"], criticalFailure: ["2d6[persistent,fire]"] } : {};
+            const flame = (name, { actions, damage, area = null, target = "1 creature", pool = null, effects = {} }) => {
+                const plan = savePlan(name, { actions, traits: ["concentrate", "occult", "stand", "fire"], area, target, range: "30 feet", save: "reflex", dc, damage, basic: true, extra: burn, effects });
+                plan.source.type = "action";
+                plan.resolution.sharedDamage.components = [{ id: "0", formula: damage, type: "fire", category: null }];
+                return { name, plan, castRank: Math.ceil(lv / 2), dc, attack: null, pool, kind: "ability", actionType: "action", rechargeGroup: name };
+            };
+            const spells = [flame("Flame (ankh)", { actions: 1, damage: D, effects: lv >= 9 ? { criticalFailure: [["grabbed", null, { mode: "fixed", value: 1, unit: "rounds" }]] } : {} })];
+            if (lv >= 5) spells.push(flame("Flame (surge cone)", { actions: 2, damage: S, area: { type: "cone", value: 15 }, pool: "stand-user:focus" }));
+            if (lv >= 13) spells.push(flame("Flame (surge ankhs)", { actions: 2, damage: halfS, target: "up to 6 creatures", pool: "stand-user:focus" }));
+            return { strikes: [], spells, spellPools: lv >= 5 ? { "stand-user:focus": 2 } : {}, fields: { actionsPerTurn: 2, actTogether: true, boostEidolon: 0 }, companions: [stand] };
+        }
+    };
+}
 // Class features that make a save's success a critical success: [level, save] (the pf2e system's class items, 2026-11-06; the monk's Path
 // to Perfection on Reflex, Second Path on Will, as its saves above).
 const SAVE_UPGRADES = {
@@ -632,10 +688,12 @@ const SAVE_UPGRADES = {
     guardian: [[9, "fortitude"], [17, "will"]], gunslinger: [[11, "reflex"], [17, "fortitude"]], inventor: [[11, "will"], [17, "fortitude"]],
     investigator: [[11, "will"], [15, "reflex"]], kineticist: [[7, "fortitude"], [11, "reflex"]], magus: [[9, "will"], [15, "fortitude"]],
     monk: [[7, "reflex"], [11, "will"]], necromancer: [[3, "will"], [11, "fortitude"]], oracle: [[7, "will"]], psychic: [[11, "will"]],
-    ranger: [[7, "reflex"], [11, "fortitude"]], runesmith: [[11, "fortitude"]], sorcerer: [[17, "will"]], summoner: [[11, "fortitude"], [15, "will"]],
+    ranger: [[7, "reflex"], [11, "fortitude"]], runesmith: [[11, "fortitude"]], sorcerer: [[17, "will"]], summoner: [[11, "fortitude"], [15, "will"]], "stand-user": [[11, "fortitude"], [15, "will"]], "stand-user-rush": [[11, "fortitude"], [15, "will"]],
     swashbuckler: [[7, "reflex"], [17, "will"]], thaumaturge: [[7, "will"], [15, "fortitude"]], witch: [[17, "will"]]
 };
-export const CLASS_SLUGS = Object.freeze([...Object.keys(CLASSES), "fighter", "rogue", "wizard", "cleric"].sort());
+// (Builds that aren't one of PF2e's classes — a class archetype, homebrew: the Stand User — run only when named: --only=.)
+export const VARIANT_SLUGS = Object.freeze(["stand-user", "stand-user-rush"]);
+export const CLASS_SLUGS = Object.freeze([...Object.keys(CLASSES).filter((slug) => !VARIANT_SLUGS.includes(slug)), "fighter", "rogue", "wizard", "cleric"].sort());
 // What a class's PC doesn't play yet (its chassis, spells and weapon are played).
 // (2026-11-10, Cole: "get them working": the class features once listed here are played now — the animist's apparitions, the necromancer's
 // thralls, Consume Thrall and Inevitable Return, the runesmith's runes, the bard's compositions, the sorcerer's blood magic, the psychic's

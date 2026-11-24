@@ -147,3 +147,21 @@ test("the runesmith's runes: atryl and ranshu traced and invoked against its cla
     assert.deepEqual(runes[3].plan.resolution.sharedDamage.components.map((part) => part.formula), ["3d8[fire]", "3d8[electricity]"]);
     assert.ok(runesmith.strikes[0].damage.some((part) => part.splash && part.bonus === 2));
 });
+
+test("the Stand User (homebrew summoner class archetype): a ghostly close-range stand, Flame against its stand DC, no spell slots", () => {
+    assert.ok(!CLASS_SLUGS.includes("stand-user"));
+    const user = classPC("stand-user-rush", 13, { spell: fake });
+    const [stand] = user.companions;
+    assert.equal(stand.sharesHpWith, "stand-user-rush");
+    assert.deepEqual(stand.resistances.at(-1), { type: "all-damage", value: 6, exceptions: ["force", "ghost-touch", "spirit"] });
+    assert.equal(stand.strikes[0].damage[0].die, 10);
+    assert.ok(stand.strikes[0].forceful && stand.strikes[0].partnerDie);
+    assert.deepEqual(stand.strikes[0].iwr.runes, ["ghost-touch"]);
+    assert.equal(stand.multiStrikes[0].name, "Barrage Rush");
+    assert.equal(stand.reactionStrikes[0].name, "Blinding Speed");
+    assert.deepEqual(user.spells.filter((entry) => entry.kind === "ability").map((entry) => entry.name), ["Flame (ankh)", "Flame (surge cone)", "Flame (surge ankhs)"]);
+    assert.equal(user.spells.filter((entry) => entry.kind === "ability")[0].dc, 10 + 13 + 4 + 5);
+    assert.ok(!user.spells.some((entry) => entry.tradition));
+    assert.deepEqual(user.spellPools, { "stand-user:focus": 2 });
+    assert.equal(classPC("stand-user", 13, { spell: fake }).companions[0].multiStrikes, undefined);
+});

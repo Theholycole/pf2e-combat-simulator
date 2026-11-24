@@ -408,6 +408,12 @@ export function performStrike(state, attacker, target, strike, options = {}) {
     if (attacker.side !== target.side) (target.hostileFrom ??= new Set()).add(attacker.id);
     // (2026-11-06, Skeletal Lancers: a foe's Strike beside a lancer.)
     if (state.list.some((other) => other.thrallAura?.on === "strike")) thrallAuraStrike(state, attacker);
+    // (2026-11-24, a close-range power stand's Point-Blank Fury: "Stand Strikes deal 1 extra damage die against creatures adjacent to
+    // you" — its user in the target's Melee.)
+    if (strike?.partnerDie && attacker.sharesHpWith) {
+        const user = state.byId.get(attacker.sharesHpWith);
+        if (user && isActive(user) && sameMelee(user, target)) strike = { ...strike, damage: strike.damage.map((part, index) => (index === 0 ? { ...part, dice: (part.dice ?? 0) + 1 } : part)) };
+    }
     if (!options.reaction) {
         const result = strikeOnce(state, attacker, target, strike, options);
         // (Invisibility: it ends once the attack is done. Weapon Surge, Judgment's success: used up by the Strike.)
