@@ -165,3 +165,18 @@ test("the Stand User (homebrew summoner class archetype): a ghostly close-range 
     assert.deepEqual(user.spellPools, { "stand-user:focus": 2 });
     assert.equal(classPC("stand-user", 13, { spell: fake }).companions[0].multiStrikes, undefined);
 });
+
+test("the seven stand types: grades, the colony's weakness and Spread Thin, the integrated stand as one body, the evolving stand's Acts", () => {
+    assert.equal(classPC("stand-automatic", 13, { spell: fake }).companions[0].ac, classPC("stand-user", 13, { spell: fake }).companions[0].ac + 2);
+    const colony = classPC("stand-colony", 13, { spell: fake }).companions[0];
+    assert.deepEqual(colony.weaknesses.at(-1), { type: "area-damage", value: 6, exceptions: [] });
+    assert.ok(colony.spells.some((entry) => entry.name === "Overwhelm"));
+    const merged = classPC("stand-integrated", 13, { spell: fake });
+    assert.equal(merged.companions, undefined);
+    assert.equal(merged.actionsPerTurn, 4);
+    assert.equal(merged.strikes[0].damage[0].die, 10);
+    assert.ok(!merged.strikes.some((strike) => strike.backupBow));
+    const evolving = classPC("stand-evolving", 13, { spell: fake });
+    assert.ok(["Ice (shard)", "Air Shots"].every((name) => evolving.spells.some((entry) => entry.name === name)));
+    assert.equal(classPC("stand-automatic-dart", 9, { spell: fake }).spells.filter((entry) => entry.kind === "ability").length, 2);
+});

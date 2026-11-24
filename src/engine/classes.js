@@ -586,19 +586,23 @@ const CLASSES = {
         }
     },
     // (2026-11-24, Cole: "get the stand class archetype working in the simulator and run it to see how well it performs in teams and
-    // solo".) A summoner with the Stand User class archetype (homebrew, the PF2e Stand Class Archetype module, Cole's design doc "JoJo
-    // Stands in PF2e"): no spell slots, no Boost Eidolon, no beast eidolon abilities. Its eidolon is a close-range power stand (Power A:
-    // the primary die one step up; Point-Blank Power: forceful within 10 feet of the user, taken as always — the type keeps them together;
-    // Point-Blank Fury at 7th: a die more on a creature adjacent to the user; Blinding Speed at 13th: a reaction Strike at a creature
-    // that comes into its reach), ghostly (resistance to all damage, half its level, but force, spirit and ghost touch). Its Stand Ability
-    // is Flame (Magician's Red): 1 action, a creature within 30 feet, D fire (1d6, a die more at 5/9/13/17) basic Reflex against its
-    // stand DC (the summoner's spell DC steps); a surge for a Stand Point from 5th, 2 actions, a 15-foot cone of S fire (2d6, 2d6 more
-    // every odd level), from 13th six ankhs at up to 6 creatures within 30 feet, half S each; a critical failure on the ankh grabs it a
-    // round from 9th; from 17th 2d6 persistent fire on any failed save. Stand Points: 2 (focus).
-    //   "stand-user-rush" is the same with Barrage Rush (its 1st-level class feat: 2 actions, three stand Strikes at one target at the
-    //   normal multiple attack penalty, once a turn; Undying Barrage at 12th not played).
-    "stand-user": standUser(false),
-    "stand-user-rush": standUser(true),
+    // solo"; then, his pick "Test the other 6 stand types first".) A summoner with the Stand User class archetype (homebrew, the PF2e Stand
+    // Class Archetype module, Cole's design doc "JoJo Stands in PF2e"): no spell slots, no Boost Eidolon, no beast eidolon abilities; a
+    // ghostly stand (resistance to all damage, half its level, but force, spirit and ghost touch) of one of the seven types, its stat grades
+    // (the doc's stats sketch: Durability A +2 AC and ghostly resistance +2, E −2 AC; Precision A +1 to stand Strikes and Stand Ability DCs,
+    // E −1; B and D halfway, rounded toward C; the Power grade shifts the primary die; Speed's initiative isn't played) and a Stand Ability
+    // against its stand DC (the summoner's spell DC steps). Stand Points: 2 (focus). See standUser below for each type.
+    //   "stand-user" (the close-range power stand, as first run) and "stand-user-rush" (with Barrage Rush, its 1st-level class feat: 2
+    //   actions, three stand Strikes at one target at the normal multiple attack penalty, once a turn).
+    "stand-user": standUser("close"),
+    "stand-user-rush": standUser("close", { rush: true }),
+    "stand-long": standUser("long"),
+    "stand-automatic": standUser("automatic"),
+    "stand-automatic-dart": standUser("automatic", { ability: "dart" }),
+    "stand-colony": standUser("colony"),
+    "stand-bound": standUser("bound"),
+    "stand-integrated": standUser("integrated"),
+    "stand-evolving": standUser("evolving"),
     swashbuckler: {
         seat: "rogue", hp: 10, attrs: (k, lv) => ({ str: second(lv) - 1, dex: k, con: martialCon(lv), int: 0, wis: minor(lv), cha: second(lv) - 1 }),
         armor: "light", armorSteps: [[1, T], [13, E], [19, M]],
@@ -638,10 +642,50 @@ const CLASSES = {
         companions: [(c) => familiarFor(c, { hexAbility: "familiar-of-ongoing-misery", lifelink: true })]
     }
 };
-// The Stand User (CLASSES "stand-user"): the summoner chassis with a close-range power stand and Flame.
-function standUser(rush) {
+// The Stand User (CLASSES "stand-user" and the other "stand-…"): the summoner chassis with a stand of a type, and Flame (Magician's Red,
+// open to every type: 1 action, a creature within 30 feet, D fire — 1d6, a die more at 5/9/13/17 — basic Reflex; a surge for a Stand
+// Point from 5th, 2 actions, a 15-foot cone of S fire — 2d6, 2d6 more every odd level —; from 13th six ankhs at up to 6 creatures within
+// 30 feet, half S each; a critical failure on the ankh grabs it a round from 9th; from 17th 2d6 persistent fire on any failed save), so
+// the types are compared on one ability. The types (the doc's "Stand types" and the module's type features):
+//   close       Power A (fist d10), Speed B, Durability C, Precision C, Potential D, Range E. Point-Blank Power: forceful (within 10 feet of
+//               the user, taken as always); Point-Blank Fury (7th): a die more on a creature adjacent to the user; Blinding Speed (13th): a
+//               reaction Strike at a creature that comes into its reach.
+//   long        Range A, Precision B, Power C (tendril d8), Speed C, Durability D, Potential E. Remote Eyes and Far Eyes: senses, nothing a
+//               fight here plays; Long Arm (13th): its Stand Ability's range doubles (Flame at 60 feet).
+//   automatic   Durability A, Power B (ram d8), Speed C, Range C, Potential D, Precision E. Its Program's end-of-turn action and Feed the
+//               Program come to Act Together's actions here; Relentless and Undying Program (out of sight, destroyed) nothing a fight
+//               here plays. "stand-automatic-dart": its own Melting Dart (Ratt, automatic only) for Flame: 1 action, 30 feet, D acid with
+//               an attack roll; persistent 1d6 acid on a hit from 5th; a surge from 9th, darts at up to 3 creatures, half S each; clumsy 1
+//               on a critical hit from 13th.
+//   colony      Precision A, Speed B, Power C (many hands d8), Durability C, Range D, Potential E. Many Hands: weakness to area damage, half
+//               its level; Spread Thin (7th): resistance to Strikes, half its level (as physical damage); Overwhelm (13th): 2 actions,
+//               its fist's damage at each foe in a 15-foot area, basic Reflex against the stand DC (allies left out of it here).
+//   bound       Durability A, Power B (blade d8), Precision C, Range C, Speed D, Potential E. Vessel: the user Strikes with the bound
+//               weapon at the stand's attack modifier and damage; the stand acts through it (its body, the animated vessel, beside it).
+//   integrated  Power A (fist d10), Durability B, Speed C, Precision C, Potential D, Range E. Worn Stand: merged, one body — the user,
+//               its unarmed Strikes at the stand's numbers, the stand's Act Together actions its own (3 a turn, one attack penalty) —, no
+//               stand to hit and no ghostly resistance; Second Skin (7th): +1 status to AC; Full Merge (13th): a stand action costs no
+//               action once a turn (4 actions).
+//   evolving    Precision A, Power B (fist d8), Speed C, Durability C, Range D, Potential E. No type perk; Acts from Flame's theme (Force
+//               and Energy): Act Two (7th) Ice (Horus: 1 action, 30 feet, D cold basic Reflex; a surge from 9th, a 10-foot burst of S cold;
+//               its −10-foot Speed on a critical failure from 13th not played), Act Three (13th) Air Shots (Stray Cat: 1 action, 30 feet, D
+//               bludgeoning with an attack roll; a surge, 3 bubbles at up to 3 creatures, S/2 each). Switching Acts (1 action) isn't
+//               played: every Act is ready.
+function standUser(type, { rush = false, ability = "flame" } = {}) {
+    const GRADES = {
+        close: { power: "A", durability: "C", precision: "C" }, long: { power: "C", durability: "D", precision: "B" },
+        automatic: { power: "B", durability: "A", precision: "E" }, colony: { power: "C", durability: "C", precision: "A" },
+        bound: { power: "B", durability: "A", precision: "C" }, integrated: { power: "A", durability: "B", precision: "C" },
+        evolving: { power: "B", durability: "C", precision: "A" }
+    };
+    const grade = GRADES[type];
+    const durAC = { A: 2, B: 1, C: 0, D: -1, E: -2 }[grade.durability];
+    const durRes = { A: 2, B: 1 }[grade.durability] ?? 0;
+    const prec = { A: 1, B: 0, C: 0, D: 0, E: -1 }[grade.precision];
+    const primaryDie = { A: 10, B: 8, C: 8, D: 6, E: 6 }[grade.power];
+    const names = { close: ["Fist", "Kick"], long: ["Tendril", "Whip"], automatic: ["Ram", "Bite"], colony: ["Many Hands", "Tiny Weapons"], bound: ["Blade", "Hilt"], integrated: ["Fist", "Body Weapon"], evolving: ["Fist", "Tail"] }[type];
     return {
-        seat: "fighter", hp: 10, attrs: (k, lv) => ({ str: 0, dex: 2, con: martialCon(lv), int: 0, wis: minor(lv), cha: k }),
+        seat: "fighter", hp: 10, attrs: (k, lv) => ({ str: 0, dex: 2, con: martialCon(lv), int: 0, wis: minor(lv), cha: k }), noBackupBow: true,
         armor: "unarmored", armorSteps: [[1, T], [13, E]],
         fort: [[1, E], [11, M]], ref: [[1, T], [9, E]], will: [[1, E], [15, M]], perception: [[1, T], [3, E]],
         // (Stand DC: the summoner's spellcasting steps — expert at 9th, master at 17th — with Charisma.)
@@ -649,34 +693,77 @@ function standUser(rush) {
         build(lv, a) {
             const str = key(lv) + (lv >= 17 ? 1 : 0); // (Stand Transcendence: +1 to its Strength at 17th.)
             const prof = rank(lv, [[1, T], [5, E], [13, M]]);
-            const fist = weaponStrike(lv, { name: "Fist", die: 10, type: "bludgeoning", toHit: str, damageAttr: str, prof, group: "brawling", extra: { unarmed: true, forceful: true, ...(lv >= 7 ? { partnerDie: true } : {}) } });
-            const kick = weaponStrike(lv, { name: "Kick", die: 6, type: "bludgeoning", toHit: str, damageAttr: str, prof, group: "brawling", extra: { unarmed: true, agile: true, finesse: true, ...(lv >= 7 ? { partnerDie: true } : {}) } });
-            const standAC = 10 + lv + rank(lv, [[1, T], [11, E], [19, M]]) + 2 + 3 + armorPotency(lv);
-            const ghostly = [{ type: "all-damage", value: Math.max(1, Math.floor(lv / 2)), exceptions: ["force", "ghost-touch", "spirit"] }];
+            const fury = type === "close" && lv >= 7 ? { partnerDie: true } : {};
+            const runes = (strike) => ({ ...strike, iwr: { ...strike.iwr, ...(potency(lv) ? { traits: ["magical"] } : {}), runes: ["ghost-touch"] } });
+            const main = runes(weaponStrike(lv, { name: names[0], die: primaryDie, type: "bludgeoning", toHit: str + prec, damageAttr: str, prof, group: "brawling", extra: { unarmed: true, ...(type === "close" ? { forceful: true } : {}), ...fury } }));
+            const second = runes(weaponStrike(lv, { name: names[1], die: 6, type: type === "bound" ? "bludgeoning" : type === "automatic" ? "piercing" : "bludgeoning", toHit: str + prec, damageAttr: str, prof, group: "brawling", extra: { unarmed: true, agile: true, finesse: true, ...fury } }));
+            if (type === "bound") Object.assign(main, { damage: main.damage.map((part, index) => (index === 0 ? { ...part, type: "slashing" } : part)), iwr: { ...main.iwr, group: "sword" } });
+            const standAC = 10 + lv + rank(lv, [[1, T], [11, E], [19, M]]) + 2 + 3 + armorPotency(lv) + durAC;
+            const half = Math.max(1, Math.floor(lv / 2));
+            const ghostly = [{ type: "all-damage", value: half + durRes, exceptions: ["force", "ghost-touch", "spirit"] }];
+            const dc = 10 + lv + rank(lv, [[1, T], [9, E], [17, M]]) + a.cha + prec;
+            const attack = dc - 10;
+            const D = (kind) => `${1 + steps(lv)}d6[${kind}]`;
+            const S = (kind) => `${2 * Math.ceil(lv / 2)}d6[${kind}]`;
+            const halfS = (kind) => `${Math.ceil(lv / 2)}d6[${kind}]`;
+            const range = type === "long" && lv >= 13 ? "60 feet" : "30 feet";
+            const pool = "stand-user:focus";
+            const make = (name, { actions, damage, kind, area = null, target = "1 creature", surge = false, effects = {}, save = "reflex", attackRoll = false, extra = {} }) => {
+                const plan = savePlan(name, { actions, traits: ["concentrate", "occult", "stand", kind], area, target, range, save, attack: attackRoll, dc, damage, basic: true, extra, effects });
+                if (area && area.type === "burst") plan.targeting.range = range;
+                plan.source.type = "action";
+                plan.resolution.sharedDamage.components = [{ id: "0", formula: damage, type: kind, category: null }];
+                return { name, plan, castRank: Math.ceil(lv / 2), dc, attack: attackRoll ? attack : null, pool: surge ? pool : null, kind: "ability", actionType: "action", rechargeGroup: name };
+            };
+            const round1 = { mode: "fixed", value: 1, unit: "rounds" };
+            const spells = [];
+            if (ability === "flame") {
+                const burn = lv >= 17 ? { failure: ["2d6[persistent,fire]"], criticalFailure: ["2d6[persistent,fire]"] } : {};
+                spells.push(make("Flame (ankh)", { actions: 1, damage: D("fire"), kind: "fire", extra: burn, effects: lv >= 9 ? { criticalFailure: [["grabbed", null, round1]] } : {} }));
+                if (lv >= 5) spells.push(make("Flame (surge cone)", { actions: 2, damage: S("fire"), kind: "fire", area: { type: "cone", value: 15 }, surge: true, extra: burn }));
+                if (lv >= 13) spells.push(make("Flame (surge ankhs)", { actions: 2, damage: halfS("fire"), kind: "fire", target: "up to 6 creatures", surge: true, extra: burn }));
+            } else if (ability === "dart") {
+                const acid = lv >= 5 ? { success: ["1d6[persistent,acid]"], criticalSuccess: ["1d6[persistent,acid]"] } : {};
+                const clumsy = lv >= 13 ? { criticalSuccess: [["clumsy", 1, { mode: "fixed", value: 10, unit: "rounds" }]] } : {};
+                spells.push(make("Melting Dart", { actions: 1, damage: D("acid"), kind: "acid", attackRoll: true, extra: acid, effects: clumsy }));
+                if (lv >= 9) spells.push(make("Melting Dart (surge, three darts)", { actions: 1, damage: halfS("acid"), kind: "acid", attackRoll: true, target: "up to 3 creatures", surge: true, extra: acid, effects: clumsy }));
+            }
+            if (type === "evolving" && lv >= 7) {
+                spells.push(make("Ice (shard)", { actions: 1, damage: D("cold"), kind: "cold" }));
+                if (lv >= 9) spells.push(make("Ice (surge spears)", { actions: 2, damage: S("cold"), kind: "cold", area: { type: "burst", value: 10 }, surge: true }));
+            }
+            if (type === "evolving" && lv >= 13) {
+                spells.push(make("Air Shots", { actions: 1, damage: D("bludgeoning"), kind: "bludgeoning", attackRoll: true }));
+                spells.push(make("Air Shots (surge, three bubbles)", { actions: 2, damage: halfS("bludgeoning"), kind: "bludgeoning", attackRoll: true, target: "up to 3 creatures", surge: true }));
+            }
+            // (Overwhelm, the colony's 13th: the stand's own 2-action area Strike.)
+            const overwhelm = type === "colony" && lv >= 13 ? (() => {
+                const part = main.damage[0];
+                const entry = make("Overwhelm", { actions: 2, damage: `${part.dice}d${part.die}+${part.bonus}[bludgeoning]`, kind: "bludgeoning", area: { type: "burst", value: 15, foes: true } });
+                return { ...entry, rechargeGroup: null };
+            })() : null;
+            const spellPools = spells.some((entry) => entry.pool) ? { [pool]: 2 } : {};
+            if (type === "integrated") {
+                // Merged: the user is the one body.
+                return {
+                    strikes: [main, second].map((strike) => ({ ...strike, iwr: { ...strike.iwr, runes: ["ghost-touch"] } })), spells, spellPools,
+                    ac: 10 + lv + rank(lv, [[1, T], [13, E]]) + Math.min(a.dex, 99) + armorPotency(lv) + (lv >= 7 ? 1 : 0), fields: { actionsPerTurn: lv >= 13 ? 4 : 3 }
+                };
+            }
             const stand = (user) => ({
                 ...structuredClone(user), id: "stand", name: "Stand", kind: "npc", traits: ["eidolon", "stand"], sharesHpWith: user.id, actionsPerTurn: 2, actTogether: false, boostEidolon: 0,
-                ac: standAC, resistances: [...(user.resistances ?? []), ...ghostly],
-                strikes: [fist, kick].map((strike) => ({ ...strike, iwr: { ...strike.iwr, ...(potency(lv) ? { traits: ["magical"] } : {}), runes: ["ghost-touch"] } })),
-                spells: (user.spells ?? []).filter((entry) => entry.kind === "basic"), spellPools: {},
+                ac: standAC,
+                resistances: [...(user.resistances ?? []), ...ghostly, ...(type === "colony" && lv >= 7 ? ["bludgeoning", "piercing", "slashing"].map((kind) => ({ type: kind, value: half, exceptions: [] })) : [])],
+                ...(type === "colony" ? { weaknesses: [...(user.weaknesses ?? []), { type: "area-damage", value: half, exceptions: [] }] } : {}),
+                strikes: [main, second],
+                spells: [...(user.spells ?? []).filter((entry) => entry.kind === "basic"), ...(overwhelm ? [overwhelm] : [])], spellPools: {},
                 skills: { athletics: lv + prof + str, intimidation: lv + T }, classDC: null, heroPoints: 0, reactions: { aoo: false, shieldBlock: false }, critSpec: lv >= 7,
-                ...(lv >= 13 ? { reactionStrikes: [{ name: "Blinding Speed", triggers: ["approach"], strike: null, penalty: 0, disrupts: false }] } : {}),
-                ...(rush ? { multiStrikes: [{ name: "Barrage Rush", actions: 2, strikes: ["Fist", "Kick", "Kick"], oncePerTurn: true, sameTarget: true }] } : {})
+                ...(type === "close" && lv >= 13 ? { reactionStrikes: [{ name: "Blinding Speed", triggers: ["approach"], strike: null, penalty: 0, disrupts: false }] } : {}),
+                ...(rush ? { multiStrikes: [{ name: "Barrage Rush", actions: 2, strikes: [names[0], names[1], names[1]], oncePerTurn: true, sameTarget: true }] } : {})
             });
-            const dc = 10 + lv + rank(lv, [[1, T], [9, E], [17, M]]) + a.cha;
-            const D = `${1 + steps(lv)}d6[fire]`;
-            const S = `${2 * Math.ceil(lv / 2)}d6[fire]`;
-            const halfS = `${Math.ceil(lv / 2)}d6[fire]`;
-            const burn = lv >= 17 ? { failure: ["2d6[persistent,fire]"], criticalFailure: ["2d6[persistent,fire]"] } : {};
-            const flame = (name, { actions, damage, area = null, target = "1 creature", pool = null, effects = {} }) => {
-                const plan = savePlan(name, { actions, traits: ["concentrate", "occult", "stand", "fire"], area, target, range: "30 feet", save: "reflex", dc, damage, basic: true, extra: burn, effects });
-                plan.source.type = "action";
-                plan.resolution.sharedDamage.components = [{ id: "0", formula: damage, type: "fire", category: null }];
-                return { name, plan, castRank: Math.ceil(lv / 2), dc, attack: null, pool, kind: "ability", actionType: "action", rechargeGroup: name };
-            };
-            const spells = [flame("Flame (ankh)", { actions: 1, damage: D, effects: lv >= 9 ? { criticalFailure: [["grabbed", null, { mode: "fixed", value: 1, unit: "rounds" }]] } : {} })];
-            if (lv >= 5) spells.push(flame("Flame (surge cone)", { actions: 2, damage: S, area: { type: "cone", value: 15 }, pool: "stand-user:focus" }));
-            if (lv >= 13) spells.push(flame("Flame (surge ankhs)", { actions: 2, damage: halfS, target: "up to 6 creatures", pool: "stand-user:focus" }));
-            return { strikes: [], spells, spellPools: lv >= 5 ? { "stand-user:focus": 2 } : {}, fields: { actionsPerTurn: 2, actTogether: true, boostEidolon: 0 }, companions: [stand] };
+            // (The bound vessel: the user's own Strike at the stand's numbers.)
+            const strikes = type === "bound" ? [{ ...main, iwr: { ...main.iwr } }] : [];
+            return { strikes, spells, spellPools, fields: { actionsPerTurn: 2, actTogether: true, boostEidolon: 0 }, companions: [stand] };
         }
     };
 }
@@ -688,11 +775,11 @@ const SAVE_UPGRADES = {
     guardian: [[9, "fortitude"], [17, "will"]], gunslinger: [[11, "reflex"], [17, "fortitude"]], inventor: [[11, "will"], [17, "fortitude"]],
     investigator: [[11, "will"], [15, "reflex"]], kineticist: [[7, "fortitude"], [11, "reflex"]], magus: [[9, "will"], [15, "fortitude"]],
     monk: [[7, "reflex"], [11, "will"]], necromancer: [[3, "will"], [11, "fortitude"]], oracle: [[7, "will"]], psychic: [[11, "will"]],
-    ranger: [[7, "reflex"], [11, "fortitude"]], runesmith: [[11, "fortitude"]], sorcerer: [[17, "will"]], summoner: [[11, "fortitude"], [15, "will"]], "stand-user": [[11, "fortitude"], [15, "will"]], "stand-user-rush": [[11, "fortitude"], [15, "will"]],
+    ranger: [[7, "reflex"], [11, "fortitude"]], runesmith: [[11, "fortitude"]], sorcerer: [[17, "will"]], summoner: [[11, "fortitude"], [15, "will"]], ...Object.fromEntries(["stand-user", "stand-user-rush", "stand-long", "stand-automatic", "stand-automatic-dart", "stand-colony", "stand-bound", "stand-integrated", "stand-evolving"].map((slug) => [slug, [[11, "fortitude"], [15, "will"]]])),
     swashbuckler: [[7, "reflex"], [17, "will"]], thaumaturge: [[7, "will"], [15, "fortitude"]], witch: [[17, "will"]]
 };
 // (Builds that aren't one of PF2e's classes — a class archetype, homebrew: the Stand User — run only when named: --only=.)
-export const VARIANT_SLUGS = Object.freeze(["stand-user", "stand-user-rush"]);
+export const VARIANT_SLUGS = Object.freeze(Object.keys(CLASSES).filter((slug) => slug.startsWith("stand-")));
 export const CLASS_SLUGS = Object.freeze([...Object.keys(CLASSES).filter((slug) => !VARIANT_SLUGS.includes(slug)), "fighter", "rogue", "wizard", "cleric"].sort());
 // What a class's PC doesn't play yet (its chassis, spells and weapon are played).
 // (2026-11-10, Cole: "get them working": the class features once listed here are played now — the animist's apparitions, the necromancer's
@@ -745,7 +832,8 @@ export function classPC(slug, level, { spell = () => null, basics = [], alchemy 
     // the martial classes built here had only their melee weapon — a flier or a foe across a gap left them nothing to do, and every class in
     // the fighter's seat rated low for it. A martial with no ranged Strike gets the fighter's backup: a longbow at its weapon proficiency
     // and Dexterity, its runes, its weapon specialization.)
-    if (built.strikes?.length && !c.strikes.some((each) => !each.melee)) {
+    // (2026-11-24: not a Stand User's — its Stand Ability is its reach.)
+    if (built.strikes?.length && !def.noBackupBow && !c.strikes.some((each) => !each.melee)) {
         const main = c.strikes[0];
         const attr = main.finesse ? Math.max(a.str, a.dex) : a.str;
         const prof = main.bonus - lv - attr - (main.potency ?? 0);
