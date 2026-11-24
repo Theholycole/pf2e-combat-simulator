@@ -173,7 +173,9 @@ test("the seven stand types: grades, the colony's weakness and Spread Thin, the 
     assert.ok(colony.spells.some((entry) => entry.name === "Overwhelm"));
     const merged = classPC("stand-integrated", 13, { spell: fake });
     assert.equal(merged.companions, undefined);
-    assert.equal(merged.actionsPerTurn, 4);
+    assert.equal(merged.extraActions, 1);
+    assert.equal(classPC("stand-bound", 13, { spell: fake }).ac, classPC("stand-user", 13, { spell: fake }).ac + 2);
+    assert.equal(colony.resistances.find((entry) => entry.type === "slashing").value, 12);
     assert.equal(merged.strikes[0].damage[0].die, 10);
     assert.ok(!merged.strikes.some((strike) => strike.backupBow));
     const evolving = classPC("stand-evolving", 13, { spell: fake });

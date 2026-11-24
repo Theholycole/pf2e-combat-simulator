@@ -710,6 +710,8 @@ function startTurn(state, c) {
         actions -= 3;
         state.log?.push(`  ${c.name} uses My Kingdom, My Blood`);
     }
+    // (2026-11-24, an integrated stand's Full Merge: a stand action that costs no action, once a turn — one more.)
+    if (c.extraActions && !isHazard(c)) actions += c.extraActions;
     // (A summoner and its eidolon: three actions between them and Act Together's one more — two each, classes.js.)
     if (c.actionsPerTurn) actions = Math.min(actions, c.actionsPerTurn + (c.cond.quickened ? 1 : 0));
     if (c.cond.stunned > 0) {

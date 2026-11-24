@@ -652,20 +652,20 @@ const CLASSES = {
 //               reaction Strike at a creature that comes into its reach.
 //   long        Range A, Precision B, Power C (tendril d8), Speed C, Durability D, Potential E. Remote Eyes and Far Eyes: senses, nothing a
 //               fight here plays; Long Arm (13th): its Stand Ability's range doubles (Flame at 60 feet).
-//   automatic   Durability A, Power B (ram d8), Speed C, Range C, Potential D, Precision E. Its Program's end-of-turn action and Feed the
+//   automatic   Durability A, Power B (ram d8), Speed C, Range C, Precision D, Potential E (2026-11-24: Precision D or E → D, no −1). Its Program's end-of-turn action and Feed the
 //               Program come to Act Together's actions here; Relentless and Undying Program (out of sight, destroyed) nothing a fight
 //               here plays. "stand-automatic-dart": its own Melting Dart (Ratt, automatic only) for Flame: 1 action, 30 feet, D acid with
 //               an attack roll; persistent 1d6 acid on a hit from 5th; a surge from 9th, darts at up to 3 creatures, half S each; clumsy 1
 //               on a critical hit from 13th.
 //   colony      Precision A, Speed B, Power C (many hands d8), Durability C, Range D, Potential E. Many Hands: weakness to area damage, half
-//               its level; Spread Thin (7th): resistance to Strikes, half its level (as physical damage); Overwhelm (13th): 2 actions,
+//               its level; Spread Thin (7th): its ghostly resistance half its level more against Strikes (as physical damage; 2026-11-24: it stacks); Overwhelm (13th): 2 actions,
 //               its fist's damage at each foe in a 15-foot area, basic Reflex against the stand DC (allies left out of it here).
 //   bound       Durability A, Power B (blade d8), Precision C, Range C, Speed D, Potential E. Vessel: the user Strikes with the bound
 //               weapon at the stand's attack modifier and damage; the stand acts through it (its body, the animated vessel, beside it).
 //   integrated  Power A (fist d10), Durability B, Speed C, Precision C, Potential D, Range E. Worn Stand: merged, one body — the user,
 //               its unarmed Strikes at the stand's numbers, the stand's Act Together actions its own (3 a turn, one attack penalty) —, no
 //               stand to hit and no ghostly resistance; Second Skin (7th): +1 status to AC; Full Merge (13th): a stand action costs no
-//               action once a turn (4 actions).
+//               action once a turn (4 actions: extraActions, fight.js).
 //   evolving    Precision A, Power B (fist d8), Speed C, Durability C, Range D, Potential E. No type perk; Acts from Flame's theme (Force
 //               and Energy): Act Two (7th) Ice (Horus: 1 action, 30 feet, D cold basic Reflex; a surge from 9th, a 10-foot burst of S cold;
 //               its −10-foot Speed on a critical failure from 13th not played), Act Three (13th) Air Shots (Stray Cat: 1 action, 30 feet, D
@@ -674,13 +674,16 @@ const CLASSES = {
 function standUser(type, { rush = false, ability = "flame" } = {}) {
     const GRADES = {
         close: { power: "A", durability: "C", precision: "C" }, long: { power: "C", durability: "D", precision: "B" },
-        automatic: { power: "B", durability: "A", precision: "E" }, colony: { power: "C", durability: "C", precision: "A" },
+        automatic: { power: "B", durability: "A", precision: "D" }, colony: { power: "C", durability: "C", precision: "A" },
         bound: { power: "B", durability: "A", precision: "C" }, integrated: { power: "A", durability: "B", precision: "C" },
         evolving: { power: "B", durability: "C", precision: "A" }
     };
     const grade = GRADES[type];
     const durAC = { A: 2, B: 1, C: 0, D: -1, E: -2 }[grade.durability];
     const durRes = { A: 2, B: 1 }[grade.durability] ?? 0;
+    // (2026-11-24, Cole's pick "Raise the weak types": a stand of Durability A or B guards its user too — +2 or +1 circumstance to the
+    // user's AC while the stand is adjacent, taken as always: the stand fights beside it.)
+    const guard = Math.max(0, durAC);
     const prec = { A: 1, B: 0, C: 0, D: 0, E: -1 }[grade.precision];
     const primaryDie = { A: 10, B: 8, C: 8, D: 6, E: 6 }[grade.power];
     const names = { close: ["Fist", "Kick"], long: ["Tendril", "Whip"], automatic: ["Ram", "Bite"], colony: ["Many Hands", "Tiny Weapons"], bound: ["Blade", "Hilt"], integrated: ["Fist", "Body Weapon"], evolving: ["Fist", "Tail"] }[type];
@@ -747,13 +750,13 @@ function standUser(type, { rush = false, ability = "flame" } = {}) {
                 // Merged: the user is the one body.
                 return {
                     strikes: [main, second].map((strike) => ({ ...strike, iwr: { ...strike.iwr, runes: ["ghost-touch"] } })), spells, spellPools,
-                    ac: 10 + lv + rank(lv, [[1, T], [13, E]]) + Math.min(a.dex, 99) + armorPotency(lv) + (lv >= 7 ? 1 : 0), fields: { actionsPerTurn: lv >= 13 ? 4 : 3 }
+                    ac: 10 + lv + rank(lv, [[1, T], [13, E]]) + Math.min(a.dex, 99) + armorPotency(lv) + (lv >= 7 ? 1 : 0) + guard, fields: lv >= 13 ? { extraActions: 1 } : {}
                 };
             }
             const stand = (user) => ({
                 ...structuredClone(user), id: "stand", name: "Stand", kind: "npc", traits: ["eidolon", "stand"], sharesHpWith: user.id, actionsPerTurn: 2, actTogether: false, boostEidolon: 0,
                 ac: standAC,
-                resistances: [...(user.resistances ?? []), ...ghostly, ...(type === "colony" && lv >= 7 ? ["bludgeoning", "piercing", "slashing"].map((kind) => ({ type: kind, value: half, exceptions: [] })) : [])],
+                resistances: [...(user.resistances ?? []), ...ghostly, ...(type === "colony" && lv >= 7 ? ["bludgeoning", "piercing", "slashing"].map((kind) => ({ type: kind, value: half + durRes + half, exceptions: [] })) : [])],
                 ...(type === "colony" ? { weaknesses: [...(user.weaknesses ?? []), { type: "area-damage", value: half, exceptions: [] }] } : {}),
                 strikes: [main, second],
                 spells: [...(user.spells ?? []).filter((entry) => entry.kind === "basic"), ...(overwhelm ? [overwhelm] : [])], spellPools: {},
@@ -763,7 +766,7 @@ function standUser(type, { rush = false, ability = "flame" } = {}) {
             });
             // (The bound vessel: the user's own Strike at the stand's numbers.)
             const strikes = type === "bound" ? [{ ...main, iwr: { ...main.iwr } }] : [];
-            return { strikes, spells, spellPools, fields: { actionsPerTurn: 2, actTogether: true, boostEidolon: 0 }, companions: [stand] };
+            return { strikes, spells, spellPools, ...(guard ? { ac: 10 + lv + rank(lv, [[1, T], [13, E]]) + Math.min(a.dex, 99) + armorPotency(lv) + guard } : {}), fields: { actionsPerTurn: 2, actTogether: true, boostEidolon: 0 }, companions: [stand] };
         }
     };
 }
