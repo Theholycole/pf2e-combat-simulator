@@ -1,5 +1,6 @@
 // One simulated fight from a snapshot.
 
+import { recallTurn, setUpKnowledge } from "./knowledge-rules.js";
 import { createRng } from "./rng.js";
 import { CRITICAL_FAILURE, CRITICAL_SUCCESS, FAILURE, degreeOf, flatCheck, rollCheck, SUCCESS } from "./checks.js";
 import { ACTIVE, DEAD, DOWN, FLED, PENDING, SURRENDERED, canAct, canMove, createCombatant, effectBonus, isActive, isOffGuard, keepPermanent, saveModifier, statusPenalty, strikeUsable } from "./combatant.js";
@@ -15,7 +16,7 @@ import { MORALE_RULES, mergeMoraleRules } from "./morale-rules.js";
 import { checkCantAffect, defaultMoraleProfile, fleeingAtTurnStart, helpArrives, initMorale, moraleRecovery, partyAdvantage, processMorale, routReady } from "./morale.js";
 import { createObjective, endOfRoundObjective, performTask, settleObjectiveAfterLoss, settleObjectiveAfterWin, updateObjective } from "./objectives.js";
 import { bestCastNow, bestOffense, chooseAction, computeThreats, guessRole } from "./planner.js";
-import { canCast, rageTriggers, outsideTargets, poolReady, agitationTurnEnd, atCastRank, duplicateTurnEnd, heldTurnStart, hinderTurnEnd, markTurnStart, regretTurnEnd, spellReactions, spendPool, applyAuras, provokedReaction, touchRetaliation, applyCondition, saveEndsAtTurnEnd, applyConstantSpells, applyHeal, applyStrikeRider, battleMedicine, bothHitRider, castPlan, castSpell, conditionLostAnswers, describeSpell, endConditions, endWhileConditions, expireTimers, exploitVulnerability, grabTurnAnswers, hexSustains, initiativeReactions, overdrive, ownTurnStart, retch, rollCount, rollInstances, triggerRiders, turnStartReactions } from "./spells.js";
+import { skillValue, canCast, rageTriggers, outsideTargets, poolReady, agitationTurnEnd, atCastRank, duplicateTurnEnd, heldTurnStart, hinderTurnEnd, markTurnStart, regretTurnEnd, spellReactions, spendPool, applyAuras, provokedReaction, touchRetaliation, applyCondition, saveEndsAtTurnEnd, applyConstantSpells, applyHeal, applyStrikeRider, battleMedicine, bothHitRider, castPlan, castSpell, conditionLostAnswers, describeSpell, endConditions, endWhileConditions, expireTimers, exploitVulnerability, grabTurnAnswers, hexSustains, initiativeReactions, overdrive, ownTurnStart, retch, rollCount, rollInstances, triggerRiders, turnStartReactions } from "./spells.js";
 import { applyEffect, removeEffect } from "./effects.js";
 import { chooseToggles } from "./toggles.js";
 import { allyAdvance, bannersInspiration, pincerAttack, setUp, strikeHard } from "./commander.js";
@@ -198,6 +199,8 @@ function createState(snapshot, options, seed, withLog) {
     // (2026-10-25, GM Core's environment: its wind, breath and ground on each creature — weather.js.)
     for (const c of state.list) if (c.status !== PENDING) weatherJoin(state, c);
     initMorale(state);
+    // (2026-11-25: the knowledge house rules, when the run names them — knowledge-rules.js.)
+    setUpKnowledge(state, { skillValue });
     // (Light blindness and sunlight as it starts.)
     lightAtStart(state, { applyCondition });
     const strongest = list.filter((c) => c.side === "foes" && c.kind !== "object").sort((a, b) => b.level - a.level || b.hp.max - a.hp.max)[0];
@@ -652,6 +655,8 @@ function startTurn(state, c) {
         actions = Math.max(0, actions - c.lostActions);
         c.lostActions = 0;
     }
+    // (2026-11-25, knowledge house rules: a knower's Recall Knowledge on a foe the party doesn't know yet, one action.)
+    if (state.knowledge && c.side === "party" && c.status === ACTIVE) actions -= recallTurn(state, c, actions, { skillValue });
     // (2026-11-07, Blanket Defense: 3 actions — its shield raised, and allies beside it get its bonus till its next turn (played when two or
     // more allies stand beside it with a foe at them, the turn begins).)
     if (c.blanketDefense && c.status === ACTIVE && actions >= 3 && c.shield && !c.shield.broken) {
@@ -2700,6 +2705,7 @@ function summarize(state) {
             pcsDowned: c.downedCount
         })),
         damageBy: state.damageBy,
+        ...(state.knowledge ? { knowledge: { stats: state.knowledge.stats, known: [...state.knowledge.known] } } : {}),
         stats: { ...state.stats, groupRout: !!state.stats.groupRout },
         log: state.log
     };

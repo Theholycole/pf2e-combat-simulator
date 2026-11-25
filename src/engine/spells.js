@@ -10,6 +10,7 @@
 // pool: a key into the creature's spellPools (slots, focus points, innate
 // uses), or null for cantrips and at-will spells.
 
+import { revealKind } from "./knowledge-rules.js";
 import { CORE_FAMILIES, createRegistry, healingOf, mechanicalVariants, nativeOf, parseDamage, planWithActions, readPlan } from "../../../pf2e-resolution-core/src/index.js";
 import { degreeDistribution, degreeOf, flatCheck, CRITICAL_FAILURE, CRITICAL_SUCCESS, DEGREE_NAMES, SUCCESS } from "./checks.js";
 import { ACTIVE, DEAD, DOWN, MOUTH, armorClass, canAct, canMove, createCombatant, defenceOf, effectBonus, hinderedBy, hpFraction, isActive, isOffGuard, saveModifier, statusPenalty, strikeUsable, targetingChance } from "./combatant.js";
@@ -3889,6 +3890,8 @@ export function exploitVulnerability(state, c, target) {
     const weakest = Math.max(0, ...(target.weaknesses ?? []).map((entry) => entry.value ?? 0));
     // (2026-11-06: the kind it's on too — mortal weakness reaches every creature of the exact same kind; Sympathetic Vulnerabilities takes
     // personal antithesis to them as well, on a non-humanoid.)
+    // (2026-11-25, knowledge house rules: a success tells the party what it is.)
+    if (degree >= 2 && state.knowledge) revealKind(state, target);
     const mortal = degree >= 2 && weakest > c.exploit.antithesis;
     c.exploited = { targetId: target.id, kind: target.name, mortal, humanoid: (target.traits ?? []).includes("humanoid"), value: mortal ? weakest : c.exploit.antithesis };
     // (2026-11-07, Esoteric Warden: on a success +1 status to AC and saves — +2 on a critical success —, played until its next turn

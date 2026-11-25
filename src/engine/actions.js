@@ -23,6 +23,7 @@ import { destroyBody, inevitableReturn, thrallAuraStrike, thrallBodies, thrallKi
 import { hiddenMovementOffGuard, sightDC, unseen } from "./environment.js";
 import { aimsAtHead, attachAfterHit, bestStrikeType, cauterizeStumps, critRiderAnswer, critSpecEffect, elementalAnswers, proteanAfterDamage, splitAfterHit, strikeHead, troopAfterDamage } from "./creature-rules.js";
 import { log } from "./log.js";
+import { exposeOnWeakness } from "./knowledge-rules.js";
 import { dropTriggers, featTriggers, foeRollTriggers } from "./triggers.js";
 import { afterAttackFortune, attackFortune } from "./fortune-items.js";
 import { hostility, ownHostility } from "./pacify.js";
@@ -1908,6 +1909,8 @@ export function applyDamage(state, target, instances, { source = null, critical 
     const resisting = resistReaction(state, target, instances, { source, physical, spell, areaReflex });
     const adjusted = adjustDamage(target, instances);
     if (resisting?.half) adjusted.total = Math.floor(adjusted.total / 2);
+    // (2026-11-25, house rule "exposed": a weakness set off — knowledge-rules.js.)
+    if (state.knowledge) exposeOnWeakness(state, target, instances, source, adjusted.total, { adjustDamage, exploitCovers, judged, physical, applyCondition });
     if (resisting) afterResisting(state, target, resisting, source);
     // A champion's reaction: resistance 2 + its level against the triggering damage, and more.
     const champion = adjusted.total > 0 ? championFor(state, target, source) : null;
