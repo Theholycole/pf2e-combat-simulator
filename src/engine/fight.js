@@ -5,7 +5,7 @@ import { CRITICAL_FAILURE, CRITICAL_SUCCESS, FAILURE, degreeOf, flatCheck, rollC
 import { ACTIVE, DEAD, DOWN, FLED, PENDING, SURRENDERED, canAct, canMove, createCombatant, effectBonus, isActive, isOffGuard, keepPermanent, saveModifier, statusPenalty, strikeUsable } from "./combatant.js";
 import { distanceBetween, engage, engagedEnemies, isIncorporeal, leaveMelee, sameMelee, stridesToEngage } from "./space.js";
 import { reaches as gridReach } from "./grid.js";
-import { gridStrides, placeArrival, setUpGrid } from "./grid-fight.js";
+import { gridStrides, placeArrival, pullSquare, regroup, setUpGrid } from "./grid-fight.js";
 import { parseDamage } from "../../../pf2e-resolution-core/src/index.js";
 import { applyDamage, castAnswers, creditPersistent, dealDamage, expectedHitDamage, interact, finishRegenerating, spellStops, strikeStops, takeCover, toppleObject, killCreature, leaveField, performRend, performStrike, provoke, raiseShield, recoveryCheck, releaseGrabs, stand, step, stride, turnEndAnswers, turnStartAnswers } from "./actions.js";
 import { featTriggers } from "./triggers.js";
@@ -1127,6 +1127,19 @@ function actOn(state, c, action) {
         case "strikeHard":
             strikeHard(state, c, action);
             break;
+        // (2026-11-25, the Stand User's Pull to Safety, classes.js STAND_FEAT_PULL: the ally beside the stand, out of every foe's reach — forced
+        // movement, no reactions.)
+        case "pullToSafety": {
+            c.usedThisTurn?.add(c.pullToSafety?.name ?? "Pull to Safety");
+            const ally = state.byId.get(action.allyId);
+            const square = ally && isActive(ally) ? pullSquare(state, c, ally, c.pullToSafety?.within ?? 15) : null;
+            state.log?.push(`  ${c.name} uses ${c.pullToSafety?.name ?? "Pull to Safety"}${ally ? ` on ${ally.name}` : ""}${square ? "" : " (no room)"}`);
+            if (square) {
+                ally.square = square;
+                regroup(state);
+            }
+            break;
+        }
         // (B183, Word of Advice.)
         case "allyAdvance":
             if (c.allyAdvance?.oncePerTurn) c.usedThisTurn?.add(c.allyAdvance.name);

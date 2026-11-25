@@ -2593,6 +2593,8 @@ export function applyStrikeRider(state, attacker, target, activity, critical, st
     }
     const push = critical && rider.criticalPush ? rider.criticalPush : rider.push;
     if (push && isActive(target)) applyMove(state, target, { kind: "push", distance: push }, attacker);
+    // (2026-11-25, the Stand User's Pinpoint Strike: on a hit the target drops its best held weapon — applyDisarm's drop.)
+    if (rider.disarm && isActive(target)) applyDisarm(state, target, { what: "drop" });
     // (B258, Resonating Kick: more damage against a creature with a trait it names.)
     const againstTrait = (rider.vsTraits ?? []).filter((entry) => entry.traits.some((trait) => (target.traits ?? []).includes(trait))).flatMap((entry) => entry.damage);
     for (const formula of [...(rider.damage ?? []).map((entry) => hydraScaled(attacker, entry)).filter(Boolean), ...(prone ? rider.proneDamage ?? [] : []), ...againstTrait]) {
@@ -2664,6 +2666,13 @@ export function strikeRiderValue(state, attacker, target, activity, strike = nul
     if (rider.size && sizeRank(target.size) > sizeRank(rider.size)) return { damage: 0, worth: 0 };
     let worth = rider.conditions.reduce((sum, { slug, value, duration }) => sum + conditionWorth(slug, value, duration), 0);
     if (rider.push && target.meleeId !== null) worth += 0.1;
+    // (2026-11-25, Pinpoint Strike's disarm: worth its best Strike being a held weapon — an action of its own to pick it up, about a
+    // round slowed 1.)
+    if (rider.disarm) {
+        const usable = (target.strikes ?? []).filter((each) => strikeUsable(target, each));
+        const best = usable.reduce((top, each) => (!top || each.bonus > top.bonus ? each : top), null);
+        if (best?.held) worth += conditionWorth("slowed", 1, { mode: "fixed", value: 1, unit: "rounds" });
+    }
     let damage = [...(rider.damage ?? []), ...(target.cond.prone ? rider.proneDamage ?? [] : [])].flatMap((formula) => parseDamage(ownType(formula, strike))).reduce((sum, instance) => sum + adjustInstance(target, instance.type, averageOf(instance), false, strikeContext(attacker, strike)), 0);
     // (B153: an ally's Strike after the hit; the Hit Points it regains.)
     if (rider.allyStrike) damage += Math.max(0, ...state.list.filter((ally) => ally !== attacker && ally.side === attacker.side && isActive(ally) && canReact(ally)).map((ally) => allyStrike(state, ally, target)?.expected ?? 0));

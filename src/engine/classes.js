@@ -856,16 +856,44 @@ function standUser(type, { rush = false, ability = "flame", heaven = false, hidd
                 for (const [field, value] of Object.entries(more ?? {})) target[field] = Array.isArray(value) && Array.isArray(target[field]) ? [...target[field], ...value] : value;
                 return target;
             };
+            // (2026-11-25, four Stand User feats Cole adopted, each behind its own switch, off by default — the stand10 measurement:
+            //   STAND_FEAT_STARFINGER=1  Star Finger (6th, close-range): once a round, one stand Strike (its primary one here) with 10 feet
+            //     more reach, dealing piercing damage — a 1-action Strike activity (planner.js activity.reach; on the grid only).
+            //   STAND_FEAT_FLICK=1  Flick Shot (2nd, any stand): 1 action, a small object flicked as a ranged Strike with its primary attack,
+            //     range increment 30 feet, its damage dice only (no Strength or specialization), bludgeoning or piercing (versatile).
+            //   STAND_FEAT_PINPOINT=1  Pinpoint Strike (4th, close-range; the module's Precision B or better — the close-range stand is C, taken
+            //     as allowed): 2 actions, a Strike at -2; on a hit the target drops its best held weapon (picked up again with an Interact, as
+            //     the engine's Disarm), or the Strike ignores 5 of its resistance — two Strike activities, the planner picks one.
+            //   STAND_FEAT_PULL=1  Pull to Safety (6th, any stand but the integrated): 1 action, an ally within 15 feet of the stand yanked to
+            //     a space beside it, no reactions — played on the grid for a hurt ally in a foe's reach, to a space beside the stand no foe
+            //     reaches (planner.js / fight.js pullToSafety; the Escape for a grabbed ally not played).)
+            const featOn = (flag) => globalThis.process?.env?.[flag] === "1";
+            const featActivity = (name, more) => ({ name, actions: 1, strides: 0, strike: null, attackBonus: 0, damageBonus: 0, damage: null, offGuard: false, requires: null, oncePerFight: false, traits: ["stand"], riderSpell: null, ...more, onHit: { conditions: [], critical: null, push: null, damage: [], save: null, size: null, ...(more.onHit ?? {}) } });
+            const featActivities = [];
+            const featStrikes = [];
+            if (featOn("STAND_FEAT_STARFINGER") && type === "close" && lv >= 6) {
+                const part = main.damage[0];
+                featActivities.push(featActivity("Star Finger", { strike: names[0], oncePerTurn: true, reach: 10, damage: `${part.dice}d${part.die}${part.bonus < 0 ? "-" : "+"}${Math.abs(part.bonus)}[piercing]` }));
+            }
+            if (featOn("STAND_FEAT_PINPOINT") && type === "close" && lv >= 4) {
+                featActivities.push(featActivity("Pinpoint Strike (past resistance)", { actions: 2, attackBonus: -2, ignoreResistances: 5 }));
+                featActivities.push(featActivity("Pinpoint Strike (disarm)", { actions: 2, attackBonus: -2, onHit: { disarm: true } }));
+            }
+            if (featOn("STAND_FEAT_FLICK") && lv >= 2) {
+                const part = main.damage[0];
+                featStrikes.push({ name: "Flick Shot", bonus: main.bonus, potency: main.potency, melee: false, agile: false, increment: 30, held: false, versatile: ["piercing"], iwr: { ...(main.iwr?.traits ? { traits: main.iwr.traits } : {}), runes: ["ghost-touch"] }, ...(main.partnerDie ? { partnerDie: main.partnerDie } : {}), damage: [{ dice: part.dice, die: part.die, bonus: 0, type: "bludgeoning" }] });
+            }
+            const featFields = { ...(featStrikes.length ? { strikes: featStrikes } : {}), ...(featActivities.length ? { strikeActivities: featActivities } : {}), ...(featOn("STAND_FEAT_PULL") && lv >= 6 ? { pullToSafety: { name: "Pull to Safety", actions: 1, within: 15 } } : {}) };
             if (type === "integrated") {
                 // Merged: the user is the one body.
                 return {
-                    strikes: [main, second].map((strike) => ({ ...strike, iwr: { ...strike.iwr, runes: ["ghost-touch"] } })), spells, spellPools,
+                    strikes: [main, second, ...featStrikes].map((strike) => ({ ...strike, iwr: { ...strike.iwr, runes: ["ghost-touch"] } })), spells, spellPools,
                     ac: 10 + lv + rank(lv, [[1, T], [13, E]]) + Math.min(a.dex, 99) + armorPotency(lv) + (lv >= 7 ? 1 : 0) + guard, fields: { ...(lv >= 13 ? { extraActions: 1 } : {}), ...(custom?.user ?? {}),
                         // (2026-11-25 INTEGRATED_GHOST, on by default since 2026-11-25 (Cole adopted it; INTEGRATED_GHOST=0 turns it off): merged, the user has the stand's ghostly resistance — half its level, minimum 1, to all damage but force, spirit and ghost touch.)
                         ...(process.env.INTEGRATED_GHOST !== "0" ? { resistances: [...(custom?.user?.resistances ?? []), { type: "all-damage", value: Math.max(1, Math.floor(lv / 2)), exceptions: ["force", "ghost-touch", "spirit"] }] } : {}) }
                 };
             }
-            const stand = (user) => join({
+            const stand = (user) => join(join({
                 ...structuredClone(user), summons: [], id: "stand", name: "Stand", kind: "npc", traits: ["eidolon", "stand"], sharesHpWith: user.id, actionsPerTurn: 2, actTogether: false, boostEidolon: 0,
                 ac: standAC,
                 resistances: [...(user.resistances ?? []), ...ghostly, ...(type === "colony" ? ["bludgeoning", "piercing", "slashing"].map((kind) => ({ type: kind, value: half + durRes + half, exceptions: [] })) : [])],
@@ -876,7 +904,7 @@ function standUser(type, { rush = false, ability = "flame", heaven = false, hidd
                 ...(type === "close" && lv >= 13 ? { reactionStrikes: [{ name: "Blinding Speed", triggers: ["approach"], strike: null, penalty: 0, disrupts: false }] } : {}),
                 ...(rush ? { multiStrikes: [{ name: "Barrage Rush", actions: 2, strikes: [names[0], names[1], names[1]], oncePerTurn: true, sameTarget: true }] } : {}),
                 ...heavenStand
-            }, custom?.stand);
+            }, custom?.stand), featFields);
             // (The hidden user: out of the fight, its stand Autonomous — Feed the Program each turn, 2 actions.)
             if (hidden && lv >= 7) {
                 const loose = (user) => {

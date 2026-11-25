@@ -686,6 +686,29 @@ export function placeBeside(state, c, target) {
     return true;
 }
 
+// (2026-11-25, the Stand User's Pull to Safety: an ally within `within` feet of the stand, yanked to a space beside it.) The space it
+// lands in — beside the puller, one no active foe of the ally reaches, the nearest to where it is — or null.
+export function pullSquare(state, puller, ally, within = 15) {
+    if (!state.grid || !puller?.square || !ally?.square || distanceFeet(puller, ally) > within) return null;
+    const { occupied } = obstacles(state, ally);
+    const foes = state.list.filter((other) => other.side !== ally.side && isActive(other) && other.square && other.band !== "gone");
+    const n = spaceOf(ally);
+    const [px, py] = puller.square;
+    let best = null;
+    for (let x = px - n - 1; x <= px + spaceOf(puller) + 1; x++) for (let y = py - n - 1; y <= py + spaceOf(puller) + 1; y++) {
+        let fits = true;
+        for (let i = 0; i < n && fits; i++) for (let j = 0; j < n; j++) {
+            const square = squareKey(x + i, y + j);
+            if (x + i < 0 || y + j < 0 || x + i >= state.grid.width || y + j >= state.grid.height || state.grid.blocked.has(square) || occupied.has(square)) fits = false;
+        }
+        const at = { ...ally, square: [x, y] };
+        if (!fits || !reaches(at, puller, 5) || foes.some((foe) => reaches(foe, at))) continue;
+        const cost = distanceFeet(at, ally);
+        if (!best || cost < best.cost) best = { square: [x, y], cost };
+    }
+    return best?.square ?? null;
+}
+
 // Two creatures flanking a target (grid.js flanks), each within reach of it.
 function flankPair(a, b, target) {
     return reaches(a, target) && reaches(b, target) && flanks(a, b, target);

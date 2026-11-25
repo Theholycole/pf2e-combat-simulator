@@ -40,7 +40,7 @@ import { allyStrike, bestAdvance, bestStrikeHard, inspirable, pincerPlan } from 
 import { ikonOf, rendReady } from "./exemplar.js";
 import { ammoLeft, canAct, canMove, effectBonus, gripPenalty, hinderedBy, hpFraction, isActive, isOffGuard, multipleAttackPenalty, offGuardTo, saveModifier, statusPenalty, armorClass, strikeUsable, targetingChance } from "./combatant.js";
 import { canStepOut, distanceBetween, fliesNow, flankChance, isIncorporeal, levitating, mapGap, rangePenalty, sameMelee, stridesToEngage, DISTANCE_FEET } from "./space.js";
-import { bandAt, canTakeCover, gridFlanked, gridStrides, obstacleNext, pillarLine, pillarsInReach, planStride, shoots, standZ, strideGoes } from "./grid-fight.js";
+import { bandAt, canTakeCover, gridFlanked, gridStrides, obstacleNext, pillarLine, pillarsInReach, planStride, pullSquare, shoots, standZ, strideGoes } from "./grid-fight.js";
 import { distanceFeet, footingAt, occupiedBy, reaches as gridReaches, sightLine, spaceOf, squareKey, squareOf } from "./grid.js";
 import { moderate } from "./creature-tables.js";
 import { attackPenalty, burningNow, coverFor, expectedHitDamage, forcefulBonus, meleeBuilt, nonlethalAgainst, screenGuards, spellStops, strikeStops } from "./actions.js";
@@ -1801,7 +1801,9 @@ function expandStrikeActivities(env) {
             const used = activity.coverFire ? { ...activity, attackBonus: ducksFromCoverFire(target) ? -2 : 1 } : activity;
             for (const index of candidates) {
                 const strike = c.strikes[index];
-                if (!strikeUsable(c, strike) || (strike.melee && !inMelee(pos, target))) continue;
+                // (2026-11-25, Star Finger's "+10 feet of reach": a creature that far on the grid, too.)
+                const further = activity.reach && strike.melee && pos.at && target.square ? gridReaches({ ...pos.at, reach: Math.max(5, pos.at.reach ?? 5) + activity.reach }, target) : false;
+                if (!strikeUsable(c, strike) || (strike.melee && !inMelee(pos, target) && !further)) continue;
                 const changed = chargeStrike(strike, used);
                 // ("This Strike ignores their multiple attack penalty": as a first attack.)
                 // ("using the previous Strike's multiple attack penalty": one attack fewer.)
@@ -2265,6 +2267,18 @@ function expandTactics(env) {
         // (2026-11-07: a feat's own summon, forced as its other actions are — tools/lib/feat-power.mjs featForced.)
         const forcedSummon = c.forceUse && entry.featForced && !node.casts.includes("forced");
         if (gain > 0 || forcedSummon) children.push(child(node, { type: "summon", index, actions: entry.actions }, entry.actions, Math.max(gain, 0.01) + (forcedSummon ? 10 * ctx.ownValue : 0), { cast: forcedSummon ? [`summon${index}`, "forced"] : `summon${index}` }));
+    }
+    // (2026-11-25, the Stand User's Pull to Safety, classes.js STAND_FEAT_PULL: a hurt ally in a foe's reach, within 15 feet of the stand,
+    // yanked beside it out of every foe's reach — worth the hits it would take there, about a round of them; from where the stand stands
+    // now, once a turn.)
+    if (c.pullToSafety && remaining >= c.pullToSafety.actions && state.grid && c.square && !node.casts.includes("pull") && (!node.pos.at || (node.pos.at.square[0] === c.square[0] && node.pos.at.square[1] === c.square[1]))) {
+        for (const ally of ctx.allies) {
+            if (ally === c || ally.status !== "active" || !ally.square || hpFraction(ally) >= 0.6) continue;
+            const reachers = ctx.enemies.filter((enemy) => enemy.status === "active" && enemy.square && gridReaches(enemy, ally));
+            if (!reachers.length || !pullSquare(state, c, ally, c.pullToSafety.within)) continue;
+            const gain = targetValue(state, ally, c) * 0.5 * (1 - hpFraction(ally)) ** 1.5 * Math.min(3, reachers.length) / 3;
+            if (gain > 0) children.push(child(node, { type: "pullToSafety", allyId: ally.id, actions: c.pullToSafety.actions }, c.pullToSafety.actions, gain, { cast: "pull" }));
+        }
     }
     // Hunt Prey: a new prey when the current one is gone or a better target is in reach.
     if (c.huntPrey && node.used === 0 && !raging) {
