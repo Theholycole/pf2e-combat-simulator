@@ -140,6 +140,8 @@ function createState(snapshot, options, seed, withLog) {
     for (const c of list) {
         const partner = c.sharesHpWith ? list.find((other) => other.id === c.sharesHpWith) : null;
         if (partner) c.hp = partner.hp;
+        // (2026-11-24, a Heaven stand: its user's Mythic Points, one pool.)
+        if (partner && c.sharedMythic) Object.defineProperty(c, "mythicPoints", { get: () => partner.mythicPoints ?? 0, set: (value) => { partner.mythicPoints = value; }, enumerable: true, configurable: true });
     }
     const state = {
         rng: createRng(seed),
@@ -426,7 +428,9 @@ function checkEnd(state) {
     }
     // (2026-10-13: a PC swallowed or engulfed is still in the fight — it can cut itself free or Escape; the party is beaten only when none is
     // up, inside a creature or out. 2026-10-22: or in a Containment field.)
-    if (!pcs(state).some((c) => isActive(c) || (c.status === ACTIVE && (c.swallowedBy || c.insideObject || c.contained || (c.hindrances ?? []).some((entry) => entry.kind === "mazed"))))) {
+    // (2026-11-24: an Autonomous stand of the party's, its user hidden, fights on while it's up or reforming.)
+    const loose = state.list.some((c) => c.program && c.side === "party" && !c.unmanifested && (isActive(c) || (c.status === DOWN && c.reforming)));
+    if (!loose && !pcs(state).some((c) => isActive(c) || (c.status === ACTIVE && (c.swallowedBy || c.insideObject || c.contained || (c.hindrances ?? []).some((entry) => entry.kind === "mazed"))))) {
         finish(state, "defeat");
         return true;
     }
@@ -438,7 +442,7 @@ function checkEnd(state) {
     // (2026-10-23, the user: a downed creature whose regeneration is on — or only turned off till its next turn's end — gets back up at its
     // turn, as PF2e has it: it holds the fight open, while its foes can turn its regeneration off; one they can't stop, they leave down.)
     const regrowing = (c) => c.status === DOWN && c.kind !== "pc" && Boolean(c.regeneration) && (c.regenerationOff || regenerating(c, state)) && canStopRegeneration(state, c);
-    const remaining = foes.filter((c) => c.status === ACTIVE || coming(c) || regrowing(c));
+    const remaining = foes.filter((c) => c.status === ACTIVE || coming(c) || regrowing(c) || (c.status === DOWN && c.reforming));
     if (!remaining.length) {
         finish(state, foes.some((c) => c.status === FLED && !c.banished) ? "rout" : "decisive");
         return true;
@@ -647,6 +651,27 @@ function startTurn(state, c) {
     }
     // A complex hazard: its routine's actions.
     let actions = isHazard(c) ? (c.hazard?.routineActions ?? 1) : 3 + (c.cond.quickened || vengeance ? 1 : 0);
+    // (2026-11-24, a Heaven stand's user: Universal Acceleration — 1 action and a Mythic Point, quickened for the fight from its next turn.)
+    if (c.universalAcceleration && !c.cond.quickened && c.status === ACTIVE && (c.mythicPoints ?? 0) > 0 && actions >= 1 && state.list.some((foe) => foe.side !== c.side && isActive(foe))) {
+        c.mythicPoints--;
+        c.cond.quickened = true;
+        actions -= 1;
+        state.log?.push(`  ${c.name} uses Universal Acceleration: quickened`);
+    }
+    // (2026-11-24, a Heaven stand: Mythic Stand — a Mythic Point at its turn, its Strikes at mythic proficiency till its next turn.)
+    if (c.mythicStand) {
+        if (c.mythicStandOn) {
+            c.strikes = c.strikes.map((strike) => ({ ...strike, bonus: strike.bonus - c.mythicStand }));
+            c.mythicStandOn = false;
+        }
+        const keep = (c.heavenReserve ?? 0) + (c.infiniteRotation && !state.list.some((foe) => foe.side !== c.side && isActive(foe) && foe.persistent?.some((entry) => entry.rotation)) ? 1 : 0);
+        if (c.status === ACTIVE && (c.mythicPoints ?? 0) > keep && state.list.some((foe) => foe.side !== c.side && isActive(foe))) {
+            c.mythicPoints--;
+            c.strikes = c.strikes.map((strike) => ({ ...strike, bonus: strike.bonus + c.mythicStand }));
+            c.mythicStandOn = true;
+            state.log?.push(`  ${c.name} uses Mythic Stand`);
+        }
+    }
     // (2026-11-08, Recover Spell: an action of this turn spent recovering a disrupted spell.)
     if (c.lostActions) {
         actions = Math.max(0, actions - c.lostActions);
@@ -1001,7 +1026,8 @@ function endTurn(state, c) {
         // (2026-11-07: a summoned creature's ticks not the party's harm, as its hits aren't — actions.js.)
         const dealt = dealDamage(state, c, amount);
         if (!c.summonedBy) creditPersistent(state, entry, dealt);
-        if (flatCheck(state.rng, 15) >= SUCCESS) c.persistent.splice(c.persistent.indexOf(entry), 1);
+        // (Infinite Rotation: no end but its death.)
+        if (!entry.rotation && flatCheck(state.rng, 15) >= SUCCESS) c.persistent.splice(c.persistent.indexOf(entry), 1);
     }
     // (Biting Snakes, B82: a Strike at it from a monster beside it.)
     if (isActive(c)) turnEndAnswers(state, c);
@@ -2208,6 +2234,34 @@ export function takeTurn(state, c) {
     // (Dominate: whoever's no longer controlled is back on its own side.)
     controlTurnStart(state);
     if (c.status === DOWN && c.kind !== "pc" && regenerating(c, state)) regenerateUp(state, c);
+    // (2026-11-24, an automatic stand on its own — classes.js autonomousStand: Undying Program reforms it at its turn's start; its user out
+    // of the fight unmanifests it; a starved program leaves it dormant, two dormant turns unmanifest it.)
+    if (c.program) {
+        const user = c.autonomousOf ? state.byId.get(c.autonomousOf) : null;
+        const gone = (why) => {
+            c.unmanifested = true;
+            c.reforming = false;
+            c.status = DEAD;
+            state.log?.push(`${c.name} unmanifests (${why})`);
+        };
+        if (user && (user.status === DOWN || user.status === DEAD)) gone("its user is knocked out");
+        if (c.status === DOWN && c.reforming) {
+            c.status = ACTIVE;
+            c.reforming = false;
+            c.hp.value = Math.max(1, Math.round(c.hp.max * (c.reformHp ?? 1)));
+            c.persistent = [];
+            for (const slug of ["dying", "wounded", "unconscious", "prone", "offGuard", "frightened", "sickened", "clumsy", "enfeebled", "stupefied", "drained", "blinded", "dazzled", "deafened", "immobilized", "fleeing"]) if (c.cond[slug]) c.cond[slug] = typeof c.cond[slug] === "number" ? 0 : false;
+            state.log?.push(`${c.name} reforms (Undying Program, ${c.hp.value} HP)`);
+        }
+        if (c.status === ACTIVE && state.round >= (c.program.starvedFrom ?? Infinity)) {
+            c.program.dormant++;
+            state.log?.push(`${c.name} is dormant (nothing matches its program)`);
+            if (c.program.dormant >= 2) gone("its program starved two turns");
+            endTurn(state, c);
+            return;
+        }
+        c.program.dormant = 0;
+    }
     if (c.status === DOWN) {
         state.log?.push(`${c.name} (down)`);
         lastingTurnStart(state, c, { canSustain: false });
@@ -2682,7 +2736,8 @@ function summarize(state) {
             id: c.id,
             name: c.name,
             kind: c.kind,
-            ...(c.sharesHpWith || c.companionOf || c.familiar || c.thrallOf ? { linked: true } : {}),
+            // (2026-11-24: a bystander a stand turned into a weapon — classes.js convert — isn't one of the PCs: its fall isn't the party's.)
+            ...(c.sharesHpWith || c.companionOf || c.familiar || c.thrallOf || c.bystander ? { linked: true } : {}),
             down: c.everDown,
             dead: c.status === DEAD,
             hp: Math.max(0, c.hp.value),
@@ -2691,6 +2746,9 @@ function summarize(state) {
             ...(c.spellPools ? { spellPools: { ...c.spellPools } } : {}),
             // (Whom it used Battle Medicine on — a day's immunity, for the next fight — tools/lib/solo-waves.mjs.)
             ...(c.battleMedicineGiven?.size ? { battleMedicineGiven: [...c.battleMedicineGiven] } : {}),
+            // (2026-11-25: limited reactions used — the solo tool's carried Stand Points and crit downgrades.)
+            ...(c.allyAcUsed ? { allyAcUsed: c.allyAcUsed } : {}),
+            ...(Number.isFinite(c.critDowngrade?.uses) ? { critDowngradeLeft: c.critDowngrade.uses } : {}),
             ...(c.deviation ? { deviation: { dc: c.deviation.dc, stage: c.deviation.stage, spent: c.deviation.spent, lasting: [...(c.deviation.lasting ?? [])] } } : {})
         })),
         foes: state.list.filter((c) => c.side === "foes").map((c) => ({

@@ -76,6 +76,10 @@ const TRAIT_PACKAGES = {
     "afflicted-ally": { allyAffliction: true },
     // (Steal Voice's: foes whose spells are half of what they do — the rest their Strikes.)
     spellcaster: { spellShare: 0.5 },
+    // (2026-11-24, the Stand Ability balance's fair test: foes that also shoot — a ranged copy of their Strike, as "flying" gives — and force
+    // saves — the save benchmark's abilities, as "saves" gives —, so reactions to ranged attacks and spells and save rerolls get their
+    // chance.)
+    mixed: { rangedStrike: true, saves: true },
     // (Binding Muzzle's: foes that bite — their Strike their jaws, beside an agile claw a die size smaller.)
     biter: { biter: true },
     // (2026-10-22, Let Not the Fallen Rest's: the party's fighter down, dying 1.)

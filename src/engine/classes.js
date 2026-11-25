@@ -7,6 +7,7 @@
 //   fighter, a skirmisher for the rogue, an arcane or occult caster for the wizard, a divine or primal one for the cleric), so a class's
 //   feats are rated on their own class.
 // What isn't played yet is listed in CLASS_GAPS.
+import { STAND_ABILITIES, STAND_ABILITY_BYSTANDERS, STAND_ABILITY_FORCED, STAND_ABILITY_TYPE, standAbilitySlug } from "./stand-abilities/index.js";
 import { savePlan } from "./deviant.js";
 import { E, L, M, T, armorPotency, key, pc, potency, preparedSpells, primarySkill, rank, SPELLBOOKS, specialization, spellProf, standardParty, striking } from "./party.js";
 import { animalCompanion, familiarFor } from "./companions.js";
@@ -599,10 +600,27 @@ const CLASSES = {
     "stand-long": standUser("long"),
     "stand-automatic": standUser("automatic"),
     "stand-automatic-dart": standUser("automatic", { ability: "dart" }),
+    // (2026-11-24, Cole: "Simulate the automatic stand with these changes with the user present".) The same two with the user kept out of
+    // the stand's sight and out of the fight from 7th (Relentless Program): untargetable, no actions but Feed the Program each turn (the
+    // stand's second action — an absent user can't Act Together); the stand Autonomous (autonomousStand below). Its Stand Ability is the
+    // user's: not used while it hides. Levels 1 to 6 as the stand beside its user.
+    "stand-automatic-hidden": standUser("automatic", { hidden: true }),
+    "stand-automatic-dart-hidden": standUser("automatic", { ability: "dart", hidden: true }),
     "stand-colony": standUser("colony"),
     "stand-bound": standUser("bound"),
     "stand-integrated": standUser("integrated"),
     "stand-evolving": standUser("evolving"),
+    // (2026-11-24, Cole: "Be sure to test the mythic heaven stand too".) The close-range stand with Barrage Rush that ascends: the Heaven
+    // Ascension mythic destiny (the module's content/feats.mjs) at 12th, three Mythic Points a fight (the simulator's mythic rule, B72), its
+    // user's and its stand's one pool. Its feats, one at each even level it can take one: 12th the Dedication (ghostly resistance doubled; its
+    // "next Strike or DC at mythic proficiency" not played — the points go to the feats below) and DIO's Bone's free Universal Acceleration
+    // (1 action, 1 Mythic Point: quickened for the fight; foes' reactions against it not played); 14th Mythic Stand (free, 1 Mythic Point at
+    // the stand's turn: its Strikes at mythic proficiency, +4 over master, till its next turn; ignoring non-mythic resistance not played);
+    // 16th Eternal Will (reaction, 1 Mythic Point: stays at 1 HP — its stand's 2 actions then not played); 18th Infinite Rotation (1 Mythic
+    // Point when the stand hits: the Strike's damage dice again at the start of each of the target's turns until it dies); 20th Restore Truth
+    // (nothing in these fights to counteract). Points: Universal Acceleration first, then Infinite Rotation on a hit at a creature with a third
+    // or more of its HP, one kept for Eternal Will, Mythic Stand with what's left.
+    "stand-heaven": standUser("close", { rush: true, heaven: true }),
     swashbuckler: {
         seat: "rogue", hp: 10, attrs: (k, lv) => ({ str: second(lv) - 1, dex: k, con: martialCon(lv), int: 0, wis: minor(lv), cha: second(lv) - 1 }),
         armor: "light", armorSteps: [[1, T], [13, E], [19, M]],
@@ -651,27 +669,41 @@ const CLASSES = {
 //               the user, taken as always); Point-Blank Fury (7th): a die more on a creature adjacent to the user; Blinding Speed (13th): a
 //               reaction Strike at a creature that comes into its reach.
 //   long        Range A, Precision B, Power C (tendril d8), Speed C, Durability D, Potential E. Remote Eyes and Far Eyes: senses, nothing a
-//               fight here plays; Distant Precision (7th, 2026-11-24): a die more on a creature not adjacent to the user; Long Arm (13th): its Stand Ability's range doubles (Flame at 60 feet).
-//   automatic   Durability A, Power B (ram d8), Speed C, Range C, Precision D, Potential E (2026-11-24: Precision D or E → D, no −1). Its Program's end-of-turn action and Feed the
+//               fight here plays; Long Arm (13th): its Stand Ability's range doubles (Flame at 60 feet).
+//   automatic   Durability A, Power B (ram d8), Speed C, Range C, Potential D, Precision E. Its Program's end-of-turn action and Feed the
 //               Program come to Act Together's actions here; Relentless and Undying Program (out of sight, destroyed) nothing a fight
 //               here plays. "stand-automatic-dart": its own Melting Dart (Ratt, automatic only) for Flame: 1 action, 30 feet, D acid with
 //               an attack roll; persistent 1d6 acid on a hit from 5th; a surge from 9th, darts at up to 3 creatures, half S each; clumsy 1
 //               on a critical hit from 13th.
 //   colony      Precision A, Speed B, Power C (many hands d8), Durability C, Range D, Potential E. Many Hands: weakness to area damage, half
-//               its level; (2026-11-24: Spread Thin from 1st, Overwhelm from 7th, its area 20 feet from 13th) Spread Thin: its ghostly resistance half its level more against Strikes (as physical damage; 2026-11-24: it stacks); Overwhelm (13th): 2 actions,
+//               its level; Spread Thin (7th): resistance to Strikes, half its level (as physical damage); Overwhelm (13th): 2 actions,
 //               its fist's damage at each foe in a 15-foot area, basic Reflex against the stand DC (allies left out of it here).
 //   bound       Durability A, Power B (blade d8), Precision C, Range C, Speed D, Potential E. Vessel: the user Strikes with the bound
 //               weapon at the stand's attack modifier and damage; the stand acts through it (its body, the animated vessel, beside it).
 //   integrated  Power A (fist d10), Durability B, Speed C, Precision C, Potential D, Range E. Worn Stand: merged, one body — the user,
 //               its unarmed Strikes at the stand's numbers, the stand's Act Together actions its own (3 a turn, one attack penalty) —, no
 //               stand to hit and no ghostly resistance; Second Skin (7th): +1 status to AC; Full Merge (13th): a stand action costs no
-//               action once a turn (4 actions: extraActions, fight.js).
+//               action once a turn (4 actions).
 //   evolving    Precision A, Power B (fist d8), Speed C, Durability C, Range D, Potential E. No type perk; Acts from Flame's theme (Force
 //               and Energy): Act Two (7th) Ice (Horus: 1 action, 30 feet, D cold basic Reflex; a surge from 9th, a 10-foot burst of S cold;
 //               its −10-foot Speed on a critical failure from 13th not played), Act Three (13th) Air Shots (Stray Cat: 1 action, 30 feet, D
 //               bludgeoning with an attack roll; a surge, 3 bubbles at up to 3 creatures, S/2 each). Switching Acts (1 action) isn't
 //               played: every Act is ready.
-function standUser(type, { rush = false, ability = "flame" } = {}) {
+// (2026-11-25 BOUND_GUARD, on by default since 2026-11-25 (Cole adopted it; BOUND_GUARD=0 turns it off): Vessel Guard — when a Strike hits the user, the vessel takes the blow: its Hardness
+// (half the user's level, minimum 1; its level from 7th) off the damage, the user's reaction, once a round. Played as Shield Block with the
+// vessel as a shield always raised (a stance entered as initiative is rolled; no AC bonus, no Hit Points to break). "Can't be disarmed while
+// the stand is manifested": not played — foes don't Disarm in the sim.)
+function vesselGuard(lv, user) {
+    const hardness = lv >= 7 ? lv : Math.max(1, Math.floor(lv / 2));
+    const model = { name: "Vessel Guard", rounds: Infinity, modifiers: [], tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0, shieldUp: true };
+    return {
+        shield: { name: "Vessel", ac: 0, hardness, hp: 1e9, maxHp: 1e9, bt: 0, broken: false, raised: true },
+        reactions: { ...(user?.reactions ?? { aoo: false }), shieldBlock: true },
+        selfEffects: [...(user?.selfEffects ?? []), { name: "Vessel Guard", actions: 1, stance: true, model }],
+        stanceAtStart: "Vessel Guard"
+    };
+}
+function standUser(type, { rush = false, ability = "flame", heaven = false, hidden = false, standAbility = null, bystanders = false, buffedBuild = false } = {}) {
     const GRADES = {
         close: { power: "A", durability: "C", precision: "C" }, long: { power: "C", durability: "D", precision: "B" },
         automatic: { power: "B", durability: "A", precision: "D" }, colony: { power: "C", durability: "C", precision: "A" },
@@ -698,15 +730,39 @@ function standUser(type, { rush = false, ability = "flame" } = {}) {
             const prof = rank(lv, [[1, T], [5, E], [13, M]]);
             // (2026-11-24, Cole's pick "Give both an earlier combat perk": a long-range stand's Distant Precision at 7th, close-range's Point-Blank
             // Fury mirrored — a die more on a creature not adjacent to the user.)
+            // (2026-11-24, Cole: "Make the heaven stands stronger. I want a mythic class but [to] beat all non mythic classes in combat" — at every
+            // level from 12th, where it ascends; levels 1 to 11 as the close-range stand with Barrage Rush.) The Heaven buffs, tried in tiers
+            // until it beat every other class at each level 12 to 20 (team and solo) — tier 6, all of them, is the one played:
+            //   1  the Dedication: its stand's Strikes and its Stand Ability DC always at mythic proficiency, 10 + level (AoN Rules.aspx?ID=3322),
+            //      no Mythic Point needed.
+            //   2  Heaven's Grace, also the Dedication's: the user and the stand resist non-mythic creatures' Strikes and spells, half its level
+            //      (the monsters' Mythic Resistance, AoN Rules.aspx?ID=3341) — on the stand added to its ghostly resistance.
+            //   3  Mythic Stand (14th) passive: its stand's Strikes deal weapon specialization damage 12 (Mythic Weapon Specialization, AoN
+            //      Feats.aspx?ID=7387).
+            //   4  Eternal Will (16th) as Undying Myth (AoN Rules.aspx?ID=3341): free, once a fight, at 0 HP it spends all its Mythic Points
+            //      (none needed) and stays up at half its maximum HP (its stand's 2 actions then not played).
+            //   5  Mythic regeneration: a Mythic Point back (3 at most, AoN Rules.aspx?ID=3323) when its stand drops a foe.
+            //   6  Eternal Will, as Undying Myth, from 12th with the Dedication.
+            const HT = heaven ? 6 : 0;
+            const myth = heaven && lv >= 12 && HT >= 1 ? 10 - prof : 0;
             const fury = type === "close" && lv >= 7 ? { partnerDie: true } : type === "long" && lv >= 7 ? { partnerDie: "far" } : {};
             const runes = (strike) => ({ ...strike, iwr: { ...strike.iwr, ...(potency(lv) ? { traits: ["magical"] } : {}), runes: ["ghost-touch"] } });
-            const main = runes(weaponStrike(lv, { name: names[0], die: primaryDie, type: "bludgeoning", toHit: str + prec, damageAttr: str, prof, group: "brawling", extra: { unarmed: true, ...(type === "close" ? { forceful: true } : {}), ...fury } }));
-            const second = runes(weaponStrike(lv, { name: names[1], die: 6, type: type === "bound" ? "bludgeoning" : type === "automatic" ? "piercing" : "bludgeoning", toHit: str + prec, damageAttr: str, prof, group: "brawling", extra: { unarmed: true, agile: true, finesse: true, ...fury } }));
+            const main = runes(weaponStrike(lv, { name: names[0], die: primaryDie, type: "bludgeoning", toHit: str + prec + myth, damageAttr: str, prof, group: "brawling", extra: { unarmed: true, ...(type === "close" ? { forceful: true } : {}), ...fury } }));
+            const second = runes(weaponStrike(lv, { name: names[1], die: 6, type: type === "bound" ? "bludgeoning" : type === "automatic" ? "piercing" : "bludgeoning", toHit: str + prec + myth, damageAttr: str, prof, group: "brawling", extra: { unarmed: true, agile: true, finesse: true, ...fury } }));
+            if (heaven && lv >= 14 && HT >= 3) for (const strike of [main, second]) strike.damage = strike.damage.map((part, index) => (index === 0 ? { ...part, bonus: str + 12 } : part));
             if (type === "bound") Object.assign(main, { damage: main.damage.map((part, index) => (index === 0 ? { ...part, type: "slashing" } : part)), iwr: { ...main.iwr, group: "sword" } });
             const standAC = 10 + lv + rank(lv, [[1, T], [11, E], [19, M]]) + 2 + 3 + armorPotency(lv) + durAC;
             const half = Math.max(1, Math.floor(lv / 2));
-            const ghostly = [{ type: "all-damage", value: half + durRes, exceptions: ["force", "ghost-touch", "spirit"] }];
-            const dc = 10 + lv + rank(lv, [[1, T], [9, E], [17, M]]) + a.cha + prec;
+            const ascended = heaven && lv >= 12;
+            const grace = ascended && HT >= 2 ? half : 0;
+            const ghostly = [{ type: "all-damage", value: (half + durRes) * (ascended ? 2 : 1) + grace, exceptions: ["force", "ghost-touch", "spirit"] }];
+            const undying = HT >= 4;
+            const willAt = HT >= 6 ? 12 : 16;
+            const reserve = lv >= willAt && !undying ? 1 : 0;
+            const eternalWill = lv >= willAt ? { ferocityRule: undying ? { name: "Eternal Will", hp: "half", wounded: false, free: true, pc: true, spendAllMythic: true, oncePerPool: true } : { name: "Eternal Will", hp: 1, wounded: false, mythic: true, pc: true } } : {};
+            const heavenStand = ascended ? { sharedMythic: true, universalAcceleration: false, heavenReserve: reserve, ...(lv >= 14 && HT < 1 ? { mythicStand: 4 } : {}), ...eternalWill, ...(lv >= 18 ? { infiniteRotation: true } : {}), ...(HT >= 5 ? { mythicRegen: true } : {}) } : {};
+            const heavenUser = ascended ? { mythicPoints: 3, universalAcceleration: true, heavenReserve: reserve, ...eternalWill, ...(grace ? { resistances: [{ type: "all-damage", value: grace, exceptions: [] }] } : {}) } : {};
+            const dc = 10 + lv + (myth ? 10 : rank(lv, [[1, T], [9, E], [17, M]])) + a.cha + prec;
             const attack = dc - 10;
             const D = (kind) => `${1 + steps(lv)}d6[${kind}]`;
             const S = (kind) => `${2 * Math.ceil(lv / 2)}d6[${kind}]`;
@@ -722,7 +778,55 @@ function standUser(type, { rush = false, ability = "flame" } = {}) {
             };
             const round1 = { mode: "fixed", value: 1, unit: "rounds" };
             const spells = [];
-            if (ability === "flame") {
+            // (2026-11-24, a Stand Ability of the module in Flame's place — stand-abilities/index.js.)
+            let custom = null;
+            if (standAbility) {
+                const rounds = (n) => ({ mode: "fixed", value: n, unit: "rounds" });
+                const effectModel = (name, roundsOf, parts) => ({ name, rounds: roundsOf, modifiers: [], tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0, ...parts });
+                const entry = (name, plan, { surge = false, actionType = "action", attackRoll = false, pool: own = null } = {}) => {
+                    plan.source.type = "action";
+                    return { name, plan, castRank: Math.ceil(lv / 2), dc, attack: attackRoll ? attack : null, pool: own ?? (surge ? pool : null), kind: "ability", actionType, rechargeGroup: name };
+                };
+                // (2026-11-24, Cole: "Any stand that can turn others into a source of damage such as the Dinosaurify add noncombatants that
+                // they could use their stand on as potential weapons.") Bystanders, in those abilities' fights only (bystanders: true): 2 commoners
+                // and 2 Tiny animals (level −1, GM Core Low numbers) that foes ignore and that do nothing — off the field as the user's reserves
+                // (summons.js), so no one can touch them until the stand converts one: convert(name, …) is a summon entry that brings one in
+                // on the user's side, as the ability makes it (a dinosaur, a raptor minion, a controlled creature). Each kind is used up once
+                // converted. (Approximation: a converted creature is played as fighting the foes — the text's "attacks the nearest creature"
+                // or one controlled action is played as its turn on the user's side —, and a surge conversion has its own single use instead of
+                // drawing on the 2 Stand Points.)
+                const BYSTANDERS = { commoner: { count: 2, name: "Commoner", ac: 12, hp: 6, saves: { fortitude: 2, reflex: 2, will: 2 }, speed: 25, traits: ["humanoid"], strikes: [{ name: "Fist", bonus: 4, melee: true, agile: true, unarmed: true, damage: [{ dice: 1, die: 4, bonus: 0, type: "bludgeoning" }] }] }, animal: { count: 2, name: "Tiny animal", ac: 13, hp: 4, saves: { fortitude: 3, reflex: 5, will: 1 }, speed: 20, traits: ["animal"], strikes: [{ name: "Bite", bonus: 4, melee: true, unarmed: true, damage: [{ dice: 1, die: 4, bonus: 0, type: "piercing" }] }] } };
+                const used = { commoner: 0, animal: 0 };
+                const reserves = [];
+                const summons = [];
+                const convert = (name, { from, count = 1, actions = 2, lasts = 10, uses = 1, initiative = "minion", as = (base) => base, surge = false, forced = false }) => {
+                    if (!bystanders) return null;
+                    const free = BYSTANDERS[from].count - used[from];
+                    const n = Math.min(count, free);
+                    if (n <= 0) return null;
+                    const ids = [];
+                    for (let index = 0; index < n; index++) {
+                        const k = used[from]++;
+                        const base = BYSTANDERS[from];
+                        const made = as({ id: `bystander-${from}-${k}`, name: `${base.name} ${k + 1}`, kind: "npc", level: -1, traits: [...base.traits], hp: { value: base.hp, max: base.hp }, ac: base.ac, saves: { ...base.saves }, perception: 2, speed: base.speed, reach: 5, strikes: structuredClone(base.strikes), reactions: { aoo: false, shieldBlock: false }, senses: [] });
+                        reserves.push(made);
+                        ids.push(made.id);
+                    }
+                    const summon = { name, actions, count: n, perUse: n, uses, lasts, initiative, reserveIds: ids, ...(surge ? { surge: true } : {}), ...(forced ? { featForced: true } : {}) };
+                    summons.push(summon);
+                    return summon;
+                };
+                // (2026-11-24, Cole: "Buff all the stand abilities to be closer in power with each other. Dont lower any yet." — the buffed
+                // rule text, ctx.buffed: STAND_BUFFED=1, or a build named "<slug>-buffed"; the stand10 balance.)
+                const ctx = { lv, dc, attack, D, S, halfS, range, pool, make, entry, savePlan, effectModel, rounds, minutes: (n) => rounds(10 * n), round1, steps: steps(lv), main, second, bystanders, convert, buffed: buffedBuild || globalThis.process?.env?.STAND_BUFFED === "1" };
+                custom = STAND_ABILITIES[standAbility].build(ctx) ?? {};
+                // (A conversion the planner never picks — a commoner's fist, worth nothing to it — is forced, the brief's rule: forceUse with its
+                // entry's featForced, planner.js's forcedSummon.)
+                if (summons.length) custom = { ...custom, user: { ...(custom.user ?? {}), summons: [...(custom.user?.summons ?? []), ...summons], ...(summons.some((each) => each.featForced) ? { forceUse: true } : {}) }, bystanderReserves: reserves };
+                if (STAND_ABILITY_FORCED.includes(standAbility) && custom.spells?.length) custom = { ...custom, spells: custom.spells.map((each) => ({ ...each, featForced: true })), user: { ...(custom.user ?? {}), forceUse: true } };
+                spells.push(...(custom.spells ?? []));
+            }
+            if (ability === "flame" && !standAbility) {
                 const burn = lv >= 17 ? { failure: ["2d6[persistent,fire]"], criticalFailure: ["2d6[persistent,fire]"] } : {};
                 spells.push(make("Flame (ankh)", { actions: 1, damage: D("fire"), kind: "fire", extra: burn, effects: lv >= 9 ? { criticalFailure: [["grabbed", null, round1]] } : {} }));
                 if (lv >= 5) spells.push(make("Flame (surge cone)", { actions: 2, damage: S("fire"), kind: "fire", area: { type: "cone", value: 15 }, surge: true, extra: burn }));
@@ -747,16 +851,22 @@ function standUser(type, { rush = false, ability = "flame" } = {}) {
                 const entry = make("Overwhelm", { actions: 2, damage: `${part.dice}d${part.die}+${part.bonus}[bludgeoning]`, kind: "bludgeoning", area: { type: "burst", value: lv >= 13 ? 20 : 15, foes: true } });
                 return { ...entry, rechargeGroup: null };
             })() : null;
-            const spellPools = spells.some((entry) => entry.pool) ? { [pool]: 2 } : {};
+            const spellPools = { ...(spells.some((entry) => entry.pool === pool) ? { [pool]: 2 } : {}), ...(custom?.spellPools ?? {}) };
+            const join = (target, more) => {
+                for (const [field, value] of Object.entries(more ?? {})) target[field] = Array.isArray(value) && Array.isArray(target[field]) ? [...target[field], ...value] : value;
+                return target;
+            };
             if (type === "integrated") {
                 // Merged: the user is the one body.
                 return {
                     strikes: [main, second].map((strike) => ({ ...strike, iwr: { ...strike.iwr, runes: ["ghost-touch"] } })), spells, spellPools,
-                    ac: 10 + lv + rank(lv, [[1, T], [13, E]]) + Math.min(a.dex, 99) + armorPotency(lv) + (lv >= 7 ? 1 : 0) + guard, fields: lv >= 13 ? { extraActions: 1 } : {}
+                    ac: 10 + lv + rank(lv, [[1, T], [13, E]]) + Math.min(a.dex, 99) + armorPotency(lv) + (lv >= 7 ? 1 : 0) + guard, fields: { ...(lv >= 13 ? { extraActions: 1 } : {}), ...(custom?.user ?? {}),
+                        // (2026-11-25 INTEGRATED_GHOST, on by default since 2026-11-25 (Cole adopted it; INTEGRATED_GHOST=0 turns it off): merged, the user has the stand's ghostly resistance — half its level, minimum 1, to all damage but force, spirit and ghost touch.)
+                        ...(process.env.INTEGRATED_GHOST !== "0" ? { resistances: [...(custom?.user?.resistances ?? []), { type: "all-damage", value: Math.max(1, Math.floor(lv / 2)), exceptions: ["force", "ghost-touch", "spirit"] }] } : {}) }
                 };
             }
-            const stand = (user) => ({
-                ...structuredClone(user), id: "stand", name: "Stand", kind: "npc", traits: ["eidolon", "stand"], sharesHpWith: user.id, actionsPerTurn: 2, actTogether: false, boostEidolon: 0,
+            const stand = (user) => join({
+                ...structuredClone(user), summons: [], id: "stand", name: "Stand", kind: "npc", traits: ["eidolon", "stand"], sharesHpWith: user.id, actionsPerTurn: 2, actTogether: false, boostEidolon: 0,
                 ac: standAC,
                 resistances: [...(user.resistances ?? []), ...ghostly, ...(type === "colony" ? ["bludgeoning", "piercing", "slashing"].map((kind) => ({ type: kind, value: half + durRes + half, exceptions: [] })) : [])],
                 ...(type === "colony" ? { weaknesses: [...(user.weaknesses ?? []), { type: "area-damage", value: half, exceptions: [] }] } : {}),
@@ -764,12 +874,65 @@ function standUser(type, { rush = false, ability = "flame" } = {}) {
                 spells: [...(user.spells ?? []).filter((entry) => entry.kind === "basic"), ...(overwhelm ? [overwhelm] : [])], spellPools: {},
                 skills: { athletics: lv + prof + str, intimidation: lv + T }, classDC: null, heroPoints: 0, reactions: { aoo: false, shieldBlock: false }, critSpec: lv >= 7,
                 ...(type === "close" && lv >= 13 ? { reactionStrikes: [{ name: "Blinding Speed", triggers: ["approach"], strike: null, penalty: 0, disrupts: false }] } : {}),
-                ...(rush ? { multiStrikes: [{ name: "Barrage Rush", actions: 2, strikes: [names[0], names[1], names[1]], oncePerTurn: true, sameTarget: true }] } : {})
-            });
+                ...(rush ? { multiStrikes: [{ name: "Barrage Rush", actions: 2, strikes: [names[0], names[1], names[1]], oncePerTurn: true, sameTarget: true }] } : {}),
+                ...heavenStand
+            }, custom?.stand);
+            // (The hidden user: out of the fight, its stand Autonomous — Feed the Program each turn, 2 actions.)
+            if (hidden && lv >= 7) {
+                const loose = (user) => {
+                    const own = stand(user);
+                    delete own.sharesHpWith;
+                    return { ...applyAutonomous({ ...own, reserve: false, heroPoints: 0 }, lv), actionsPerTurn: 2, autonomousOf: user.id };
+                };
+                return { strikes: [], spells: [], spellPools: {}, fields: { reserve: true, actionsPerTurn: 2, actTogether: false, boostEidolon: 0 }, companions: [loose] };
+            }
             // (The bound vessel: the user's own Strike at the stand's numbers.)
             const strikes = type === "bound" ? [{ ...main, iwr: { ...main.iwr } }] : [];
-            return { strikes, spells, spellPools, ...(guard ? { ac: 10 + lv + rank(lv, [[1, T], [13, E]]) + Math.min(a.dex, 99) + armorPotency(lv) + guard } : {}), fields: { actionsPerTurn: 2, actTogether: true, boostEidolon: 0 }, companions: [stand] };
+            return { strikes, spells, spellPools, ...(guard ? { ac: 10 + lv + rank(lv, [[1, T], [13, E]]) + Math.min(a.dex, 99) + armorPotency(lv) + guard } : {}), fields: { actionsPerTurn: 2, actTogether: true, boostEidolon: 0, ...heavenUser, ...(custom?.user ?? {}), ...(type === "bound" && process.env.BOUND_GUARD !== "0" ? vesselGuard(lv, custom?.user) : {}) }, companions: [stand, ...(custom?.bystanderReserves ?? []).map((spec) => (user) => ({ ...structuredClone(spec), side: user.side ?? "party", reserve: true, summonedBy: user.id, bystander: true }))] };
         }
+    };
+}
+// (2026-11-24, Cole: "Automatic stands should be more dangerous. They should feel almost impossible to deal with unless you starve the
+// program or deal with the user directly.") An automatic stand on its own — its user away, out of its sight: the Autonomous package
+// (homebrew, after Sheer Heart Attack — near-indestructible, beaten by cold and by going after Kira), as a lone foe for the simulator.
+//   Relentless Program (7th), while it doesn't share damage: its own Hit Points, 5 × its level (the module's rule); +2 to saves; resistance
+//   to all damage twice its level (force, spirit and ghost touch: half that); immune to mental, fear and death effects and to grabbed,
+//   restrained, paralyzed, slowed and stunned; +3 to its Strikes, their damage dice its level (8 at least — the module's text since); it
+//   never backs off;
+//   destroyed, it reforms with half its Hit Points at the start of its own next turn.
+//   Undying Program (13th): it reforms with full Hit Points (UNDYING_AT; the module: at its user's next turn), endlessly.
+//   Its counters: starve the program — no creature that matches it within its 60-foot program sense at the start of its turn, it's
+//   dormant and does nothing; two dormant turns in a row, it unmanifests (program.starvedFrom: the round its program starves) —; or its
+//   user — knocked out, killed or made to call it off, the stand loses all this and unmanifests (autonomousOf; damage to the user is
+//   unaffected).
+// (Tuned 2026-11-24 against the standard party, 50 fights at 7th to 20th, one stand action a turn: the party can't win in 10 rounds at
+// any of those levels; it deals 8 to 9% of the party's total Hit Points a round from 9th, downs about 2 PCs a fight, and no fight ended
+// in a defeat. RES 2: resistance twice its level; DICE 1 + DICE_PER_LEVEL 0.75: a die more and three more every four levels; HIT +3: its
+// program locks on; REFORM_FROM 7: from 7th it already reforms, with half its Hit Points (REFORM_EARLY_HP), full from UNDYING_AT.)
+export const AUTONOMOUS = Object.freeze({ RES: 2, DICE_MIN: 8, HIT: 3, HP_PER_LEVEL: 5, UNDYING_AT: 13, REFORM_FROM: 7, REFORM_EARLY_HP: 0.5 });
+export function autonomousStand(lv, { actions = 1, slug = "stand-automatic", starvedFrom = null, tune = {} } = {}) {
+    const stand = structuredClone(classPC(slug, lv).companions[0]);
+    delete stand.sharesHpWith;
+    const out = applyAutonomous(stand, lv, tune);
+    return { ...out, id: "auto-stand", name: "Automatic stand", side: "foes", actionsPerTurn: actions, actTogether: false, program: { ...out.program, ...(starvedFrom != null ? { starvedFrom } : {}) } };
+}
+// The Autonomous package on a stand that no longer shares damage (from 7th; below that it's the stand as it was, its own Hit Points its
+// user's).
+function applyAutonomous(stand, lv, tune = {}) {
+    const k = { ...AUTONOMOUS, ...tune };
+    const relentless = lv >= 7;
+    const res = Math.max(1, Math.round(lv * k.RES));
+    const hp = relentless ? k.HP_PER_LEVEL * lv : stand.hp.max;
+    return {
+        ...stand, kind: "npc", traits: [...new Set([...(stand.traits ?? []), "mindless"])], noRetreat: true, hp: { value: hp, max: hp, temp: 0 }, actTogether: false,
+        ...(relentless ? {
+            resistances: [{ type: "all-damage", value: res, exceptions: ["force", "spirit", "ghost-touch"] }, { type: "all-damage", value: Math.max(1, Math.floor(res / 2)), exceptions: [] }],
+            immunities: [...new Set([...(stand.immunities ?? []), "mental", "fear-effects", "death-effects", "grabbed", "restrained", "paralyzed", "slowed", "stunned"])],
+            strikes: stand.strikes.map((strike) => ({ ...strike, bonus: strike.bonus + k.HIT, damage: strike.damage.map((part, index) => (index === 0 ? { ...part, dice: Math.max(k.DICE_MIN, lv) } : part)) })),
+            saves: Object.fromEntries(Object.entries(stand.saves).map(([save, value]) => [save, value + 2]))
+        } : {}),
+        ...(lv >= k.UNDYING_AT ? { undyingProgram: true } : lv >= k.REFORM_FROM ? { undyingProgram: true, reformHp: k.REFORM_EARLY_HP } : {}),
+        program: { sense: 60, dormant: 0 }
     };
 }
 // Class features that make a save's success a critical success: [level, save] (the pf2e system's class items, 2026-11-06; the monk's Path
@@ -780,9 +943,33 @@ const SAVE_UPGRADES = {
     guardian: [[9, "fortitude"], [17, "will"]], gunslinger: [[11, "reflex"], [17, "fortitude"]], inventor: [[11, "will"], [17, "fortitude"]],
     investigator: [[11, "will"], [15, "reflex"]], kineticist: [[7, "fortitude"], [11, "reflex"]], magus: [[9, "will"], [15, "fortitude"]],
     monk: [[7, "reflex"], [11, "will"]], necromancer: [[3, "will"], [11, "fortitude"]], oracle: [[7, "will"]], psychic: [[11, "will"]],
-    ranger: [[7, "reflex"], [11, "fortitude"]], runesmith: [[11, "fortitude"]], sorcerer: [[17, "will"]], summoner: [[11, "fortitude"], [15, "will"]], ...Object.fromEntries(["stand-user", "stand-user-rush", "stand-long", "stand-automatic", "stand-automatic-dart", "stand-colony", "stand-bound", "stand-integrated", "stand-evolving"].map((slug) => [slug, [[11, "fortitude"], [15, "will"]]])),
+    ranger: [[7, "reflex"], [11, "fortitude"]], runesmith: [[11, "fortitude"]], sorcerer: [[17, "will"]], summoner: [[11, "fortitude"], [15, "will"]], ...Object.fromEntries(["stand-user", "stand-user-rush", "stand-long", "stand-automatic", "stand-automatic-dart", "stand-colony", "stand-bound", "stand-integrated", "stand-evolving", "stand-heaven", "stand-automatic-hidden", "stand-automatic-dart-hidden"].map((slug) => [slug, [[11, "fortitude"], [15, "will"]]])),
     swashbuckler: [[7, "reflex"], [17, "will"]], thaumaturge: [[7, "will"], [15, "fortitude"]], witch: [[17, "will"]]
 };
+// (2026-11-24: each Stand Ability as its own build — stand-abilities/index.js —, and the plain stand user with none, what they're measured
+// against.)
+CLASSES["stand-ab-none"] = standUser("close", { ability: "none" });
+// (And the types the type-locked abilities run on, with none — what Disassemble/Melting Dart and Ice Armor/Devouring Flesh are measured against.)
+CLASSES["stand-ab-none-automatic"] = standUser("automatic", { ability: "none" });
+CLASSES["stand-ab-none-integrated"] = standUser("integrated", { ability: "none" });
+for (const name of Object.keys(STAND_ABILITIES)) CLASSES[standAbilitySlug(name)] = standUser(STAND_ABILITY_TYPE[name] ?? "close", { standAbility: name });
+// (With bystanders to turn into weapons — the abilities that can, stand-abilities/index.js STAND_ABILITY_BYSTANDERS: "<slug>-nc".)
+for (const name of STAND_ABILITY_BYSTANDERS) CLASSES[`${standAbilitySlug(name)}-nc`] = standUser(STAND_ABILITY_TYPE[name] ?? "close", { standAbility: name, bystanders: true });
+// (2026-11-24, the stand10 class comparison: each stand type with a chosen Stand Ability in Flame's place, buffed —
+// "stand-t-<type>-<ability slug>", from stand-abilities/compare.json: [[type, ability, { rush, heaven }], …].)
+{
+    const pairs = (() => { try { return JSON.parse(globalThis.process?.getBuiltinModule?.("node:fs")?.readFileSync(new URL("./stand-abilities/compare.json", import.meta.url), "utf8") ?? "[]"); } catch { return []; } })();
+    for (const [type, name, extra = {}] of pairs) {
+        if (!STAND_ABILITIES[name]) continue;
+        const tag = extra.heaven ? "heaven" : extra.rush ? "rush" : type;
+        CLASSES[`stand-t-${tag}-${standAbilitySlug(name).replace(/^stand-ab-/, "")}`] = standUser(type, { standAbility: name, buffedBuild: true, ...extra });
+    }
+    for (const slug of Object.keys(CLASSES)) if (slug.startsWith("stand-t-")) SAVE_UPGRADES[slug] = SAVE_UPGRADES["stand-user"];
+}
+// (The buffed text as builds of their own, "<slug>-buffed" and "<slug>-nc-buffed", so a run holds both.)
+for (const name of Object.keys(STAND_ABILITIES)) CLASSES[`${standAbilitySlug(name)}-buffed`] = standUser(STAND_ABILITY_TYPE[name] ?? "close", { standAbility: name, buffedBuild: true });
+for (const name of STAND_ABILITY_BYSTANDERS) CLASSES[`${standAbilitySlug(name)}-nc-buffed`] = standUser(STAND_ABILITY_TYPE[name] ?? "close", { standAbility: name, bystanders: true, buffedBuild: true });
+for (const slug of Object.keys(CLASSES)) if (slug.startsWith("stand-ab-")) SAVE_UPGRADES[slug] = SAVE_UPGRADES["stand-user"];
 // (Builds that aren't one of PF2e's classes — a class archetype, homebrew: the Stand User — run only when named: --only=.)
 export const VARIANT_SLUGS = Object.freeze(Object.keys(CLASSES).filter((slug) => slug.startsWith("stand-")));
 export const CLASS_SLUGS = Object.freeze([...Object.keys(CLASSES).filter((slug) => !VARIANT_SLUGS.includes(slug)), "fighter", "rogue", "wizard", "cleric"].sort());

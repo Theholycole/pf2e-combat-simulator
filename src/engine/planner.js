@@ -1206,7 +1206,8 @@ function expandAll(ctx, node, actionsLeft) {
         }
     }
     // Moving away.
-    if (!mobile) {
+    // (2026-11-24: not an automatic stand on its program — classes.js autonomousStand's noRetreat: it never backs off.)
+    if (!mobile || c.noRetreat) {
         // Immobilized, restrained or grabbed: nowhere to go.
     } else if (inAnyMelee) {
         const realMelee = node.pos.melee === c.meleeId && c.meleeId !== null;
