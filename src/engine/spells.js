@@ -10,7 +10,7 @@
 // pool: a key into the creature's spellPools (slots, focus points, innate
 // uses), or null for cantrips and at-will spells.
 
-import { revealKind } from "./knowledge-rules.js";
+import { knownSaveCriticalFailure, revealKind } from "./knowledge-rules.js";
 import { CORE_FAMILIES, createRegistry, healingOf, mechanicalVariants, nativeOf, parseDamage, planWithActions, readPlan } from "../../../pf2e-resolution-core/src/index.js";
 import { degreeDistribution, degreeOf, flatCheck, CRITICAL_FAILURE, CRITICAL_SUCCESS, DEGREE_NAMES, SUCCESS } from "./checks.js";
 import { ACTIVE, DEAD, DOWN, MOUTH, armorClass, canAct, canMove, createCombatant, defenceOf, effectBonus, hinderedBy, hpFraction, isActive, isOffGuard, saveModifier, statusPenalty, strikeUsable, targetingChance } from "./combatant.js";
@@ -3633,6 +3633,8 @@ function castPlanInner(state, caster, spell, targetIds, actions, { forcedDegree 
         if (SAVE_SLUGS.has(statistic) && next?.degree && incapacitated(spell, caster, options?.actor)) next = { ...next, degree: DEGREE_NAMES[Math.min(3, DEGREE_NAMES.indexOf(next.degree) + 1)] };
         // (Undermine Reality: against a quasi-real creature's spells and abilities, a degree better.)
         if (SAVE_SLUGS.has(statistic) && next?.degree && caster.cond?.quasiReal) next = { ...next, degree: DEGREE_NAMES[Math.min(3, DEGREE_NAMES.indexOf(next.degree) + 1)] };
+        // (2026-11-25, knowledge house rule "break": a known foe critically failing its known lowest save loses Guard.)
+        if (state.knowledge && SAVE_SLUGS.has(statistic) && next?.degree === "criticalFailure") knownSaveCriticalFailure(state, options?.actor, statistic, caster, applyCondition);
         return next;
     };
     // (A failed save a reaction makes better, B80.)

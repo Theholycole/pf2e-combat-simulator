@@ -5,6 +5,11 @@
 //   hidden   A foe with no weakness gets one hidden weakness at GM Core Table 2-8's low value for its level, of a type from its traits (else
 //            slashing, piercing or bludgeoning by its name). It counts only once the party has learned what the creature is.
 //   nocrit   Once the party knows a creature, it can't critically succeed at its lowest save (that save's critical success is a success).
+//   break    (Octopath's shields) Every foe has Guard 2 (3 if 2+ levels above the party). Each PC turn that sets off a KNOWN weakness of it,
+//            makes it critically fail its known lowest save, or lands a thaumaturge's exploited Strike takes 1 Guard. At 0 it is Broken:
+//            stunned 1, off-guard and without reactions until the end of its next turn; Guard back to its start + 1.
+//   press    (SMT's half turn) The first time each round a foe's KNOWN weakness is set off by a PC (not personal antithesis), that PC gets 1
+//            extra action at the start of its next turn (the sim doesn't restrict what it's used for).
 // Learning: a successful Exploit Vulnerability, or Recall Knowledge — the party's two best knowers (Arcana, Nature, Occultism, Religion,
 // Society, the best of them; a thaumaturge is left to its Exploit Vulnerability) each spend one action at the start of their turn on a foe
 // kind no one knows and they haven't tried, against the standard DC of its level. Known foes are known by name, for every copy.
@@ -40,14 +45,15 @@ export function knowledgeRulesOf(options) {
 export function setUpKnowledge(state, { skillValue }) {
     const rules = knowledgeRulesOf(state.options);
     if (!rules.size) return;
-    state.knowledge = { rules, known: new Set(), tried: new Map(), knowers: [], stats: { recalls: 0, recallSuccesses: 0, exposed: 0, revealed: 0, noCrit: 0 } };
+    state.knowledge = { rules, known: new Set(), tried: new Map(), knowers: [], stats: { recalls: 0, recallSuccesses: 0, exposed: 0, revealed: 0, noCrit: 0, chips: 0, breaks: 0, presses: 0 } };
+    if (rules.has("break")) for (const c of state.list) if (c.side !== "party" && c.kind !== "object" && !c.hazard) c.guard = c.guardMax = (c.level ?? 0) >= (state.partyLevel ?? 1) + 2 ? 3 : 2;
     if (rules.has("hidden")) {
         for (const c of state.list) {
             if (c.side === "party" || c.kind === "object" || c.hazard || (c.weaknesses ?? []).length) continue;
             c.hiddenWeakness = { type: hiddenType(c), value: hiddenWeaknessValue(c.level) };
         }
     }
-    if (rules.has("hidden") || rules.has("nocrit")) {
+    if (["hidden", "nocrit", "break", "press"].some((rule) => rules.has(rule))) {
         const best = (c) => Math.max(...KNOW_SKILLS.map((slug) => skillValue(c, slug) ?? -99));
         state.knowledge.knowers = state.list
             .filter((c) => c.side === "party" && c.kind === "pc" && !c.exploit)
@@ -66,9 +72,10 @@ export function revealKind(state, target) {
     for (const c of state.list) {
         if (c.name !== target.name || c.side === "party") continue;
         if (c.hiddenWeakness && k.rules.has("hidden")) c.weaknesses = [...(c.weaknesses ?? []), { type: c.hiddenWeakness.type, value: c.hiddenWeakness.value }];
+        const saves = ["fortitude", "reflex", "will"];
+        const lowest = saves.reduce((low, save) => (saveModifier(c, save) < saveModifier(c, low) ? save : low), saves[0]);
+        c.knownLowestSave = lowest;
         if (k.rules.has("nocrit")) {
-            const saves = ["fortitude", "reflex", "will"];
-            const lowest = saves.reduce((low, save) => (saveModifier(c, save) < saveModifier(c, low) ? save : low), saves[0]);
             c.saveDegrees = [...(c.saveDegrees ?? []), { saves: [lowest], adjustment: { criticalSuccess: "to-success" }, knowledgeRule: true }];
         }
     }
@@ -96,22 +103,64 @@ export function recallTurn(state, c, actions, { skillValue }) {
     return 1;
 }
 
-// After damage is worked out (actions.js applyDamage): Exposed, once a round.
+// After damage is worked out (actions.js applyDamage): Exposed (once a round), Break's Guard, Press the Weakness.
 export function exposeOnWeakness(state, target, instances, source, total, { adjustDamage, exploitCovers, judged, physical, applyCondition }) {
     const k = state.knowledge;
-    if (!k?.rules.has("exposed") || !source || source.side === target.side || total <= 0 || !isActive(target)) return;
-    if (target.exposedRound === state.round) return;
-    let triggered = judged > 0 || (physical && exploitCovers(source, target));
-    if (!triggered && (target.weaknesses ?? []).length) triggered = adjustDamage({ ...target, weaknesses: [] }, instances).total < total;
-    if (!triggered) return;
-    target.exposedRound = state.round;
-    k.stats.exposed++;
-    // (Until the start of its next turn: its own turn, this round if it hasn't acted yet, else the next.)
+    if (!k || !source || source.side === target.side || total <= 0 || !isActive(target)) return;
+    const exploited = physical && exploitCovers(source, target);
+    const weaknessHit = (target.weaknesses ?? []).length > 0 && adjustDamage({ ...target, weaknesses: [] }, instances).total < total;
+    const known = k.known.has(target.name);
+    if (k.rules.has("exposed") && target.exposedRound !== state.round && (judged > 0 || exploited || weaknessHit)) {
+        target.exposedRound = state.round;
+        k.stats.exposed++;
+        offGuardUntil(state, target, "turn-start", applyCondition);
+        target.reactionUsed = true;
+        state.log?.push(`  ${target.name} is Exposed (off-guard, no reactions)`);
+    }
+    if (source.side !== "party") return;
+    if (k.rules.has("press") && known && weaknessHit && target.pressRound !== state.round) {
+        target.pressRound = state.round;
+        source.lostActions = (source.lostActions ?? 0) - 1;
+        k.stats.presses++;
+        state.log?.push(`  ${source.name} presses ${target.name}'s weakness: +1 action next turn`);
+    }
+    if (k.rules.has("break") && ((known && weaknessHit) || exploited)) chipGuard(state, target, source, applyCondition);
+}
+
+// A party member's spell made a known foe critically fail its known lowest save (spells.js): Break's Guard.
+export function knownSaveCriticalFailure(state, target, save, caster, applyCondition) {
+    const k = state.knowledge;
+    if (!k?.rules.has("break") || caster?.side !== "party" || !target || target.side === "party" || !k.known.has(target.name) || target.knownLowestSave !== save || !isActive(target)) return;
+    chipGuard(state, target, caster, applyCondition);
+}
+
+function chipGuard(state, target, source, applyCondition) {
+    const k = state.knowledge;
+    if (!Number.isFinite(target.guard)) return;
+    const key = `${state.round}:${source.id}`;
+    if (target.guardChipped === key) return;
+    target.guardChipped = key;
+    target.guard--;
+    k.stats.chips++;
+    if (target.guard > 0) {
+        state.log?.push(`  ${target.name}'s Guard drops to ${target.guard}`);
+        return;
+    }
+    k.stats.breaks++;
+    target.guardMax++;
+    target.guard = target.guardMax;
+    applyCondition(state, target, "stunned", 1, null, source);
+    offGuardUntil(state, target, "turn-end", applyCondition);
+    target.reactionUsed = true;
+    target.brokenUntilRound = (target.lastTurnRound ?? 0) >= state.round ? state.round + 1 : state.round;
+    state.log?.push(`  ${target.name} is Broken (stunned 1, off-guard, no reactions; Guard back to ${target.guard})`);
+}
+
+// Off-guard until the start or end of the creature's own next turn (this round if it hasn't acted yet).
+function offGuardUntil(state, target, expiry, applyCondition) {
     const acted = (target.lastTurnRound ?? 0) >= state.round;
-    if (applyCondition(state, target, "off-guard", null, { mode: "fixed", value: 1, unit: "rounds", expiry: "turn-start" }, target)) {
+    if (applyCondition(state, target, "off-guard", null, { mode: "fixed", value: 1, unit: "rounds", expiry }, target)) {
         const timer = (target.timers ?? []).at(-1);
         if (timer && (timer.key === "off-guard" || timer.key === "offGuard") && timer.turnOf === target.id) timer.round = acted ? state.round + 1 : state.round;
     }
-    target.reactionUsed = true;
-    state.log?.push(`  ${target.name} is Exposed (off-guard, no reactions)`);
 }

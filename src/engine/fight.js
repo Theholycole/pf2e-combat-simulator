@@ -522,6 +522,8 @@ function startTurn(state, c) {
     // (2026-10-20: a new save at the start of its turn, the item module's.)
     if (c.saveEnds?.some((entry) => entry.timing === "start") && c.status === ACTIVE) saveEndsAtTurnEnd(state, c, "start");
     c.reactionUsed = false;
+    // (2026-11-25, knowledge house rule "break": a Broken creature has no reactions till the end of its next turn.)
+    if (c.brokenUntilRound >= state.round) c.reactionUsed = true;
     c.spareUsed = null;
     // (Whether it Strides, Flies or Swims this turn — Agitate's.)
     c.movedThisTurn = false;

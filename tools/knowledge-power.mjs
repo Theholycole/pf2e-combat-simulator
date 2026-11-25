@@ -15,7 +15,10 @@ import { defaultWorkers, runPool, workerLoop } from "./lib/pool.mjs";
 const FIGHTS = Number(process.env.KNOW_FIGHTS) || 40;
 const CREATURES = Number(process.env.KNOW_CREATURES) || 24;
 const LEVELS = (process.env.KNOW_LEVELS || "3,7,11,15").split(",").map(Number);
-const CONFIGS = { base: "", ab: "exposed,hidden", abc: "exposed,hidden,nocrit" };
+// (2026-11-25, Cole's pick: Break and Press both, each alone and together, on top of A+B+C. KNOW_SET=first for the first run's three.)
+const CONFIGS = process.env.KNOW_SET === "first"
+    ? { base: "", ab: "exposed,hidden", abc: "exposed,hidden,nocrit" }
+    : { base: "", abc: "exposed,hidden,nocrit", break: "exposed,hidden,nocrit,break", press: "exposed,hidden,nocrit,press", both: "exposed,hidden,nocrit,break,press" };
 const PARTIES = ["standard", "thaumaturge"];
 
 async function runTask(task) {
@@ -32,7 +35,7 @@ async function runTask(task) {
     const partyHp = party.filter((c) => !c.sharesHpWith && !c.reserve).reduce((sum, c) => sum + c.hp.max, 0);
     const out = { ...task, ref: task.ref.ref, name: npc.name, creatureLevel: built.monster.level, hadWeakness: (built.monster.weaknesses ?? []).length > 0, n: 0, wins: 0, score: 0, rounds: 0, exposed: 0, recalls: 0, recallSuccesses: 0, revealed: 0, scores: [] };
     for (const [config, rules] of Object.entries(CONFIGS)) {
-        const row = { n: 0, wins: 0, score: 0, rounds: 0, exposed: 0, recalls: 0, recallSuccesses: 0, revealed: 0, scores: [] };
+        const row = { n: 0, wins: 0, score: 0, rounds: 0, exposed: 0, recalls: 0, recallSuccesses: 0, revealed: 0, breaks: 0, presses: 0, scores: [] };
         for (let seed = 1; seed <= FIGHTS; seed++) {
             const result = simulate({ combatants: [...party, ...foes, ...built.reserves] }, { ...DANGER_OPTIONS, knowledge: rules }, seed);
             const damage = ((result.damageBy?.foes ?? 0) + (result.damageBy?.foesInduced ?? 0)) / partyHp;
@@ -44,7 +47,7 @@ async function runTask(task) {
             row.score += score;
             row.rounds += result.rounds;
             row.scores.push(Math.round(score * 1000) / 1000);
-            for (const key of ["exposed", "recalls", "recallSuccesses", "revealed"]) row[key] += result.knowledge?.stats?.[key] ?? 0;
+            for (const key of ["exposed", "recalls", "recallSuccesses", "revealed", "breaks", "presses"]) row[key] += result.knowledge?.stats?.[key] ?? 0;
         }
         out[config] = row;
     }
@@ -86,32 +89,35 @@ if (!isMainThread) {
 }
 
 // Mean of a key over rows' config, per fight; and the paired difference to base with its standard error (fight by fight).
-function stats(rows, config) {
-    let n = 0, wins = 0, score = 0, rounds = 0, exposed = 0, recalls = 0, succ = 0;
+function stats(rows, config, against = "base") {
+    let n = 0, wins = 0, score = 0, rounds = 0, exposed = 0, recalls = 0, succ = 0, breaks = 0, presses = 0;
     const diffs = [];
     for (const row of rows) {
         const r = row[config];
-        n += r.n; wins += r.wins; score += r.score; rounds += r.rounds; exposed += r.exposed; recalls += r.recalls; succ += r.recallSuccesses;
-        r.scores.forEach((value, i) => diffs.push(value - row.base.scores[i]));
+        n += r.n; wins += r.wins; score += r.score; rounds += r.rounds; exposed += r.exposed; recalls += r.recalls; succ += r.recallSuccesses; breaks += r.breaks ?? 0; presses += r.presses ?? 0;
+        r.scores.forEach((value, i) => diffs.push(value - row[against].scores[i]));
     }
     const mean = diffs.reduce((s, v) => s + v, 0) / Math.max(1, diffs.length);
     const sd = Math.sqrt(diffs.reduce((s, v) => s + (v - mean) ** 2, 0) / Math.max(1, diffs.length - 1));
-    return { n, win: wins / n, score: score / n, rounds: rounds / n, exposed: exposed / n, recalls: recalls / n, recallRate: recalls ? succ / recalls : 0, diff: mean, se: sd / Math.sqrt(Math.max(1, diffs.length)) };
+    return { n, win: wins / n, score: score / n, rounds: rounds / n, exposed: exposed / n, recalls: recalls / n, recallRate: recalls ? succ / recalls : 0, breaks: breaks / n, presses: presses / n, diff: mean, se: sd / Math.sqrt(Math.max(1, diffs.length)) };
 }
 
 function report(rows) {
+    const abc = "abc" in CONFIGS && Object.keys(CONFIGS).length > 3;
     const pct = (v) => `${(v * 100).toFixed(1)}%`;
     const f2 = (v) => v.toFixed(2);
     const lines = ["# Knowledge house rules in the simulator", "", `Rows: ${rows.length} (creature × encounter × party), ${rows[0]?.base.n ?? 0} paired fights each per rule set.`, "",
         "Danger score: party damage taken as a share of its HP, +0.25 a PC down, +1 a death, +1 a wipe (lower is better for the party). Δ is against base on the same seeds.", ""];
     const table = (title, filter) => {
-        lines.push(`## ${title}`, "", "| Party | Rules | Win rate | Rounds | Danger | Δ danger (±SE) | Exposed / fight | Recall actions / fight | Recall success |", "|---|---|---|---|---|---|---|---|---|");
+        lines.push(`## ${title}`, "", `| Party | Rules | Win rate | Rounds | Danger | Δ danger vs base (±SE) |${abc ? " Δ vs abc |" : ""} Exposed / fight | Breaks / fight | Presses / fight | Recall actions / fight |`, `|---|---|---|---|---|---|${abc ? "---|" : ""}---|---|---|---|`);
         for (const party of PARTIES) {
             const subset = rows.filter((row) => row.party === party && filter(row));
             if (!subset.length) continue;
             for (const config of Object.keys(CONFIGS)) {
                 const s = stats(subset, config);
-                lines.push(`| ${party} | ${config} | ${pct(s.win)} | ${f2(s.rounds)} | ${f2(s.score)} | ${config === "base" ? "—" : `${s.diff >= 0 ? "+" : ""}${f2(s.diff)} ± ${f2(s.se)}`} | ${f2(s.exposed)} | ${f2(s.recalls)} | ${config === "base" ? "—" : pct(s.recallRate)} |`);
+                const d = (x) => `${x.diff >= 0 ? "+" : ""}${f2(x.diff)} ± ${f2(x.se)}`;
+                const vsAbc = abc ? (["base", "abc"].includes(config) ? " — |" : ` ${d(stats(subset, config, "abc"))} |`) : "";
+                lines.push(`| ${party} | ${config} | ${pct(s.win)} | ${f2(s.rounds)} | ${f2(s.score)} | ${config === "base" ? "—" : d(s)} |${vsAbc} ${f2(s.exposed)} | ${f2(s.breaks)} | ${f2(s.presses)} | ${f2(s.recalls)} |`);
             }
         }
         lines.push("");
