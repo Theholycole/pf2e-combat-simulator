@@ -5,7 +5,7 @@
 //   hidden   A foe with no weakness gets one hidden weakness at GM Core Table 2-8's low value for its level, of a type from its traits (else
 //            slashing, piercing or bludgeoning by its name). It counts only once the party has learned what the creature is.
 //   nocrit   Once the party knows a creature, it can't critically succeed at its lowest save (that save's critical success is a success).
-//   break    (Octopath's shields) Every foe has Guard 2 (3 if 2+ levels above the party). Each PC turn that sets off a KNOWN weakness of it,
+//   break    (Octopath's shields) Every foe has Guard 1 (2 if 2+ levels above the party; Cole's pick 2026-11-25, was 2/3). Each PC turn that sets off a KNOWN weakness of it,
 //            makes it critically fail its known lowest save, or lands a thaumaturge's exploited Strike takes 1 Guard. At 0 it is Broken:
 //            stunned 1, off-guard and without reactions until the end of its next turn; Guard back to its start + 1.
 //   press    (SMT's half turn) The first time each round a foe's KNOWN weakness is set off by a PC (not personal antithesis), that PC gets 1
@@ -46,7 +46,7 @@ export function setUpKnowledge(state, { skillValue }) {
     const rules = knowledgeRulesOf(state.options);
     if (!rules.size) return;
     state.knowledge = { rules, known: new Set(), tried: new Map(), knowers: [], stats: { recalls: 0, recallSuccesses: 0, exposed: 0, revealed: 0, noCrit: 0, chips: 0, breaks: 0, presses: 0 } };
-    if (rules.has("break")) for (const c of state.list) if (c.side !== "party" && c.kind !== "object" && !c.hazard) c.guard = c.guardMax = (c.level ?? 0) >= (state.partyLevel ?? 1) + 2 ? 3 : 2;
+    if (rules.has("break")) for (const c of state.list) if (c.side !== "party" && c.kind !== "object" && !c.hazard) c.guard = c.guardMax = (c.level ?? 0) >= (state.partyLevel ?? 1) + 2 ? 2 : 1;
     if (rules.has("hidden")) {
         for (const c of state.list) {
             if (c.side === "party" || c.kind === "object" || c.hazard || (c.weaknesses ?? []).length) continue;
