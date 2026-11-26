@@ -183,7 +183,7 @@ export const TIME = {
             const effects = ctx.lv >= 17 ? { failure: [["slowed", 1, ctx.round1]], criticalFailure: [["slowed", 1, ctx.round1]] } : {};
             const spells = [noSave(ctx, "Loop (bomb)", { actions: 1, damage: ctx.S("force"), pool: "loop-daily", effects })];
             // (2026-11-26, module a5ce436: 5th surge, 2 actions: a second bomb today — its planting and going off played as one 2-action use, a Stand Point; half S, Cole's pick 2026-11-26.)
-            if (LATE && ctx.lv >= 5) spells.push(noSave(ctx, "Loop (surge, second bomb)", { actions: 2, damage: ctx.halfS("force"), surge: true, effects }));
+            // (Cole 2026-11-26: the second bomb deals no damage, only rewinds positions — not played in range bands, so nothing to add.)
             const user = ctx.lv >= 13 ? { allySaveReroll: { name: "Loop (reroll)", within: 1000, uses: 1, free: true } } : {};
             return { spells, user, stand: userOnly(user), spellPools: { "loop-daily": 1 } };
         },
