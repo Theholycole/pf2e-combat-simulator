@@ -15,6 +15,9 @@ import { moderate } from "../creature-tables.js";
 // GM Core Low Strike attack and damage, levels −1 to 24.
 const LOW_ATTACK = [4, 4, 5, 7, 8, 9, 11, 12, 13, 15, 16, 17, 19, 20, 21, 23, 24, 25, 27, 28, 29, 31, 32, 33, 35, 36];
 const LOW_DAMAGE = [2, 3, 4, 6, 8, 9, 11, 12, 13, 15, 16, 17, 19, 20, 21, 23, 24, 25, 26, 27, 28, 29, 31, 32, 33, 35];
+// (2026-11-26, module a5ce436, Cole: "give 5th level surges for the late ones" — the 9th-level surges at 5th and new 9th steps; LATE,
+// STAND_LATE_SURGE=0 for the text before it.)
+const LATE = globalThis.process?.env?.STAND_LATE_SURGE !== "0";
 const lowAt = (table, level) => table[Math.max(-1, Math.min(24, level)) + 1];
 
 const heals = (lv) => `${2 + Math.floor(lv / 2)}d8+${key(lv)}`;
@@ -195,12 +198,14 @@ export const MATTER = {
                     saveOnly(ctx, "Property Theft (water)", { actions: 1, save: "fortitude", target, range, effects: { failure: [["sickened", 1]], criticalFailure: [["sickened", 2]] } })
                 ];
                 if (ctx.lv >= 5) spells.push(saveOnly(ctx, "Property Theft (sight)", { actions: 1, save: "fortitude", target, range, effects: { failure: [["dazzled", null, r1]], criticalFailure: [["blinded", null, r1]] } }));
-                if (ctx.lv >= 9) {
+                if (ctx.lv >= (LATE ? 5 : 9)) {
                     // (Round 3 tone-down: a surge's minute-long theft is one bubble, one creature.)
                     const target = "1 creature";
                     spells.push(saveOnly(ctx, "Property Theft (surge, sight)", { actions: 2, surge: true, save: "fortitude", target, range, effects: { failure: [["blinded", null, min]], criticalFailure: [["blinded", null, min]] } }));
                     spells.push(saveOnly(ctx, "Property Theft (surge, water)", { actions: 2, surge: true, save: "fortitude", target, range, effects: { failure: [["sickened", 2]], criticalFailure: [["sickened", 3]] } }));
                     spells.push(saveOnly(ctx, "Property Theft (surge, sound)", { actions: 2, surge: true, save: "fortitude", target, range, automatic: true, effects: { success: [["voiceless", null, min]] } }));
+                    // (a5ce436 9th: a surge bubble steals two properties — sight and water together, one Fortitude save.)
+                    if (LATE && ctx.lv >= 9) spells.push(saveOnly(ctx, "Property Theft (surge, sight and water)", { actions: 2, surge: true, save: "fortitude", target, range, effects: { failure: [["blinded", null, min], ["sickened", 2]], criticalFailure: [["blinded", null, min], ["sickened", 3]] } }));
                 }
                 if (ctx.lv >= 17) spells.push(saveOnly(ctx, "Property Theft (air)", { actions: 1, save: "fortitude", target, range, effects: { failure: [["voiceless", null, r1]], criticalFailure: [["voiceless", null, r1]] } }));
                 // (Round 2: a bubble popped by hand on the creature the stand hits — friction's Reflex save as its rider.)
@@ -303,7 +308,9 @@ export const MATTER = {
                 binding.onHit.damage = [`${1 + (ctx.lv >= 5 ? 1 : 0) + (ctx.lv >= 13 ? 1 : 0)}d6[slashing]`];
                 stand = { strikeActivities: [binding] };
             }
-            if (ctx.lv >= 9) spells.push(saveOnly(ctx, "Unravel (surge net)", { actions: ctx.buffed && ctx.lv >= 13 ? 1 : 2, surge: true, save: "reflex", range, area: { type: "burst", value: 15 }, effects: { failure: [["restrained", null, ctx.round1]], criticalFailure: [["restrained", null, ctx.round1]] } }));
+            // (a5ce436: the net at 5th, a 20-ft burst from 9th.)
+            const late = ctx.buffed && LATE;
+            if (ctx.lv >= (late ? 5 : 9)) spells.push(saveOnly(ctx, "Unravel (surge net)", { actions: ctx.buffed && ctx.lv >= 13 ? 1 : 2, surge: true, save: "reflex", range, area: { type: "burst", value: late && ctx.lv >= 9 ? 20 : 15 }, effects: { failure: [["restrained", null, ctx.round1]], criticalFailure: [["restrained", null, ctx.round1]] } }));
             if (ctx.lv >= 17) {
                 const plan = ctx.savePlan("Unravel (sew wounds)", { actions: 1, traits: ["concentrate", "occult", "stand", "healing"], target: "1 ally", range, damage: null, basic: false });
                 plan.resolution = { kind: "effect", check: null, sharedDamage: null, outcomes: {}, applications: [{ kind: "native-spell-effect", uuid: "stand.unravel.sew", label: "Unravel (sew wounds)", recipients: "target" }] };
@@ -342,10 +349,11 @@ export const MATTER = {
                 const spells = [saveOnly(ctx, "Fix in Place (fix limb)", { actions: 1, save: "fortitude", range: "touch", effects: limb })];
                 const out = { spells, stand: { strikeActivities: [touchStrike(ctx, "Fix in Place (fixing strike)", "fortitude", limb)] } };
                 if (ctx.lv >= 5) out.user = { allyAcReaction: { name: "Fix in Place (stop projectile)", value: 50, within: 30, self: true, ranged: true } };
-                if (ctx.lv >= 9) {
+                if (ctx.lv >= (LATE ? 5 : 9)) {
                     const rider = riderPlan(ctx, "Fix in Place (surge immobilize)", "fortitude", { failure: [["immobilized", null, ctx.round1], ["off-guard", null, ctx.round1]], criticalFailure: [["immobilized", null, ctx.lv >= 17 ? ctx.minutes(1) : ctx.round1], ["off-guard", null, ctx.round1]] });
                     out.stand.strikeActivities.push(standRider(ctx, "Fix in Place (surge immobilize)", { rider }));
-                    out.stand.spellPools = { [ctx.pool]: 2 };
+                    // (a5ce436 9th: one surge fixes up to two creatures the stand hits that turn — played as two fixing Strikes a Stand Point.)
+                    out.stand.spellPools = { [ctx.pool]: LATE && ctx.lv >= 9 ? 4 : 2 };
                 }
                 const momentum = ctx.lv >= 13 ? plain(ctx.D("force")).replace(/^(\d+)d/, (m, n) => `${Number(n) * 2}d`) + "[force]" : ctx.D("force");
                 spells.push(ctx.make("Fix in Place (release momentum)", { actions: 1, damage: momentum, kind: "force" }));
@@ -405,7 +413,8 @@ export const MATTER = {
             const r1 = ctx.round1;
             const guard = ctx.lv >= 13 ? ctx.minutes(1) : r1;
             const spells = [saveOnly(ctx, "Disguise (trusted face)", { actions: 1, save: "will", target: ctx.lv >= 5 ? "up to 2 creatures" : "1 creature", traits: ["mental", "visual"], effects: { failure: [["off-guard", null, guard], ["frightened", 1]], criticalFailure: [["off-guard", null, guard], ["frightened", 2], ...(ctx.lv >= 13 ? [["stupefied", 1, r1]] : [])] } })];
-            if (ctx.lv >= 9) spells.push(saveOnly(ctx, "Disguise (surge, false face)", { actions: 2, surge: true, save: "will", traits: ["mental", "visual"], area: { type: "burst", value: 20 }, effects: { failure: [["off-guard", null, ctx.minutes(1)]], criticalFailure: [["off-guard", null, ctx.minutes(1)], ["frightened", 1]] } }));
+            // (a5ce436: the false-face surge at 5th, its burst 30 ft from 9th.)
+            if (ctx.lv >= (LATE ? 5 : 9)) spells.push(saveOnly(ctx, "Disguise (surge, false face)", { actions: 2, surge: true, save: "will", traits: ["mental", "visual"], area: { type: "burst", value: LATE && ctx.lv >= 9 ? 30 : 20 }, effects: { failure: [["off-guard", null, ctx.minutes(1)]], criticalFailure: [["off-guard", null, ctx.minutes(1)], ["frightened", 1]] } }));
             // (Round 2: the masked Strike — off-guard against it; from 5th a hit frightens 1.)
             const masked = strikeAct(ctx, "Disguise (masked strike)", { offGuard: true, conditions: ctx.lv >= 5 ? [cond("frightened", 1)] : [] });
             return { spells, stand: { strikeActivities: [masked] } };
@@ -436,8 +445,9 @@ export const MATTER = {
                 // (Round 2: the lunge from beside the object — off-guard against it; a die more from 5th; off-guard a round after a hit from 13th.)
                 const lunge = strikeAct(ctx, "Shapeshift (lunge)", { offGuard: true, extraWeaponDice: ctx.lv >= 5 ? 1 : 0, conditions: ctx.lv >= 13 ? [cond("off-guard", null, ctx.round1)] : [] });
                 const stand = { selfEffects: null, strikeActivities: [lunge] };
-                if (ctx.lv >= 9) {
-                    stand.strikeActivities = [lunge, { name: "Shapeshift (surge ambush)", actions: 1, strides: 0, strike: null, attackBonus: 0, damageBonus: 0, damage: null, offGuard: true, requires: null, oncePerFight: false, traits: ["stand", "occult"], pool: ctx.pool, onHit: { conditions: [], critical: null, push: null, damage: [], save: null, size: null }, riderSpell: null }];
+                // (a5ce436: the ambush surge at 5th; one more weapon die from 9th.)
+                if (ctx.lv >= (LATE ? 5 : 9)) {
+                    stand.strikeActivities = [lunge, { name: "Shapeshift (surge ambush)", actions: 1, strides: 0, strike: null, attackBonus: 0, damageBonus: 0, damage: null, offGuard: true, ...(LATE && ctx.lv >= 9 ? { extraWeaponDice: 1 } : {}), requires: null, oncePerFight: false, traits: ["stand", "occult"], pool: ctx.pool, onHit: { conditions: [], critical: null, push: null, damage: [], save: null, size: null }, riderSpell: null }];
                     stand.spellPools = { [ctx.pool]: 2 };
                 }
                 return { spells, user, stand };
@@ -478,14 +488,21 @@ export const MATTER = {
                 early.push(saveOnly(ctx, "Soften (hide)", { actions: 1, save: "fortitude", range: "touch", effects: hideRows }));
                 const strike = touchStrike(ctx, "Soften (softening strike)", "fortitude", hideRows);
                 if (ctx.lv >= 5) early.push(hurt(ctx, "Soften (ground)", { actions: 1, damage: ctx.D("bludgeoning"), kind: "bludgeoning", save: "reflex", range: "touch", effects: { failure: [["prone"]], criticalFailure: [["prone"]] } }));
-                if (ctx.lv < 9) return { spells: early, stand: { strikeActivities: [strike] } };
+                if (ctx.lv < (LATE ? 5 : 9)) return { spells: early, stand: { strikeActivities: [strike] } };
                 stand = { strikeActivities: [strike] };
             }
-            if (ctx.lv < 9) return null;
+            if (ctx.lv < (ctx.buffed && LATE ? 5 : 9)) return null;
             const armor = foeEffect(saveOnly(ctx, "Soften (surge armor)", { actions: 2, surge: true, save: "fortitude", effects: {} }), "stand.soften.armor", ctx.effectModel("Soften (surge armor)", 10, { modifiers: [{ on: "ac", type: "untyped", value: -2 }] }));
             const cut = Math.max(1, Math.round(moderate("damage", ctx.lv) / 2));
             const weapon = foeEffect(saveOnly(ctx, "Soften (surge weapon)", { actions: 2, surge: true, save: "fortitude", effects: {} }), "stand.soften.weapon", ctx.effectModel("Soften (surge weapon)", 10, { modifiers: [{ on: "damage", type: "untyped", value: -cut }] }));
             const spells = [...early, armor, weapon];
+            // (a5ce436 9th: weapon and armor softened at once — one Fortitude save.)
+            if (ctx.buffed && LATE && ctx.lv >= 9) {
+                const both = saveOnly(ctx, "Soften (surge weapon and armor)", { actions: 2, surge: true, save: "fortitude", effects: {} });
+                foeEffect(both, "stand.soften.armor", ctx.effectModel("Soften (surge armor)", 10, { modifiers: [{ on: "ac", type: "untyped", value: -2 }] }));
+                foeEffect(both, "stand.soften.weapon", ctx.effectModel("Soften (surge weapon)", 10, { modifiers: [{ on: "damage", type: "untyped", value: -cut }] }));
+                spells.push(both);
+            }
             if (ctx.lv >= 17) {
                 const body = saveOnly(ctx, "Soften (body)", { actions: 1, save: "fortitude", effects: { failure: [["clumsy", 2, ctx.round1]], criticalFailure: [["clumsy", 2, ctx.round1]] } });
                 for (const degree of ["failure", "criticalFailure"]) body.plan.resolution.outcomes[degree].effects.push({ kind: "disarm", what: "drop", penalty: 0 });
@@ -558,10 +575,12 @@ export const MATTER = {
     },
     "Invisible Dead": {
         build(ctx) {
-            const count = ctx.lv >= 13 ? 4 : ctx.lv >= 5 ? 2 : 1;
+            // (a5ce436: three zombies at 9th; the surge at 5th.)
+            const late = ctx.buffed && LATE;
+            const count = ctx.lv >= 13 ? 4 : late && ctx.lv >= 9 ? 3 : ctx.lv >= 5 ? 2 : 1;
             // (Invisible: the target off-guard to them, +2.)
             const spells = [minion(ctx, "Invisible Dead (command zombies)", { count, attackBonus: 2 })];
-            if (ctx.lv >= 9) {
+            if (ctx.lv >= (late ? 5 : 9)) {
                 // (Round 4 cap, buffed path only: the surge's extra damage at most 2D in all — was D a zombie, 4D with four.)
                 const extraCount = ctx.buffed ? Math.min(count, 2) : count;
                 const extra = plain(ctx.D("untyped")).replace(/^(\d+)d/, (m, n) => `${Number(n) * extraCount}d`) + "[bludgeoning]";
@@ -597,7 +616,9 @@ export const MATTER = {
                     saveOnly(ctx, "Flesh Spray (seal mouth)", { actions: 1, save: "reflex", target: sealTarget, effects: seal("voiceless") }),
                     hurt(ctx, "Flesh Spray (rip flesh)", { actions: 1, damage: ctx.D("slashing"), kind: "slashing", save: "fortitude", effects: ctx.lv >= 13 ? { failure: [["blinded", null, r1]], criticalFailure: [["blinded", null, r1]] } : {} })
                 ];
-                if (ctx.lv >= 9) spells.push(heal(ctx, "Flesh Spray (surge heal)", { actions: 1, formula: heals(ctx.lv), surge: true }));
+                // (a5ce436: the surge heal at 5th; from 9th split between two allies — rolled once, half each as the even split.)
+                if (ctx.lv >= (LATE ? 5 : 9)) spells.push(heal(ctx, "Flesh Spray (surge heal)", { actions: 1, formula: heals(ctx.lv), surge: true }));
+                if (LATE && ctx.lv >= 9) spells.push(heal(ctx, "Flesh Spray (surge heal, split)", { actions: 1, formula: `${Math.ceil((2 + Math.floor(ctx.lv / 2)) / 2)}d8+${Math.floor(key(ctx.lv) / 2)}`, target: "up to 2 creatures", surge: true }));
                 if (ctx.lv >= 17) spells.push(saveOnly(ctx, "Flesh Spray (seal breath)", { actions: 1, save: "fortitude", effects: { failure: [["voiceless", null, r1]], criticalFailure: [["voiceless", null, r1]] } }));
                 return { spells };
             }

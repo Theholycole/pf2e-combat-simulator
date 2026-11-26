@@ -2,6 +2,9 @@
 // its Defaults: a surge costs 1 Stand Point and 2 actions unless listed, ranges are measured from the stand (played from the user, the
 // stand beside it), untyped damage is force, saves against the stand DC.
 
+// (2026-11-26, module a5ce436, Cole: "give 5th level surges for the late ones" — the 9th-level surges at 5th and new 9th steps; LATE,
+// STAND_LATE_SURGE=0 for the text before it.)
+const LATE = globalThis.process?.env?.STAND_LATE_SURGE !== "0";
 const TRAITS = ["concentrate", "occult", "stand"];
 
 // A save plan of the stand's (its DC, its range).
@@ -262,8 +265,8 @@ const BUFFED = {
         const failed = [["off-guard", null, ctx.round1]];
         // (Round 5: accident-prone — clumsy 1 for 1 minute on a failure, clumsy 2 on a critical failure.)
         const effects = { failure: [...failed, ["clumsy", 1, ctx.minutes(1)]], criticalFailure: [...failed, ["clumsy", 2, ctx.minutes(1)], ...(lv >= 5 ? [["prone", null, null]] : []), ...(lv >= 17 ? [["immobilized", null, ctx.round1]] : [])] };
-        const answer = (name, damage, trigger, { surge = false, group = name } = {}) => {
-            const out = plan(ctx, name, { save: "reflex", damage, kind: "bludgeoning", effects });
+        const answer = (name, damage, trigger, { surge = false, group = name, rows = effects } = {}) => {
+            const out = plan(ctx, name, { save: "reflex", damage, kind: "bludgeoning", effects: rows });
             out.activation.time = "reaction";
             out.targeting = { target: "the attacker", range: null, area: null };
             out.trigger = trigger;
@@ -276,9 +279,11 @@ const BUFFED = {
             answer("Calamity (minor accident)", D("bludgeoning"), { event: "attacked", reaction: true, free: true, recharge: once }, { group: "Calamity" }),
             answer("Calamity (minor accident, spell)", D("bludgeoning"), { event: "targeted-by", spells: true, traits: ["attack"], reaction: true, free: true, recharge: once }, { group: "Calamity" })
         ];
-        if (lv >= 9) {
-            spells.push(answer("Calamity (surge, major accident)", S("bludgeoning"), { event: "attacked", reaction: true }, { surge: true }));
-            spells.push(answer("Calamity (surge, major accident, spell)", S("bludgeoning"), { event: "targeted-by", spells: true, traits: ["attack"], reaction: true }, { surge: true, group: "Calamity (surge, major accident)" }));
+        // (a5ce436: the major accident at 5th; prone on a failure too from 9th.)
+        if (lv >= (LATE ? 5 : 9)) {
+            const rows = LATE && lv >= 9 ? { ...effects, failure: [...effects.failure, ["prone", null, null]] } : effects;
+            spells.push(answer("Calamity (surge, major accident)", S("bludgeoning"), { event: "attacked", reaction: true }, { surge: true, rows }));
+            spells.push(answer("Calamity (surge, major accident, spell)", S("bludgeoning"), { event: "targeted-by", spells: true, traits: ["attack"], reaction: true }, { surge: true, group: "Calamity (surge, major accident)", rows }));
         }
         // (Round 2: misfortune follows the stand too — its own free minor accidents, once a round, on creatures that attack it.)
         const standSpells = [

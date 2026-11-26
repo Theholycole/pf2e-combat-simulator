@@ -2,6 +2,9 @@
 // its Defaults: a surge costs 1 Stand Point and 2 actions unless listed, ranges are measured from the stand (played from the user, the
 // stand beside it), untyped damage is force, saves against the stand DC.
 
+// (2026-11-26, module a5ce436, Cole: "give 5th level surges for the late ones" — the 9th-level surges at 5th and new 9th steps; LATE,
+// STAND_LATE_SURGE=0 for the text before it.)
+const LATE = globalThis.process?.env?.STAND_LATE_SURGE !== "0";
 const TRAITS = ["concentrate", "occult", "stand"];
 
 // A save plan of the stand's (its DC, its range; a burst placed within the range).
@@ -81,10 +84,12 @@ const BUFFED = {
         const extra = { failure: [persistent, hit], criticalFailure: [persistent, hit] };
         const effects = { failure: [["sickened", lv >= 13 ? 2 : 1, null]], criticalFailure: [["sickened", lv >= 13 ? 3 : 2, null], ...(lv >= 17 ? [["drained", 2, null]] : [])] };
         if (lv >= 17) effects.failure.push(["drained", 1, null]);  // (Round 5: drained 1 on a failure from 17th.)
-        const spells = [ctx.entry("Virus (capsule)", plan(ctx, "Virus (capsule)", { actions: 1, area: { type: "burst", value: 10 }, kind: "poison", extra, effects }))];
+        // (a5ce436: capsule bursts 15 ft from 9th; the three-capsule surge at 5th.)
+        const burst = LATE && lv >= 9 ? 15 : 10;
+        const spells = [ctx.entry("Virus (capsule)", plan(ctx, "Virus (capsule)", { actions: 1, area: { type: "burst", value: burst }, kind: "poison", extra, effects }))];
         // (The capsule punch: one creature, the stand's fist — played at the stand's 30 ft from the user like its other touches.)
         spells.push(ctx.entry("Virus (capsule punch)", plan(ctx, "Virus (capsule punch)", { actions: 1, kind: "poison", damage: hit, target: "1 creature", extra: { failure: [persistent], criticalFailure: [persistent] }, effects })));
-        if (lv >= 9) spells.push(ctx.entry("Virus (surge, three capsules)", plan(ctx, "Virus (surge, three capsules)", { actions: 2, area: { type: "burst", value: 20 }, kind: "poison", extra, effects }), { surge: true }));
+        if (lv >= (LATE ? 5 : 9)) spells.push(ctx.entry("Virus (surge, three capsules)", plan(ctx, "Virus (surge, three capsules)", { actions: 2, area: { type: "burst", value: burst + 10 }, kind: "poison", extra, effects }), { surge: true }));
         return { spells };
     },
     Mold(ctx) {
@@ -97,12 +102,14 @@ const BUFFED = {
             const actions = surge ? 2 : 1;
             const effects = { ...(lv >= 5 ? { failure: [["prone", null, null]] } : {}), criticalFailure: [["prone", null, null], ...(lv >= 17 ? [["slowed", 1, ctx.round1]] : [])] };
             const area = { type: "emanation", value: radius };
-            const valuePlan = plan(ctx, name, { actions, save: "reflex", kind: "poison", area: { ...area, foes: true }, extra, effects });
-            const turnPlan = plan(ctx, name, { actions, save: "reflex", kind: "poison", extra, effects });
+            // (a5ce436 9th: −2 circumstance to Reflex against the footing, played as the DC 2 higher.)
+            const c = LATE && lv >= 9 ? { ...ctx, dc: ctx.dc + 2 } : ctx;
+            const valuePlan = plan(c, name, { actions, save: "reflex", kind: "poison", area: { ...area, foes: true }, extra, effects });
+            const turnPlan = plan(c, name, { actions, save: "reflex", kind: "poison", extra, effects });
             return zoneEntry(ctx, name, valuePlan, { area, centre: "caster", rounds: 10, savePlan: turnPlan }, { surge });
         };
         const spells = [zone("Mold", 30, persistentD(ctx, "poison"), false)];
-        if (lv >= 9) spells.push(zone("Mold (surge, 60 ft)", 60, persistentHalfS(ctx, "poison"), true));
+        if (lv >= (LATE ? 5 : 9)) spells.push(zone("Mold (surge, 60 ft)", 60, persistentHalfS(ctx, "poison"), true));
         return { spells };
     },
     "Rage Field"(ctx) {
@@ -209,7 +216,7 @@ const BUFFED = {
             return entry;
         };
         const spells = [ignore(make("Melting Dart", { actions: 1, damage: D("acid"), kind: "acid", attackRoll: true, extra: acid, effects: clumsy }))];
-        if (lv >= 9) spells.push(ignore(make("Melting Dart (surge, three darts)", { actions: 1, damage: halfS("acid"), kind: "acid", attackRoll: true, target: "up to 3 creatures", surge: true, extra: acid, effects: clumsy })));
+        if (lv >= (LATE ? 5 : 9)) spells.push(ignore(make("Melting Dart (surge, three darts)", { actions: 1, damage: halfS("acid"), kind: "acid", attackRoll: true, target: "up to 3 creatures", surge: true, extra: acid, effects: clumsy })));
         return { spells };
     },
     Dinosaurify(ctx) {
@@ -299,7 +306,8 @@ export const AFFLICTION = {
                 return { failure: failed, criticalFailure: [...failed, ...(lv >= 17 ? [["drained", 2, null]] : [])] };
             };
             const spells = [make("Iron Blood", { actions: 1, damage: D("slashing"), kind: "slashing", save: "fortitude", extra: bleed, effects: rows(lv >= 5 ? 1 : 0) })];
-            if (lv >= 9) spells.push(make("Iron Blood (surge)", { actions: 2, damage: S("slashing"), kind: "slashing", save: "fortitude", surge: true, extra: bleed, effects: rows(2) }));
+            // (a5ce436: the surge at 5th; two creatures within 30 ft from 9th.)
+            if (lv >= (LATE ? 5 : 9)) spells.push(make("Iron Blood (surge)", { actions: 2, damage: S("slashing"), kind: "slashing", save: "fortitude", surge: true, extra: bleed, effects: rows(2), target: LATE && lv >= 9 ? "up to 2 creatures" : "1 creature" }));
             return { spells };
         },
         notes: [

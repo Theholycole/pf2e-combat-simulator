@@ -2,6 +2,9 @@
 // 2026-11-24 buffed wording). Level steps cumulative; a surge costs 1 Stand Point and 2 actions unless the text lists its cost.
 import { zoneSpell } from "../zones.js";
 
+// (2026-11-26, module a5ce436, Cole: "give 5th level surges for the late ones" — the 9th-level surges at 5th and new 9th steps; LATE,
+// STAND_LATE_SURGE=0 for the text before it.)
+const LATE = globalThis.process?.env?.STAND_LATE_SURGE !== "0";
 const TRAITS = (kind, more = []) => ["concentrate", "occult", "stand", ...(kind ? [kind] : []), ...more];
 
 // A plan with no roll ("no save", "for creatures you choose"): its success row for everyone it reaches.
@@ -98,8 +101,10 @@ const BUFFED = {
         const shot = ctx.make("Spin (nail shot)", { actions: 1, damage: D("piercing"), kind: "piercing", attackRoll: true, extra: hole(bleedDice) });
         shot.plan.targeting.range = range;
         const spells = [shot];
-        if (lv >= 9) {
-            const golden = ctx.make("Spin (surge golden spin)", { actions: 2, damage: S("piercing"), kind: "piercing", attackRoll: true, surge: true, extra: hole(bleedDice * 2), effects: { success: [["slowed", 1, ctx.round1]], criticalSuccess: [["slowed", 1, ctx.minutes(1)]] } });
+        // (a5ce436: the golden spin at 5th; a hit knocks prone from 9th. 1st's regrowing surge: nails aren't counted here.)
+        if (lv >= (LATE ? 5 : 9)) {
+            const prone = LATE && lv >= 9 ? [["prone", null, null]] : [];
+            const golden = ctx.make("Spin (surge golden spin)", { actions: 2, damage: S("piercing"), kind: "piercing", attackRoll: true, surge: true, extra: hole(bleedDice * 2), effects: { success: [["slowed", 1, ctx.round1], ...prone], criticalSuccess: [["slowed", 1, ctx.minutes(1)], ...prone] } });
             golden.plan.targeting.range = range;
             golden.plan.resolution.ignoreResistance = [{ value: null, types: ["*"] }];
             spells.push(golden);

@@ -21,6 +21,7 @@ const strikeActivity = (name, more = {}) => ({
 });
 
 // The stand starts as a copy of its user: fields that are the user's alone (its reactions, effects) taken off it again.
+const LATE = globalThis.process?.env?.STAND_LATE_SURGE !== "0";
 const userOnly = (user) => Object.fromEntries(Object.keys(user).filter((key) => key !== "initiativeBonus").map((key) => [key, null]));
 
 export const TIME = {
@@ -68,6 +69,12 @@ export const TIME = {
                 multiStrikes: [{ name: "Time Stop", actions: 0, strikes: Array(actions).fill(null), pool: "time-stop", oncePerTurn: true, penalty: -2 }],
                 spellPools: { "time-stop": charges }
             };
+            // (2026-11-26, module a5ce436: surge, free action: regain 1 spent charge, not in a round a charge was used — played as the same stopped time paid with a
+            // Stand Point, the name shared so once a turn holds across both.)
+            if (LATE) {
+                stand.multiStrikes.push({ ...stand.multiStrikes[0], strikes: [...stand.multiStrikes[0].strikes], pool: ctx.pool });
+                stand.spellPools[ctx.pool] = 2;
+            }
             const user = ctx.lv >= 5 ? { initiativeBonus: 1 } : {};
             return { stand, user };
         },
@@ -175,6 +182,8 @@ export const TIME = {
         build(ctx) {
             const effects = ctx.lv >= 17 ? { failure: [["slowed", 1, ctx.round1]], criticalFailure: [["slowed", 1, ctx.round1]] } : {};
             const spells = [noSave(ctx, "Loop (bomb)", { actions: 1, damage: ctx.S("force"), pool: "loop-daily", effects })];
+            // (2026-11-26, module a5ce436: 5th surge, 2 actions: a second bomb today — its planting and going off played as one 2-action use, a Stand Point.)
+            if (LATE && ctx.lv >= 5) spells.push(noSave(ctx, "Loop (surge, second bomb)", { actions: 2, damage: ctx.S("force"), surge: true, effects }));
             const user = ctx.lv >= 13 ? { allySaveReroll: { name: "Loop (reroll)", within: 1000, uses: 1, free: true } } : {};
             return { spells, user, stand: userOnly(user), spellPools: { "loop-daily": 1 } };
         },

@@ -1,6 +1,9 @@
 // Stand Abilities: space theme (see index.js for the contract).
 // (2026-11-24: the fifteen Space abilities of content/stand-abilities.md, buffed wording.)
 
+// (2026-11-26, module a5ce436, Cole: "give 5th level surges for the late ones" — the 9th-level surges at 5th and new 9th steps; LATE,
+// STAND_LATE_SURGE=0 for the text before it.)
+const LATE = globalThis.process?.env?.STAND_LATE_SURGE !== "0";
 const TRAITS = ["concentrate", "occult", "stand"];
 // A save plan with no damage (conditions, a Disarm, a push or pull, out of the fight), as a ready entry.
 //   disarm: degrees whose creature drops a held weapon; move: { degree: { kind: "pull"|"push", distance } }; hinder: true for "hinder:" slugs;
@@ -433,9 +436,10 @@ export const SPACE = {
             // (1st: Strikes from a gap, +1 circumstance damage a die; 5th: the target off-guard.)
             const stand = { strikeActivities: [strikeActivity("Gap Crush (from a gap)", { damagePerWeaponDie: 1, offGuard: ctx.lv >= 5 })] };
             const spells = [];
-            if (ctx.lv >= 9) {
+            // (a5ce436: the crush at 5th; up to two creatures by the same gap from 9th.)
+            if (ctx.lv >= (LATE ? 5 : 9)) {
                 const effects = ctx.lv >= 13 ? { failure: [["immobilized", null, ctx.round1]], criticalFailure: [["immobilized", null, ctx.round1]] } : {};
-                spells.push(ctx.make("Gap Crush (surge crush)", { actions: 2, damage: ctx.S("bludgeoning"), kind: "bludgeoning", save: "fortitude", surge: true, effects }));
+                spells.push(ctx.make("Gap Crush (surge crush)", { actions: 2, damage: ctx.S("bludgeoning"), kind: "bludgeoning", save: "fortitude", surge: true, effects, target: LATE && ctx.lv >= 9 ? "up to 2 creatures" : "1 creature" }));
             }
             return { stand, spells };
         },
