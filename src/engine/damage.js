@@ -147,7 +147,8 @@ export function strikeContext(attacker, strike, critical = false) {
     }
     let base = critical ? cached.critical : cached.normal;
     // (2026-11-03, Annihilating Swing, Shattering Strike: "ignores any resistances the target has" — each lowered by all of it.)
-    if (strike.ignoreResistances) base = Object.assign(new Set(base), { ignored: base.ignored, lowered: [{ types: ["*"], value: 1e9 }] });
+    // (2026-11-25, a number: that much of each ignored — the Stand User's Pinpoint Strike, "ignores 5 points of Hardness or resistance".)
+    if (strike.ignoreResistances) base = Object.assign(new Set(base), { ignored: base.ignored, lowered: [{ types: ["*"], value: typeof strike.ignoreResistances === "number" ? strike.ignoreResistances : 1e9 }] });
     // (2026-10-21: runes and traits its effects add to its Strikes — Ghostly Weapon's ghost touch, a plane's holy — effects.js strikeAdds.)
     const adds = (attacker?.effects ?? []).map((effect) => effect.model?.strikeAdds).filter(Boolean);
     if (!adds.length) return base;

@@ -353,6 +353,13 @@ export function soloTask({ slug, level, run }) {
     let battleMedicineUsed = false; // (false, or the minute it was used)
     const rests = { treat: 0, refocus: 0, none: 0, healSpells: 0, battleMedicine: 0 };
     const hpLeft = [];
+    // (2026-11-25 switches: SOLO_CARRY (the default since 2026-11-25; SOLO_CARRY=0 turns it off) — an ally +AC reaction counted in uses a fight (Rewind's heartbeat, a Stand Point each)
+    // draws on Stand Points that carry from wave to wave, Refocus between waves restoring 1; SOLO_CRIT_RUN=1 (off by default) — a limited crit downgrade
+    // once for the whole run, as if the waves came back to back.)
+    const carry = process.env.SOLO_CARRY !== "0", critRun = process.env.SOLO_CRIT_RUN === "1";
+    const carried = new Map(carry ? start.filter((c) => Number.isFinite(c.allyAcReaction?.uses)).map((c) => [c.id, c.allyAcReaction.uses]) : []);
+    const carriedMax = new Map(carried);
+    const critLeft = new Map(critRun ? start.filter((c) => Number.isFinite(c.critDowngrade?.uses)).map((c) => [c.id, c.critDowngrade.uses]) : []);
     for (let wave = 1; wave <= WAVE_CAP; wave++) {
         // (Its spells cast just before the wave — the kit's Fly —, a slot each, constant for the wave.)
         const before = [];
@@ -367,7 +374,9 @@ export function soloTask({ slug, level, run }) {
             ...c, hp: { ...c.hp, value: state.get(c.id).hp, temp: 0 }, spellPools: { ...state.get(c.id).pools },
             ...(c === pc && before.length ? { spells: [...c.spells, ...before] } : {}),
             // (Battle Medicine on itself, once a day.)
-            ...(c === pc && battleMedicineUsed === false ? { battleMedicine: { name: "Battle Medicine", modifier: med.modifier, tiers: med.tiers } } : c === pc ? { battleMedicine: null } : {})
+            ...(c === pc && battleMedicineUsed === false ? { battleMedicine: { name: "Battle Medicine", modifier: med.modifier, tiers: med.tiers } } : c === pc ? { battleMedicine: null } : {}),
+            ...(carried.has(c.id) ? { allyAcReaction: carried.get(c.id) > 0 ? { ...c.allyAcReaction, uses: carried.get(c.id) } : null } : {}),
+            ...(critLeft.has(c.id) ? { critDowngrade: critLeft.get(c.id) > 0 ? { ...c.critDowngrade, uses: critLeft.get(c.id) } : null } : {})
         }));
         const result = simulate({ combatants: [...team, ...waveFoes(level, wave)] }, OPTIONS, run * 1000 + wave);
         const mine = result.party.find((c) => c.id === pc.id);
@@ -376,11 +385,20 @@ export function soloTask({ slug, level, run }) {
             battleMedicineUsed = minutes;
             rests.battleMedicine++;
         }
+        for (const c of start) {
+            const after = result.party.find((each) => each.id === c.id);
+            if (carried.has(c.id)) { carried.set(c.id, Math.max(0, carried.get(c.id) - (after?.allyAcUsed ?? 0))); rests.heartbeats = (rests.heartbeats ?? 0) + (after?.allyAcUsed ?? 0); }
+            if (critLeft.has(c.id) && critLeft.get(c.id) > 0) { const left = after?.critDowngradeLeft ?? critLeft.get(c.id); rests.critDowngrades = (rests.critDowngrades ?? 0) + (critLeft.get(c.id) - left); critLeft.set(c.id, left); }
+        }
         minutes += Math.ceil((result.rounds * 6) / 60) + 10;
         state = new Map(start.map((c) => {
             const after = result.party.find((each) => each.id === c.id);
             const was = state.get(c.id);
-            return [c.id, { hp: after ? (after.dead || after.down ? 0 : after.hp) : was.hp, pools: after?.spellPools ? { ...after.spellPools } : was.pools }];
+            // (2026-11-24: an Autonomous stand destroyed reforms — its Relentless or Undying Program's Hit Points.)
+            const reformed = c.undyingProgram && !after?.unmanifested ? Math.max(1, Math.round(c.hp.max * (c.reformHp ?? 1))) : 0;
+            // (2026-11-24: bystanders a stand can turn into weapons — classes.js convert —: fresh ones at each wave's place.)
+            if (c.bystander) return [c.id, { hp: c.hp.max, pools: was.pools }];
+            return [c.id, { hp: after ? (after.dead || after.down ? reformed : after.hp) : was.hp, pools: after?.spellPools ? { ...after.spellPools } : was.pools }];
         }));
         // (A companion that fell stays down — alone, nothing raises it — but the PC goes on.)
         const own = state.get(pc.id);
@@ -403,6 +421,7 @@ export function soloTask({ slug, level, run }) {
         // since the last), else Refocus when a Focus Point is spent, else Treat Wounds if hurt at all and it can.
         const ready = med.continual || minutes - lastTreat >= 60;
         const spentFocus = Object.entries(focusMax).filter(([key, max]) => (own.pools[key] ?? 0) < max);
+        const spentCarried = [...carried].filter(([id, left]) => left < carriedMax.get(id));
         const hurt = own.hp < pc.hp.max;
         const treat = () => {
             const mortal = med.feat === "Mortal Healing" && minutes - lastDivine >= 24 * 60;
@@ -412,8 +431,9 @@ export function soloTask({ slug, level, run }) {
             rests.treat++;
         };
         if (ready && own.hp <= 0.75 * pc.hp.max) treat();
-        else if (spentFocus.length) {
+        else if (spentFocus.length || spentCarried.length) {
             for (const [key] of spentFocus) own.pools[key] = (own.pools[key] ?? 0) + 1;
+            for (const [id, left] of spentCarried) carried.set(id, left + 1);
             rests.refocus++;
         } else if (ready && hurt) treat();
         else rests.none++;

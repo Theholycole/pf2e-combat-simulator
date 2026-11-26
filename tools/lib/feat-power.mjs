@@ -64,7 +64,11 @@ const { simulate } = await import("../../src/engine/fight.js");
 const { DEVIANT, deviantFields } = await import("../../src/engine/deviant.js");
 
 const MODULES = `${process.env.HOME}/.local/share/FoundryVTT/Data/modules`;
-export const KINDS = Object.freeze(["boss", "group"]);
+// (2026-11-24: FEAT_KINDS=boss,group,boss+mixed,group+mixed — an encounter "<kind>+<foe trait>" is that kind's foes with that trait package;
+// FEAT_KIND_WEIGHTS=2,2,1,1 weighs them in a rating's mean.)
+export const KINDS = Object.freeze((process.env.FEAT_KINDS || "boss,group").split(","));
+const KIND_WEIGHTS = (process.env.FEAT_KIND_WEIGHTS || KINDS.map(() => 1).join(",")).split(",").map(Number);
+const kindFoes = (kind, level) => (kind.includes("+") ? powerFoes(kind.split("+")[0], level, kind.split("+")[1]) : powerFoes(kind, level, FOE_TRAIT));
 export const FIGHTS = Number(process.env.FEAT_FIGHTS) || 200;
 // (2026-11-01, the user: "the combat simulator should be able to do grid based simulations, it should not be abstract": the fights on the
 // square grid, an open field — FEAT_GRID=corridor, doorway or bridge for another, FEAT_GRID=none for the range bands.)
@@ -4074,9 +4078,9 @@ export const partyLevelOf = (level) => Math.max(1, Math.min(20, Number(level) ||
 // The scale at a level for an encounter: the plain party's scores on seeds [0, FIGHTS), and against foes a level up and a level down.
 export function scaleTask({ level, encounter: kind }) {
     const party = partyFor(level);
-    const base = dangerSummary(dangerFights(party, powerFoes(kind, level, FOE_TRAIT), 0, FIGHTS, { grid: GRID }));
-    const up = dangerSummary(dangerFights(party, powerFoes(kind, level + 1, FOE_TRAIT), 0, FIGHTS, { grid: GRID }));
-    const down = dangerSummary(dangerFights(party, powerFoes(kind, level - 1, FOE_TRAIT), 0, FIGHTS, { grid: GRID }));
+    const base = dangerSummary(dangerFights(party, kindFoes(kind, level), 0, FIGHTS, { grid: GRID }));
+    const up = dangerSummary(dangerFights(party, kindFoes(kind, level + 1), 0, FIGHTS, { grid: GRID }));
+    const down = dangerSummary(dangerFights(party, kindFoes(kind, level - 1), 0, FIGHTS, { grid: GRID }));
     return { kind: "scale", level, encounter: kind, base: base.score, scores: base.scores, up: up.score, down: down.score, step: Math.max(0.02, (up.score - down.score) / 2), rounds: base.rounds };
 }
 
@@ -4304,7 +4308,7 @@ export function partyRating(party, level, names = []) {
     for (const kind of KINDS) {
         const scaled = scale?.get(`${level}|${kind}`);
         if (!scaled) throw new Error(`no scale for level ${level} ${kind}`);
-        const foes = powerFoes(kind, level, FOE_TRAIT);
+        const foes = kindFoes(kind, level);
         const fights = dangerSummary(dangerFights(party, foes, 0, FIGHTS, { grid: GRID }));
         const diffs = fights.scores.map((score, index) => score - scaled.scores[index]);
         const mean = diffs.reduce((sum, value) => sum + value, 0) / diffs.length;
@@ -4312,9 +4316,10 @@ export function partyRating(party, level, names = []) {
         results[kind] = { levels: -mean / scaled.step, levelsSe: sd / Math.sqrt(diffs.length) / scaled.step };
         for (const name of names) uses[name] = (uses[name] ?? 0) + usesPerFight(party, foes, name) / KINDS.length;
     }
-    const levels = KINDS.reduce((sum, kind) => sum + results[kind].levels, 0) / KINDS.length;
-    const se = Math.sqrt(KINDS.reduce((sum, kind) => sum + results[kind].levelsSe ** 2, 0)) / KINDS.length;
-    return { levels, se, boss: results.boss.levels, group: results.group.levels, uses };
+    const total = KIND_WEIGHTS.reduce((sum, weight) => sum + weight, 0);
+    const levels = KINDS.reduce((sum, kind, index) => sum + KIND_WEIGHTS[index] * results[kind].levels, 0) / total;
+    const se = Math.sqrt(KINDS.reduce((sum, kind, index) => sum + (KIND_WEIGHTS[index] * results[kind].levelsSe) ** 2, 0)) / total;
+    return { levels, se, boss: results.boss?.levels, group: results.group?.levels, ...Object.fromEntries(KINDS.filter((kind) => kind.includes("+")).map((kind) => [kind, results[kind].levels])), uses };
 }
 
 // A basic action: every PC without it, at the levels it's rated at (BASIC_LEVELS).

@@ -160,9 +160,11 @@ if (!isMainThread) {
         console.log(`${json.rated.length} rated → ${out}/deviant-power.md`);
     } else if (phase === "classes") {
         // (Every class's PC in its seat of the standard party, levels 1 to 20 — src/engine/classes.js.)
-        const { CLASS_SLUGS, seatOf } = await import("../src/engine/classes.js");
+        const { CLASS_SLUGS, VARIANT_SLUGS, seatOf } = await import("../src/engine/classes.js");
         const onlyClasses = process.argv.find((arg) => arg.startsWith("--only="))?.split("=")[1]?.split(",");
-        const tasks = CLASS_SLUGS.filter((slug) => seatOf(slug) !== slug && (!onlyClasses || onlyClasses.includes(slug))).flatMap((slug) => Array.from({ length: 20 }, (_, index) => ({ kind: "class", slug, level: index + 1, scalePath })));
+        // (2026-11-24: --levels=1,5,… for some levels only.)
+        const onlyLevels = process.argv.find((arg) => arg.startsWith("--levels="))?.split("=")[1]?.split(",").map(Number);
+        const tasks = (onlyClasses ? [...CLASS_SLUGS, ...VARIANT_SLUGS] : CLASS_SLUGS).filter((slug) => seatOf(slug) !== slug && (!onlyClasses || onlyClasses.includes(slug))).flatMap((slug) => Array.from({ length: 20 }, (_, index) => ({ kind: "class", slug, level: index + 1, scalePath }))).filter((task) => !onlyLevels || onlyLevels.includes(task.level));
         const done = process.argv.includes("--resume") ? new Set(read("classes.jsonl").map((row) => `${row.slug}|${row.level}`)) : new Set();
         console.log(`${tasks.length} class and level pairs`);
         await run(tasks.filter((task) => !done.has(`${task.slug}|${task.level}`)), "classes.jsonl", { append: process.argv.includes("--resume") });

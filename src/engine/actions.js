@@ -408,8 +408,16 @@ export function performStrike(state, attacker, target, strike, options = {}) {
     if (attacker.side !== target.side) (target.hostileFrom ??= new Set()).add(attacker.id);
     // (2026-11-06, Skeletal Lancers: a foe's Strike beside a lancer.)
     if (state.list.some((other) => other.thrallAura?.on === "strike")) thrallAuraStrike(state, attacker);
+    // (2026-11-24, a close-range power stand's Point-Blank Fury: "Stand Strikes deal 1 extra damage die against creatures adjacent to
+    // you" — its user in the target's Melee.)
+    if (strike?.partnerDie && attacker.sharesHpWith) {
+        const user = state.byId.get(attacker.sharesHpWith);
+        // (A long-range stand's Distant Precision, "far": a creature not adjacent to its user.)
+        if (user && isActive(user) && (strike.partnerDie === "far" ? !sameMelee(user, target) : sameMelee(user, target))) strike = { ...strike, damage: strike.damage.map((part, index) => (index === 0 ? { ...part, dice: (part.dice ?? 0) + 1 } : part)) };
+    }
     if (!options.reaction) {
         const result = strikeOnce(state, attacker, target, strike, options);
+        infiniteRotation(state, attacker, target, strike, result);
         // (Invisibility: it ends once the attack is done. Weapon Surge, Judgment's success: used up by the Strike.)
         ownHostility(state, attacker);
         spendNextStrike(attacker, strike);
@@ -419,13 +427,28 @@ export function performStrike(state, attacker, target, strike, options = {}) {
     const before = state.inReaction;
     state.inReaction = true;
     try {
-        return strikeOnce(state, attacker, target, strike, options);
+        const result = strikeOnce(state, attacker, target, strike, options);
+        infiniteRotation(state, attacker, target, strike, result);
+        return result;
     } finally {
         state.inReaction = before;
         ownHostility(state, attacker);
         spendNextStrike(attacker, strike);
         spendMark(target, attacker);
     }
+}
+
+// (2026-11-24, a Heaven stand's Infinite Rotation: a Mythic Point when it hits — the Strike's damage dice again at the start of each of the
+// target's turns until it dies; one rotation a creature, at a creature with a third or more of its HP, a point kept for Eternal Will.)
+function infiniteRotation(state, attacker, target, strike, result) {
+    if (!attacker.infiniteRotation || !result || result.degree < SUCCESS || !isActive(target) || target.side === attacker.side) return;
+    if ((target.persistent ?? []).some((entry) => entry.rotation) || target.hp.value * 3 < target.hp.max) return;
+    if ((attacker.mythicPoints ?? 0) <= (attacker.heavenReserve ?? 0)) return;
+    const part = strike.damage?.[0];
+    if (!part?.dice) return;
+    attacker.mythicPoints--;
+    (target.persistent ??= []).push({ type: part.type, dice: part.dice, die: part.die, bonus: 0, rotation: true });
+    log(state, `  ${attacker.name} uses Infinite Rotation on ${target.name} (${part.dice}d${part.die} ${part.type} each turn)`);
 }
 
 function strikeOnce(state, attacker, target, strike, { reaction = false, trigger = null, fortune = false, finishing = false } = {}) {
@@ -703,7 +726,8 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
     if (degree >= SUCCESS && !reaction) {
         for (const guard of state.list) {
             const entry = guard.allyAcReaction;
-            if (!entry || (guard === target && !entry.self) || guard.side !== target.side || !isActive(guard) || !canReact(guard, entry.name) || !canAct(guard) || (entry.ranged && strike.melee) || (entry.shieldRaised && !(guard.shield?.raised && !guard.shield.broken))) continue;
+            // (2026-11-25: uses — a limited number a fight, Rewind's heartbeat.)
+            if (!entry || (guard === target && !entry.self) || guard.side !== target.side || !isActive(guard) || !canReact(guard, entry.name) || !canAct(guard) || (entry.ranged && strike.melee) || (entry.shieldRaised && !(guard.shield?.raised && !guard.shield.broken)) || (Number.isFinite(entry.uses) && (guard.allyAcUsed ?? 0) >= entry.uses)) continue;
             if (guard !== target && (entry.within <= 10 ? !sameMelee(guard, target) : entry.within < 60 && target.band === "far" && guard.band !== "far")) continue;
             // (2026-11-05, Forewarn: the attack against its Perception DC instead of the ally's AC — the gain, when there is one.)
             const value = entry.dcInstead ? 10 + (Number(guard.perception) || 0) - (ac + defence) : entry.value;
@@ -713,6 +737,7 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
             degree = lower;
             defence += value;
             spendReaction(guard, entry.name);
+            guard.allyAcUsed = (guard.allyAcUsed ?? 0) + 1;
             state.stats.reactions++;
             log(state, `  ${guard.name} uses ${entry.name}: ${target.name} +${value} AC`);
             if (entry.strike && sameMelee(guard, attacker) && isActive(attacker)) {
@@ -2354,6 +2379,17 @@ export function releaseGrabs(state, grabber) {
 }
 
 function knockOut(state, target, { source, critical, nonlethal, overwhelming, massive, before = null }) {
+    // (2026-11-24, an automatic stand's Undying Program: destroyed, it reforms at the start of its next turn — down till then, it holds the
+    // fight open; classes.js autonomousStand.)
+    if (target.undyingProgram && !target.unmanifested) {
+        releaseGrabs(state, target);
+        target.hp.value = 0;
+        target.status = DOWN;
+        target.reforming = true;
+        target.destroyedCount = (target.destroyedCount ?? 0) + 1;
+        log(state, `  ${target.name} is destroyed (Undying Program: it reforms at its next turn)`);
+        return;
+    }
     // Ferocity's kin (B95): Orc Ferocity once a day, Mythic Ferocity at half its Hit Points for a Mythic Point, Never Fall at 25 (and not
     // wounded), Indomitable Beast's Strike after.
     // (B286, Fractions of Life: only from 1 Hit Point — atOne — and once on each creature's turn — perTurn.)
@@ -2361,7 +2397,8 @@ function knockOut(state, target, { source, critical, nonlethal, overwhelming, ma
     const rule = target.kind !== "pc" || target.ferocityRule?.pc ? target.ferocityRule : null;
     const turnKey = `${state.round}:${state.acting ?? ""}`;
     // (B294, Bravo's Determination: never from 1 Hit Point — notAtOne.)
-    const allowed = rule && (!rule.atOne || before === 1) && (!rule.notAtOne || before !== 1) && (!rule.perTurn || target.ferocityTurn !== turnKey);
+    // (2026-11-24, a Heaven stand's Eternal Will as Undying Myth: once a fight for the user and its stand — their one pool of Hit Points.)
+    const allowed = rule && !(rule.oncePerPool && target.hp.undyingUsed) && (!rule.atOne || before === 1) && (!rule.notAtOne || before !== 1) && (!rule.perTurn || target.ferocityTurn !== turnKey);
     if (rule && allowed && !massive && (rule.free || canReact(target, rule.name)) && (!rule.wounded || (target.cond.wounded ?? 0) < 3) && (target.ferocityUsed ?? 0) < (rule.uses ?? Infinity) && (!rule.mythic || (target.mythicPoints ?? 0) > 0)) {
         if (rule.perTurn) target.ferocityTurn = turnKey;
         const hp = rule.hp === "half" ? Math.floor(target.hp.max / 2) : typeof rule.hp === "string" ? rollCount(state, rule.hp) : Number(rule.hp) || 1;
@@ -2371,6 +2408,8 @@ function knockOut(state, target, { source, critical, nonlethal, overwhelming, ma
         if (rule.tempHp > 0) target.hp.temp = Math.max(target.hp.temp ?? 0, rule.tempHp);
         if (!rule.free) spendReaction(target, rule.name);
         if (rule.mythic) target.mythicPoints--;
+        if (rule.spendAllMythic) target.mythicPoints = 0;
+        if (rule.oncePerPool) target.hp.undyingUsed = true;
         target.ferocityUsed = (target.ferocityUsed ?? 0) + 1;
         log(state, `  ${target.name} uses ${rule.name} and stays up at ${target.hp.value} HP`);
         if (target.critUpgrade?.ferocityRecharges) target.critUpgradesUsed = 0;
@@ -2438,6 +2477,11 @@ function knockOut(state, target, { source, critical, nonlethal, overwhelming, ma
     releaseGrabs(state, target);
     releaseAllSwallowed(state, target, "is freed");
     target.hp.value = 0;
+    // (2026-11-24, a Heaven stand's mythic regeneration: a Mythic Point back, 3 at most, when it drops a foe.)
+    if (source?.mythicRegen && source.side !== target.side && (source.mythicPoints ?? 0) < 3) {
+        source.mythicPoints = (source.mythicPoints ?? 0) + 1;
+        log(state, `  ${source.name} regains a Mythic Point (${source.mythicPoints})`);
+    }
     // (A summoner and its eidolon share their Hit Points: both drop — the eidolon unmanifests, the summoner falls unconscious.)
     const linked = state.list.find((other) => other !== target && isActive(other) && (other.sharesHpWith === target.id || target.sharesHpWith === other.id));
     if (linked && !target.linkedFalling) {

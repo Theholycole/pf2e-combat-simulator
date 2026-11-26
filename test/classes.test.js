@@ -147,3 +147,41 @@ test("the runesmith's runes: atryl and ranshu traced and invoked against its cla
     assert.deepEqual(runes[3].plan.resolution.sharedDamage.components.map((part) => part.formula), ["3d8[fire]", "3d8[electricity]"]);
     assert.ok(runesmith.strikes[0].damage.some((part) => part.splash && part.bonus === 2));
 });
+
+test("the Stand User (homebrew summoner class archetype): a ghostly close-range stand, Flame against its stand DC, no spell slots", () => {
+    assert.ok(!CLASS_SLUGS.includes("stand-user"));
+    const user = classPC("stand-user-rush", 13, { spell: fake });
+    const [stand] = user.companions;
+    assert.equal(stand.sharesHpWith, "stand-user-rush");
+    assert.deepEqual(stand.resistances.at(-1), { type: "all-damage", value: 6, exceptions: ["force", "ghost-touch", "spirit"] });
+    assert.equal(stand.strikes[0].damage[0].die, 10);
+    assert.ok(stand.strikes[0].forceful && stand.strikes[0].partnerDie);
+    assert.deepEqual(stand.strikes[0].iwr.runes, ["ghost-touch"]);
+    assert.equal(stand.multiStrikes[0].name, "Barrage Rush");
+    assert.equal(stand.reactionStrikes[0].name, "Blinding Speed");
+    assert.deepEqual(user.spells.filter((entry) => entry.kind === "ability").map((entry) => entry.name), ["Flame (ankh)", "Flame (surge cone)", "Flame (surge ankhs)"]);
+    assert.equal(user.spells.filter((entry) => entry.kind === "ability")[0].dc, 10 + 13 + 4 + 5);
+    assert.ok(!user.spells.some((entry) => entry.tradition));
+    assert.deepEqual(user.spellPools, { "stand-user:focus": 2 });
+    assert.equal(classPC("stand-user", 13, { spell: fake }).companions[0].multiStrikes, undefined);
+});
+
+test("the seven stand types: grades, the colony's weakness and Spread Thin, the integrated stand as one body, the evolving stand's Acts", () => {
+    assert.equal(classPC("stand-automatic", 13, { spell: fake }).companions[0].ac, classPC("stand-user", 13, { spell: fake }).companions[0].ac + 2);
+    const colony = classPC("stand-colony", 13, { spell: fake }).companions[0];
+    assert.deepEqual(colony.weaknesses.at(-1), { type: "area-damage", value: 6, exceptions: [] });
+    assert.ok(colony.spells.some((entry) => entry.name === "Overwhelm"));
+    assert.ok(classPC("stand-colony", 7, { spell: fake }).companions[0].spells.some((entry) => entry.name === "Overwhelm"));
+    assert.equal(classPC("stand-colony", 1, { spell: fake }).companions[0].resistances.find((entry) => entry.type === "slashing").value, 2);
+    assert.equal(classPC("stand-long", 7, { spell: fake }).companions[0].strikes[0].partnerDie, "far");
+    const merged = classPC("stand-integrated", 13, { spell: fake });
+    assert.equal(merged.companions, undefined);
+    assert.equal(merged.extraActions, 1);
+    assert.equal(classPC("stand-bound", 13, { spell: fake }).ac, classPC("stand-user", 13, { spell: fake }).ac + 2);
+    assert.equal(colony.resistances.find((entry) => entry.type === "slashing").value, 12);
+    assert.equal(merged.strikes[0].damage[0].die, 10);
+    assert.ok(!merged.strikes.some((strike) => strike.backupBow));
+    const evolving = classPC("stand-evolving", 13, { spell: fake });
+    assert.ok(["Ice (shard)", "Air Shots"].every((name) => evolving.spells.some((entry) => entry.name === name)));
+    assert.equal(classPC("stand-automatic-dart", 9, { spell: fake }).spells.filter((entry) => entry.kind === "ability").length, 2);
+});
