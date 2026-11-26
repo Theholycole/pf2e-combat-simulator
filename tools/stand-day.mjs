@@ -7,7 +7,7 @@
 // same 200 seeds a kind, scored against <out>/scale.jsonl in levels of the foes), with the fights played as 50 days of 4 (seeds 4d … 4d+3).
 // Between a day's fights, a 10-minute rest: every creature fresh (full Hit Points, no conditions — each fight builds its combatants anew);
 // the stand user's Stand Points ("stand-user:focus") carried, +1 for Refocus, at most 3 (the day starts at its 2); Time Stop's charges and
-// every other per-fight pool back; the daily pieces carried, not refreshed: the daily pools (DAILY below), Time Skip's 17th-level reroll
+// every other per-fight pool back (Loop's bomb, "loop-bomb", returns on a rest); the daily pieces carried, not refreshed: the daily pools (DAILY below), Time Skip's 17th-level reroll
 // (saveCurse), Shared Fate's halvings (resistUses), and Spin's nails (10 a day; the sim's nail shot is otherwise at will) — its 1st-level
 // regrowth surge played between fights (1 Stand Point for 5 nails when 2 or fewer are left; the engine has no refill action in a fight).
 // The other PCs are fresh each fight: only the stand user's day is measured. --per-fight: no carry (each fight as the classes phase plays it,
@@ -20,7 +20,7 @@ import { fileURLToPath } from "node:url";
 const DAY = 4;
 const SP = "stand-user:focus";
 const SP_START = 2, SP_MAX = 3;
-const DAILY = ["loop-daily", "accelerate-daily", "stand-weather:heavy", "stand-spin:infinite", "spin-nails"];
+const DAILY = ["accelerate-daily", "stand-weather:heavy", "stand-spin:infinite", "spin-nails"];
 const NAILS = 10;
 const arg = (name) => process.argv.find((a) => a.startsWith(`--${name}=`))?.split("=")[1];
 const [out] = process.argv.slice(2).filter((a) => !a.startsWith("--"));
