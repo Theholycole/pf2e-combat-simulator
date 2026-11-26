@@ -296,7 +296,11 @@ const BUFFED = {
     },
     "Redirect Misfortune"(ctx) {
         const out = unbuffed("Redirect Misfortune", ctx);
-        out.stand.resistUses = 6;
+        // (2026-11-26, Cole: "Fix Redirect": the redirect on the user, where the foes' hits land — on the stand it fired about 0.1 times a
+        // fight —; 6 uses a fight (4 free + the 2 Stand Points), the first four free a day over tools/stand-day.mjs's days.)
+        out.user = { ...(out.user ?? {}), resistReaction: out.stand.resistReaction, resistUses: 6 };
+        delete out.stand.resistReaction;
+        delete out.stand.resistUses;
         // (Round 2: the gathered misfortune cast off — 1 action, 30 ft, D force basic Will.)
         const thrown = plan(ctx, "Redirect Misfortune (cast off)", { actions: 1, damage: ctx.D("force"), kind: "force", effects: { failure: [["off-guard", null, ctx.round1]], criticalFailure: [["off-guard", null, ctx.minutes(1)]] } });
         out.spells = [ctx.entry("Redirect Misfortune (cast off)", thrown)];
