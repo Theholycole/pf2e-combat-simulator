@@ -2762,6 +2762,9 @@ function summarize(state) {
             // (2026-11-25: limited reactions used — the solo tool's carried Stand Points and crit downgrades.)
             ...(c.allyAcUsed ? { allyAcUsed: c.allyAcUsed } : {}),
             ...(Number.isFinite(c.critDowngrade?.uses) ? { critDowngradeLeft: c.critDowngrade.uses } : {}),
+            // (2026-11-26, Cole: "sim them across four fights … in one day" — once-a-day pieces played per fight, for tools/stand-day.mjs.)
+            ...(Number.isFinite(c.resistUses) ? { resistUsesLeft: c.resistUses } : {}),
+            ...(c.saveCurseUsed ? { saveCurseUsed: true } : {}),
             ...(c.deviation ? { deviation: { dc: c.deviation.dc, stage: c.deviation.stage, spent: c.deviation.spent, lasting: [...(c.deviation.lasting ?? [])] } } : {})
         })),
         foes: state.list.filter((c) => c.side === "foes").map((c) => ({
