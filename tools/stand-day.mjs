@@ -10,6 +10,9 @@
 // every other per-fight pool back (Loop's bomb, "loop-bomb", returns on a rest); the daily pieces carried, not refreshed: the daily pools (DAILY below), Time Skip's 17th-level reroll
 // (saveCurse), Shared Fate's halvings (resistUses), and Spin's nails (10 a day; the sim's nail shot is otherwise at will) — its 1st-level
 // regrowth surge played between fights (1 Stand Point for 5 nails when 2 or fewer are left; the engine has no refill action in a fight).
+// Free uses a day (Prophecy's rerolls from 5th, Redirect Misfortune's redirects: the first four each day free, then a surge — FREE_A_DAY):
+// a fight's uses are the day's free ones left plus the Stand Points the day has then (the sim's per-fight stand-in, 4 free + 2 for Redirect
+// Misfortune, 4 free for Prophecy), the free ones spent first, the rest out of the Stand Points carried.
 // The other PCs are fresh each fight: only the stand user's day is measured. --per-fight: no carry (each fight as the classes phase plays it,
 // a check that the harness matches it). Writes <out>/day.jsonl: { slug, level, levels, se, boss, group, perFight }.
 import fs from "node:fs";
@@ -22,6 +25,11 @@ const SP = "stand-user:focus";
 const SP_START = 2, SP_MAX = 3;
 const DAILY = ["accelerate-daily", "stand-weather:heavy", "stand-spin:infinite", "spin-nails"];
 const NAILS = 10;
+// slug → which use counter, and how many free a day at a level.
+const FREE_A_DAY = {
+    "stand-ab-prophecy-buffed": { kind: "reroll", free: (lv) => (lv >= 5 ? 4 : 0) },
+    "stand-ab-redirect-misfortune-buffed": { kind: "resist", free: () => 4 }
+};
 const arg = (name) => process.argv.find((a) => a.startsWith(`--${name}=`))?.split("=")[1];
 const [out] = process.argv.slice(2).filter((a) => !a.startsWith("--"));
 const perFight = process.argv.includes("--per-fight");
@@ -47,15 +55,30 @@ async function runTask(slug, level) {
         const partyHp = prepared.filter((c) => !c.sharesHpWith && !c.reserve).reduce((sum, c) => sum + c.hp.max, 0);
         const scores = [];
         let carry = null;
+        const freeRule = FREE_A_DAY[slug];
+        const holder = freeRule ? prepared.find((c) => (freeRule.kind === "reroll" ? c.allySaveReroll : Number.isFinite(c.resistUses)) && owners.has(c.id)) : null;
+        let day = null;
         for (let seed = 0; seed < lib.FIGHTS; seed++) {
-            if (seed % DAY === 0) carry = null;
-            const today = carry ? prepared.map((c) => (carry.has(c.id) ? { ...c, ...carry.get(c.id) } : c)) : prepared;
+            if (seed % DAY === 0) { carry = null; day = { free: freeRule?.free(level) ?? 0, sp: SP_START }; }
+            let today = carry ? prepared.map((c) => (carry.has(c.id) ? { ...c, ...carry.get(c.id) } : c)) : prepared;
+            let startUses = null;
+            if (holder && !perFight) {
+                startUses = day.free + day.sp;
+                today = today.map((c) => (c.id !== holder.id ? c : freeRule.kind === "reroll" ? { ...c, allySaveReroll: startUses > 0 ? { ...c.allySaveReroll, uses: startUses } : null } : { ...c, resistUses: startUses }));
+            }
             const result = simulate({ combatants: [...today, ...foes] }, lib.GRID ? { ...DANGER_OPTIONS, grid: lib.GRID } : DANGER_OPTIONS, seed);
             const damage = ((result.damageBy?.foes ?? 0) + (result.damageBy?.foesInduced ?? 0)) / partyHp;
             const downs = result.party.filter((c) => c.down && !c.linked).length;
             const deaths = result.party.filter((c) => c.dead && !c.linked).length;
             scores.push(Math.round((damage + 0.25 * downs + DEATH_WEIGHT * deaths + (result.outcome === "defeat" ? 1 : 0)) * 1000) / 1000);
             if (perFight) continue;
+            if (holder) {
+                const after = result.party.find((c) => c.id === holder.id);
+                const used = freeRule.kind === "reroll" ? (after?.allySaveRerollsUsed ?? 0) : startUses - (after?.resistUsesLeft ?? startUses);
+                const fromFree = Math.min(day.free, used);
+                day.free -= fromFree;
+                day.sp = Math.min(SP_MAX, Math.max(0, day.sp - (used - fromFree)) + 1);
+            }
             // (The rest: what carries to the day's next fight.)
             carry = new Map();
             for (const id of owners) {
@@ -71,7 +94,7 @@ async function runTask(slug, level) {
                     pools[SP] -= 1;
                 }
                 const next = { spellPools: pools };
-                if (Number.isFinite(after.resistUsesLeft)) next.resistUses = after.resistUsesLeft;
+                if (Number.isFinite(after.resistUsesLeft) && id !== holder?.id) next.resistUses = after.resistUsesLeft;
                 if (start.saveCurse && after.saveCurseUsed) next.saveCurse = null;
                 carry.set(id, next);
             }

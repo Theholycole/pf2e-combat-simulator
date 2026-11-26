@@ -325,7 +325,10 @@ const BUFFED = {
         // (Round 2: two creatures from 5th — 13th's step moved —, the cap S from 13th.)
         const wound = plan(ctx, "Shared Fate (wound share)", { actions: 1, target: ctx.lv >= 5 ? "up to 2 creatures" : "1 creature", damage: ctx.lv >= 13 ? ctx.S("force") : ctx.lv >= 5 ? ctx.halfS("force") : ctx.D("force"), kind: "force", effects: { failure: [["sickened", 1, null]], criticalFailure: [["sickened", 2, null]] } });  // (Round 5: sickened 1/2 on a failure/critical failure; Round 6: the 3 creatures at 17th cut, back to 2.)
         out.spells = [...(out.spells ?? []), ctx.entry("Shared Fate (wound share)", wound)];
-        if (ctx.lv >= 9) Object.assign(out.stand, { resistReaction: { name: "Shared Fate (half)", value: "half", on: null, types: null, free: true, foe: true, minDamage: Math.round(4.6 * ctx.lv) }, resistUses: ctx.lv >= 17 ? 4 : 2 });
+        // (2026-11-26, Cole: "run them in a 4 fight day": the halving on the user, where the foes' hits land — on the stand it never fired
+        // (0 in 40 fights) —, for a hit of a typical foe Strike's size or more (typicalHit), not 4.6×level; 2 a day from 9th, 4 from 17th —
+        // a fight's uses here, carried over a day by tools/stand-day.mjs.)
+        if (ctx.lv >= 9) out.user = { ...(out.user ?? {}), resistReaction: { name: "Shared Fate (half)", value: "half", on: null, types: null, free: true, foe: true, minDamage: typicalHit(ctx.lv) }, resistUses: ctx.lv >= 17 ? 4 : 2 };
         return out;
     },
     "Debt Collector"(ctx) {
