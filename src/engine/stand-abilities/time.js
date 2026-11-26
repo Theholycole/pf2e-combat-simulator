@@ -181,11 +181,12 @@ export const TIME = {
     "Loop": {
         build(ctx) {
             const effects = ctx.lv >= 17 ? { failure: [["slowed", 1, ctx.round1]], criticalFailure: [["slowed", 1, ctx.round1]] } : {};
-            const spells = [noSave(ctx, "Loop (bomb)", { actions: 1, damage: ctx.S("force"), pool: "loop-daily", effects })];
+            // (Cole 2026-11-26: the bomb comes back on a 10-minute rest — a per-fight pool, "loop-bomb", not a daily one.)
+            const spells = [noSave(ctx, "Loop (bomb)", { actions: 1, damage: ctx.S("force"), pool: "loop-bomb", effects })];
             // (2026-11-26, module a5ce436: 5th surge, 2 actions: a second bomb today — its planting and going off played as one 2-action use, a Stand Point; half S, Cole's pick 2026-11-26.)
             // (Cole 2026-11-26: the second bomb deals no damage, only rewinds positions — not played in range bands, so nothing to add.)
             const user = ctx.lv >= 13 ? { allySaveReroll: { name: "Loop (reroll)", within: 1000, uses: 1, free: true } } : {};
-            return { spells, user, stand: userOnly(user), spellPools: { "loop-daily": 1 } };
+            return { spells, user, stand: userOnly(user), spellPools: { "loop-bomb": 1 } };
         },
         notes: [
             "The bomb planted in a willing ally before the fight (once a day); its going off played as a 1-action, once-a-fight S force damage with no save (DC 100) on a foe within 30 ft — the engine has no once-only 'hurt whoever attacks this ally' — so it costs an action it shouldn't",
