@@ -208,7 +208,12 @@ export const MATTER = {
             if (ctx.buffed) {
                 const range = ctx.lv >= 5 ? "40 feet" : "30 feet";
                 // (Round 3 tone-down: two bubbles stay two at 13th — the third cut; at-will sight dazzled, blinded only on a critical failure.)
-                const target = ctx.lv >= 5 ? "up to 2 creatures" : "1 creature";
+                // (2026-11-27, PT_TRIM tone-down, cumulative: 1 — two bubbles an action only as the surge; 2 — the surge's theft 3 rounds (was
+                // 1 minute); 3 — no Strike pop.)
+                const TRIM = Number(globalThis.process?.env?.PT_TRIM ?? 0);
+                const TS = new Set(String(globalThis.process?.env?.PT_TRIMS ?? "3").split(",").filter(Boolean).map(Number));  // (PT_TRIMS=2,3: those trims alone; 2026-11-27: trim 3 adopted, +0.271 — PT_TRIMS= for none)
+                const t1 = TRIM >= 1 || TS.has(1), t2 = TRIM >= 2 || TS.has(2), t3 = TRIM >= 3 || TS.has(3);
+                const target = ctx.lv >= 5 && !t1 ? "up to 2 creatures" : "1 creature";
                 const r1 = ctx.round1;
                 const min = ctx.minutes(1);
                 const spells = [
@@ -219,7 +224,8 @@ export const MATTER = {
                 if (ctx.lv >= 5) spells.push(saveOnly(ctx, "Property Theft (sight)", { actions: 1, save: "fortitude", target, range, effects: { failure: [["dazzled", null, r1]], criticalFailure: [["blinded", null, r1]] } }));
                 if (ctx.lv >= (LATE ? 5 : 9)) {
                     // (Round 3 tone-down: a surge's minute-long theft is one bubble, one creature.)
-                    const target = "1 creature";
+                    const target = t1 ? "up to 2 creatures" : "1 creature";
+                    const min = t2 ? ctx.rounds(3) : ctx.minutes(1);
                     spells.push(saveOnly(ctx, "Property Theft (surge, sight)", { actions: 2, surge: true, save: "fortitude", target, range, effects: { failure: [["blinded", null, min]], criticalFailure: [["blinded", null, min]] } }));
                     spells.push(saveOnly(ctx, "Property Theft (surge, water)", { actions: 2, surge: true, save: "fortitude", target, range, effects: { failure: [["sickened", 2]], criticalFailure: [["sickened", 3]] } }));
                     spells.push(saveOnly(ctx, "Property Theft (surge, sound)", { actions: 2, surge: true, save: "fortitude", target, range, automatic: true, effects: { success: [["voiceless", null, min]] } }));
@@ -229,9 +235,10 @@ export const MATTER = {
                 if (ctx.lv >= 17) spells.push(saveOnly(ctx, "Property Theft (air)", { actions: 1, save: "fortitude", target, range, effects: { failure: [["voiceless", null, r1]], criticalFailure: [["voiceless", null, r1]] } }));
                 // (Round 2: a bubble popped by hand on the creature the stand hits — friction's Reflex save as its rider.)
                 const pop = touchStrike(ctx, "Property Theft (bubble strike)", "reflex", { failure: [["prone"], ["off-guard", null, r1]], criticalFailure: [["prone"], ["off-guard", null, min]] });
+                const stand = t3 ? {} : { strikeActivities: [pop] };
                 // (2026-11-27, NCFILL2 13th: the bubbles ignore cover — spells.js, SCEN_COVER.)
-                if ((globalThis.process?.env?.NCFILL2 ?? "1") === "1" && ctx.lv >= 13) return { spells, stand: { strikeActivities: [pop] }, user: { ignoreCover: true } };
-                return { spells, stand: { strikeActivities: [pop] } };
+                if ((globalThis.process?.env?.NCFILL2 ?? "1") === "1" && ctx.lv >= 13) return { spells, stand, user: { ignoreCover: true } };
+                return { spells, stand };
             }
             const range = ctx.lv >= 5 ? "40 feet" : "20 feet";
             const target = ctx.lv >= 13 ? "up to 2 creatures" : "1 creature";

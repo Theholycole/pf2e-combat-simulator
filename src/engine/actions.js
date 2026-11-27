@@ -1794,6 +1794,18 @@ export function applyDamage(state, target, instances, { source = null, critical 
     }
     // (2026-11-27, Phase Store 9th — NCFILL2: the stand dived into an ally holds a stored blow; the first physical damage a foe deals it is
     // reduced by the user's level, and the blow lands on that foe if it's adjacent (the stand's Strike damage, basic Reflex).)
+    // (2026-11-27, Phase Store 9th — PHASE_V=react (default, Cole's pick): a reaction, once a round — an ally (not the user) in the stand's
+    // reach hit by a foe's Strike: the stand dives into it, the damage reduced by the user's level, the stored blow (the stand's Strike damage,
+    // basic Reflex) on the attacker if it's adjacent to that ally; PHASE_NOBLOW=1 without the blow.)
+    if (physical && !intercepted && source && source.side !== target.side && target.kind !== "object" && !target.sharesHpWith && instances.some((instance) => instance.amount > 0)) {
+        const diver = state.list.find((o) => o.phaseReact && o.sharesHpWith && o.sharesHpWith !== target.id && o.side === target.side && isActive(o) && canReact(o, "Phase Store (dive)") && (state.grid && o.square && target.square ? gridReaches(o, target) : sameMelee(o, target) || distanceBetween(o, target) <= 5));
+        if (diver) {
+            spendReaction(diver, "Phase Store (dive)");
+            state.stats.reactions++;
+            log(state, `  ${diver.name} dives into ${target.name} (Phase Store)`);
+            target.effects = [...(target.effects ?? []), { model: { name: "Phase Store (dive)", phaseStore: { ...diver.phaseReact, noBlow: globalThis.process?.env?.PHASE_NOBLOW === "1" } } }];
+        }
+    }
     const stored = physical && !intercepted && source && source.side !== target.side ? (target.effects ?? []).find((effect) => effect.model?.phaseStore) : null;
     if (stored) {
         const ps = stored.model.phaseStore;
@@ -1801,7 +1813,7 @@ export function applyDamage(state, target, instances, { source = null, critical 
         instances = instances.map((instance) => { const off = Math.min(cut, Math.max(0, instance.amount)); cut -= off; return { ...instance, amount: instance.amount - off }; });
         target.effects = target.effects.filter((effect) => effect !== stored);
         log(state, `  the stand inside ${target.name} takes ${ps.amount - cut} of it (Phase Store)`);
-        if (globalThis.process?.env?.PHASE_NOBLOW !== "1" && isActive(source) && (state.grid && source.square && target.square ? gridReaches(source, target) : sameMelee(source, target) || distanceBetween(source, target) <= 5)) {
+        if (!ps.noBlow && isActive(source) && (state.grid && source.square && target.square ? gridReaches(source, target) : sameMelee(source, target) || distanceBetween(source, target) <= 5)) {
             const { degree } = rollCheck(state.rng, saveModifier(source, "reflex"), ps.dc);
             const full = rollFormula(state, ps.damage);
             const amount = degree >= CRITICAL_SUCCESS ? 0 : degree >= SUCCESS ? Math.floor(full / 2) : degree <= CRITICAL_FAILURE ? 2 * full : full;

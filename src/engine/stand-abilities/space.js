@@ -183,6 +183,10 @@ export const SPACE = {
             // (2026-11-27, NCFILL2 9th: 1 action, the stand dives into a willing ally (30 ft) and holds a stored blow there — the first physical
             // damage a foe deals it reduced by the user's level, the blow (the stand's Strike damage, basic Reflex) on that foe if adjacent;
             // actions.js. One diving stand: the dive ends the ally's earlier one.)
+            // (2026-11-27, Cole's pick: PHASE_V=react (default) — the dive a reaction when an ally in the stand's reach is hit (actions.js);
+            // PHASE_V=action — the 1-action dive below.)
+            const PHV = globalThis.process?.env?.PHASE_V ?? "react";
+            if (ctx.buffed && (globalThis.process?.env?.NCFILL2 ?? "1") === "1" && ctx.lv >= 9 && PHV === "react") return { spells, stand: { phaseReact: { amount: ctx.lv, damage: strikeFormula(ctx.main, "bludgeoning"), dc: ctx.dc } } };
             if (ctx.buffed && (globalThis.process?.env?.NCFILL2 ?? "1") === "1" && ctx.lv >= 9) {
                 const name = "Phase Store (dive into an ally)";
                 const uuid = "stand.phase-store-dive-into-an-ally";
