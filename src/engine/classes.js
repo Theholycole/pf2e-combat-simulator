@@ -694,7 +694,8 @@ const CLASSES = {
 // vessel as a shield always raised (a stance entered as initiative is rolled; no AC bonus, no Hit Points to break). "Can't be disarmed while
 // the stand is manifested": not played — foes don't Disarm in the sim.)
 function vesselGuard(lv, user) {
-    const hardness = lv >= 7 ? lv : Math.max(1, Math.floor(lv / 2));
+    // (2026-11-27, Cole: Vessel Bond no longer raises the Hardness — half the level at every level; VESSEL_HARD=level: the old full level from 7th.)
+    const hardness = lv >= 7 && globalThis.process?.env?.VESSEL_HARD === "level" ? lv : Math.max(1, Math.floor(lv / 2));
     const model = { name: "Vessel Guard", rounds: Infinity, modifiers: [], tempHp: 0, fastHealing: 0, resistances: [], weaknesses: [], immunities: [], conditions: [], unsupported: [], situational: 0, shieldUp: true };
     return {
         shield: { name: "Vessel", ac: 0, hardness, hp: 1e9, maxHp: 1e9, bt: 0, broken: false, raised: true },
