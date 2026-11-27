@@ -718,7 +718,8 @@ function standUser(type, { rush = false, ability = "flame", heaven = false, hidd
     // (2026-11-24, Cole's pick "Raise the weak types": a stand of Durability A or B guards its user too — +2 or +1 circumstance to the
     // user's AC while the stand is adjacent, taken as always: the stand fights beside it.)
     let guard = Math.max(0, durAC);
-    const prec = { A: 1, B: 0, C: 0, D: 0, E: -1 }[grade.precision];
+    // (TYPEBUFF L5: L3 + a long-range stand's Precision A, "commanded with good precision" — +1 to hit.)
+    const prec = type === "long" && TB.has("L5") ? 1 : { A: 1, B: 0, C: 0, D: 0, E: -1 }[grade.precision];
     // (2026-11-27, TYPEBUFF — stand-type balance candidates, comma-separated: L1 Distant Precision from 1st; L2 L1 + a third Stand Point;
     // A1 automatic resilience: ghostly resistance doubled; A2 the program's end-of-turn action every turn (3 stand actions); E1 Acts at
     // 5th/11th; E3 Acts at 3rd/9th; E4/E5 Acts raise grades; L3 Distant Precision from 1st, 2 dice from 9th; L4 L3 + the user +2 AC vs ranged; C1 Overwhelm from 5th; C2 Spread Thin's extra resistance your level; I1 integrated Power B (d8).)
@@ -733,10 +734,12 @@ function standUser(type, { rush = false, ability = "flame", heaven = false, hidd
         classDC: [[1, T], [9, E], [17, M]],
         build(lv, a) {
             // (TYPEBUFF E4/E5: the evolving stand's Acts raise its grades — Power A from Act Two, Durability B from Act Three.)
-            if (type === "evolving" && (TB.has("E4") || TB.has("E5"))) {
-                const a2 = TB.has("E5") ? 5 : 7, a3 = TB.has("E5") ? 11 : 13;
+            // (E6: Acts at 5th/11th; Act Two Power A and Durability B, Act Three Durability A.)
+            if (type === "evolving" && (TB.has("E4") || TB.has("E5") || TB.has("E6"))) {
+                const a2 = TB.has("E5") || TB.has("E6") ? 5 : 7, a3 = TB.has("E5") || TB.has("E6") ? 11 : 13;
                 primaryDie = lv >= a2 ? 10 : 8;
-                durAC = lv >= a3 ? 1 : 0; durRes = lv >= a3 ? 1 : 0; guard = Math.max(0, durAC);
+                const dg = TB.has("E6") ? (lv >= a3 ? 2 : lv >= a2 ? 1 : 0) : (lv >= a3 ? 1 : 0);
+                durAC = dg; durRes = dg; guard = Math.max(0, durAC);
             }
             const str = key(lv) + (lv >= 17 ? 1 : 0); // (Stand Transcendence: +1 to its Strength at 17th.)
             const prof = rank(lv, [[1, T], [5, E], [13, M]]);
@@ -757,7 +760,7 @@ function standUser(type, { rush = false, ability = "flame", heaven = false, hidd
             //   6  Eternal Will, as Undying Myth, from 12th with the Dedication.
             const HT = heaven ? 6 : 0;
             const myth = heaven && lv >= 12 && HT >= 1 ? 10 - prof : 0;
-            const fury = type === "close" && lv >= 7 ? { partnerDie: true } : type === "long" && (lv >= 7 || TB.has("L1") || TB.has("L2") || TB.has("L3") || TB.has("L4")) ? { partnerDie: "far", ...((TB.has("L3") || TB.has("L4")) && lv >= 9 ? { partnerDice: 2 } : {}) } : {};
+            const fury = type === "close" && lv >= 7 ? { partnerDie: true } : type === "long" && (lv >= 7 || TB.has("L1") || TB.has("L2") || TB.has("L3") || TB.has("L4") || TB.has("L5")) ? { partnerDie: "far", ...((TB.has("L3") || TB.has("L4") || TB.has("L5")) && lv >= 9 ? { partnerDice: 2 } : {}) } : {};
             const runes = (strike) => ({ ...strike, iwr: { ...strike.iwr, ...(potency(lv) ? { traits: ["magical"] } : {}), runes: ["ghost-touch"] } });
             const main = runes(weaponStrike(lv, { name: names[0], die: primaryDie, type: "bludgeoning", toHit: str + prec + myth, damageAttr: str, prof, group: "brawling", extra: { unarmed: true, ...(type === "close" ? { forceful: true } : {}), ...fury } }));
             const second = runes(weaponStrike(lv, { name: names[1], die: 6, type: type === "bound" ? "bludgeoning" : type === "automatic" ? "piercing" : "bludgeoning", toHit: str + prec + myth, damageAttr: str, prof, group: "brawling", extra: { unarmed: true, agile: true, finesse: true, ...fury } }));
@@ -867,7 +870,7 @@ function standUser(type, { rush = false, ability = "flame", heaven = false, hidd
                 spells.push(make("Melting Dart", { actions: 1, damage: D("acid"), kind: "acid", attackRoll: true, extra: acid, effects: clumsy }));
                 if (lv >= 9) spells.push(make("Melting Dart (surge, three darts)", { actions: 1, damage: halfS("acid"), kind: "acid", attackRoll: true, target: "up to 3 creatures", surge: true, extra: acid, effects: clumsy }));
             }
-            const act2 = TB.has("E3") ? 3 : TB.has("E1") ? 5 : 7, act3 = TB.has("E3") ? 9 : TB.has("E1") ? 11 : 13;
+            const act2 = TB.has("E3") ? 3 : (TB.has("E1") || TB.has("E5") || TB.has("E6")) ? 5 : 7, act3 = TB.has("E3") ? 9 : (TB.has("E1") || TB.has("E5") || TB.has("E6")) ? 11 : 13;
             if (type === "evolving" && lv >= act2) {
                 spells.push(make("Ice (shard)", { actions: 1, damage: D("cold"), kind: "cold" }));
                 if (lv >= Math.max(5, act2 + 2)) spells.push(make("Ice (surge spears)", { actions: 2, damage: S("cold"), kind: "cold", area: { type: "burst", value: 10 }, surge: true }));
