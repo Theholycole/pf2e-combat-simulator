@@ -8,7 +8,7 @@ import { distanceBetween, engage, engagedEnemies, isIncorporeal, leaveMelee, sam
 import { reaches as gridReach } from "./grid.js";
 import { gridStrides, placeArrival, pullSquare, regroup, setUpGrid } from "./grid-fight.js";
 import { parseDamage } from "../../../pf2e-resolution-core/src/index.js";
-import { applyDamage, castAnswers, creditPersistent, dealDamage, expectedHitDamage, interact, finishRegenerating, spellStops, strikeStops, takeCover, toppleObject, killCreature, leaveField, performRend, performStrike, provoke, raiseShield, recoveryCheck, releaseGrabs, stand, step, stride, turnEndAnswers, turnStartAnswers } from "./actions.js";
+import { rollFormula, applyDamage, castAnswers, creditPersistent, dealDamage, expectedHitDamage, interact, finishRegenerating, spellStops, strikeStops, takeCover, toppleObject, killCreature, leaveField, performRend, performStrike, provoke, raiseShield, recoveryCheck, releaseGrabs, stand, step, stride, turnEndAnswers, turnStartAnswers } from "./actions.js";
 import { featTriggers } from "./triggers.js";
 import { canReact, hasOwnEffect, spendReaction, chargeOn, chargeStrike, deltasFor, ducksFromCoverFire, grantAooAllies, multiStrikeOrder, fastHealingNow, isUndead, regenerating, rolledStrikes, strikeNamed, sweepActionIndex, withExtraDamage } from "./abilities.js";
 import { adjustInstance, adjustPart, rollPersistent, rollStrikeDamage, strikeContext } from "./damage.js";
@@ -260,6 +260,8 @@ function rollInitiative(state, snapshot) {
     for (const c of state.list) {
         const best = {};
         for (const modifier of (c.passiveEffects ?? []).flatMap((model) => model.modifiers ?? []).filter((each) => each.on === "initiative")) best[modifier.type] = Math.max(best[modifier.type] ?? 0, Number(modifier.value) || 0);
+        // (2026-11-27, Book Pages 9th — NCFILL2: "acts quickly", written before the fight: +2 status to initiative.)
+        if (c.bookOrder) best.status = Math.max(best.status ?? 0, c.bookOrder);
         const bonus = Object.values(best).reduce((sum, value) => sum + value, 0);
         if (bonus) state.initiativeStat.set(c.id, { ...state.initiativeStat.get(c.id), value: state.initiativeStat.get(c.id).value + bonus });
     }
@@ -796,6 +798,16 @@ function startTurn(state, c) {
     // (B298: a minion's two actions; its summons' time, and a sustained one's action.)
     summonTurnStart(state, c);
     if ((globalThis.process?.env?.INTATK_V ?? "full") === "full") internalAttackTurnStart(state, c);
+    // (2026-11-27, Devouring Flesh 9th — NCFILL2: acid that won't end by a flat check; once it has burned it a turn, the creature spends 2
+    // actions scraping it off, taking it once more.)
+    const slime = c.status === ACTIVE && (c.actionsLeft ?? 0) >= 2 ? (c.persistent ?? []).find((entry) => entry.noFlat && (entry.ticks ?? 0) >= 1) : null;
+    if (slime) {
+        c.actionsLeft -= 2;
+        const amount = adjustInstance(c, slime.type, rollPersistent(state.rng, slime));
+        state.log?.push(`  ${c.name} scrapes off the slime (2 actions), taking ${amount} acid`);
+        c.persistent.splice(c.persistent.indexOf(slime), 1);
+        dealDamage(state, c, amount);
+    }
     // (Calm, the charm spells, a condition floor: those that ran out end; a sustained one, an action.)
     lastingTurnStart(state, c);
 
@@ -1040,6 +1052,17 @@ function endTurn(state, c) {
         const dealt = dealDamage(state, c, amount);
         if (!c.summonedBy) creditPersistent(state, entry, dealt);
         // (Infinite Rotation: no end but its death.)
+        // (2026-11-27, NCFILL2: Devouring Flesh's acid — no flat check; Parasite's bleed — DC 17, and D piercing as it's cut out.)
+        if (entry.noFlat) { entry.ticks = (entry.ticks ?? 0) + 1; continue; }
+        if (entry.parasite) {
+            if (flatCheck(state.rng, entry.parasite.dc) >= SUCCESS) {
+                c.persistent.splice(c.persistent.indexOf(entry), 1);
+                const cut = rollFormula(state, entry.parasite.damage);
+                state.log?.push(`  the parasite is cut out of ${c.name}: ${cut} piercing`);
+                if (cut > 0 && isActive(c)) dealDamage(state, c, adjustInstance(c, "piercing", cut));
+            }
+            continue;
+        }
         if (!entry.rotation && flatCheck(state.rng, 15) >= SUCCESS) c.persistent.splice(c.persistent.indexOf(entry), 1);
     }
     // (Biting Snakes, B82: a Strike at it from a monster beside it.)
@@ -2669,6 +2692,13 @@ export function simulate(snapshot, options = {}, seed = 1, { log = false } = {})
     if (options.moraleRules) merged.moraleRules = options.moraleRules;
     else merged.moraleRules = mergeMoraleRules(snapshot.moraleRules);
     const state = createState(snapshot, merged, seed, log);
+    // (2026-11-27, rating scenarios for the NCFILL2 fills: SCEN_COVER=1 — the foes have standard cover; SCEN_HIDDEN=1 — one foe is
+    // invisible, undetected to a viewer without a sense for it (fight-wide).)
+    if (globalThis.process?.env?.SCEN_COVER === "1") { state.setup = { ...state.setup, cover: { ...(state.setup?.cover ?? {}), foes: 2 } }; for (const c of state.list) if (c.side !== "party") c.scenCover = 2; }
+    if (["1", "2"].includes(globalThis.process?.env?.SCEN_HIDDEN)) {
+        const foe = state.list.find((c) => c.side !== "party" && c.kind !== "object" && !c.reserve);
+        if (foe) { foe.cond.hidden = true; foe.permanent = [...(foe.permanent ?? []), { slug: "invisible" }]; state.scenHidden = true; }
+    }
     const resuming = Array.isArray(snapshot.order) && snapshot.order.length > 0 && snapshot.round > 0;
     if (resuming) {
         state.order = snapshot.order.filter((id) => state.byId.has(id));

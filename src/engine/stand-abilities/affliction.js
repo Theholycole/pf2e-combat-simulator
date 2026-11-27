@@ -163,6 +163,8 @@ const BUFFED = {
         out.spells = spells;
         // (2026-11-27, open to all types: a separate stand is coated instead — the slime armor on the stand.)
         if (ctx.type && ctx.type !== "integrated" && out.user) { out.stand = { ...(out.stand ?? {}), ...out.user }; delete out.user; }
+        // (2026-11-27, NCFILL2 9th: the lash's persistent acid has no flat check; 2 actions to scrape it off — actions.js, fight.js.)
+        if ((globalThis.process?.env?.NCFILL2 ?? "1") === "1" && lv >= 9) out.user = { ...(out.user ?? {}), devourFill: true };
         return out;
     },
     Parasite(ctx) {
@@ -189,6 +191,8 @@ const BUFFED = {
             ctl.needs = [{ target: { conditions: ["sickened"], within: 30 } }];
             spells.push(ctx.entry("Parasite (surge control)", ctl, { surge: true }));
         }
+        // (2026-11-27, NCFILL2 9th: cutting it out takes –2 (the feeding bleed's flat check DC 17) and the host takes D piercing — actions.js, fight.js.)
+        if ((globalThis.process?.env?.NCFILL2 ?? "1") === "1" && lv >= 9) return { spells, user: { parasiteFill: { dc: 17, damage: ctx.D("piercing") } } };
         return { spells };
     },
     "Pain Link"(ctx) {

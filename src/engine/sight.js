@@ -30,6 +30,17 @@ export function hiddenDC(state, viewer, target, { roll = true } = {}) {
     const outlined = Boolean(target?.cond?.outlined);
     const looked = viewer?.trueSight?.seen?.[target?.id];
     const through = roll ? seesThrough(state, viewer, target) : looked === true;
+    // (2026-11-27, SCEN_HIDDEN, Flame 9th's heat sense: an invisible foe is undetected — guess its square, about half the time right,
+    // then DC 11: played as a DC 16 flat check — to a viewer without a sense for it; hidden (DC 11) to one with Flame's heat sense.)
+    if (target?.cond?.hidden && !through && state?.scenHidden && viewer && viewer.side !== target.side && invisibleOf(target) && !outlined && !hasSense(viewer, "see-invisibility")) {
+        // (SCEN_HIDDEN=1: undetected until the viewer has tried once — its first try stands in for the Seek that locates it; SCEN_HIDDEN=2: all fight.)
+        if (viewer.heatSense) return 11;
+        if (globalThis.process?.env?.SCEN_HIDDEN === "2") return 16;
+        const found = (viewer.located ??= new Set());
+        if (found.has(target.id)) return 11;
+        if (roll) found.add(target.id);
+        return 16;
+    }
     if (target?.cond?.hidden && !through) return invisibleOf(target) && (outlined || hasSense(viewer, "see-invisibility")) ? 5 : 11;
     return target?.cond?.concealed && !outlined ? 5 : 0;
 }

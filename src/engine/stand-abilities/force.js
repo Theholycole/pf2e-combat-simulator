@@ -72,6 +72,8 @@ const BUFFED = {
         if (lv >= 13) spells.push(ctx.make("Flame (surge ankhs)", { actions: 1, damage: halfS("fire"), kind: "fire", target: "up to 6 creatures", surge: true, extra: burn }));
         // (Ranges from the stand, which fights beside the foes: the user throws its Flame from 60 ft back.)
         for (const each of spells) each.plan.targeting.range = "60 feet";
+        // (2026-11-27, NCFILL2 9th: imprecise heat sense 50 ft — an invisible foe hidden, not undetected, to the user and its stand (sight.js).)
+        if ((globalThis.process?.env?.NCFILL2 ?? "1") === "1" && lv >= 9) return { spells, user: { heatSense: 50 }, stand: { heatSense: 50 } };
         return { spells };
     },
     Weather(ctx) {

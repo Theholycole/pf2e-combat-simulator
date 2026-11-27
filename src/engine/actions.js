@@ -1792,6 +1792,23 @@ export function applyDamage(state, target, instances, { source = null, critical 
             if (shelter.hp <= 0) target.shelters = target.shelters.filter((held) => held !== shelter);
         }
     }
+    // (2026-11-27, Phase Store 9th — NCFILL2: the stand dived into an ally holds a stored blow; the first physical damage a foe deals it is
+    // reduced by the user's level, and the blow lands on that foe if it's adjacent (the stand's Strike damage, basic Reflex).)
+    const stored = physical && !intercepted && source && source.side !== target.side ? (target.effects ?? []).find((effect) => effect.model?.phaseStore) : null;
+    if (stored) {
+        const ps = stored.model.phaseStore;
+        let cut = ps.amount;
+        instances = instances.map((instance) => { const off = Math.min(cut, Math.max(0, instance.amount)); cut -= off; return { ...instance, amount: instance.amount - off }; });
+        target.effects = target.effects.filter((effect) => effect !== stored);
+        log(state, `  the stand inside ${target.name} takes ${ps.amount - cut} of it (Phase Store)`);
+        if (globalThis.process?.env?.PHASE_NOBLOW !== "1" && isActive(source) && (state.grid && source.square && target.square ? gridReaches(source, target) : sameMelee(source, target) || distanceBetween(source, target) <= 5)) {
+            const { degree } = rollCheck(state.rng, saveModifier(source, "reflex"), ps.dc);
+            const full = rollFormula(state, ps.damage);
+            const amount = degree >= CRITICAL_SUCCESS ? 0 : degree >= SUCCESS ? Math.floor(full / 2) : degree <= CRITICAL_FAILURE ? 2 * full : full;
+            log(state, `  the stored blow lands on ${source.name}`);
+            if (amount > 0) applyDamage(state, source, [{ type: "bludgeoning", amount, persistent: false, precision: false }], { source: target, intercepted: true });
+        }
+    }
     // M38: the party harming a foe that gave up and is leaving refuses its surrender.
     if (!intercepted) {
         harmedAfterGivingUp(state, target, source);
@@ -2068,7 +2085,19 @@ export function applyDamage(state, target, instances, { source = null, critical 
         }
     }
     for (const instance of adjusted.persistent) addPersistent(target, instance, source);
+    // (2026-11-27, NCFILL2 — Parasite 9th: its feeding bleed is harder to cut out (the flat check DC 17, was 15) and the host takes D piercing
+    // when it ends; Devouring Flesh 9th: the lash's persistent acid has no flat check (scraped off at the host's turn start, fight.js).)
+    if (adjusted.persistent.length && source && state.castingNow) {
+        const owner = source.sharesHpWith ? state.byId.get(source.sharesHpWith) : source;
+        if (owner?.parasiteFill && state.castingNow.name === "Parasite") for (const entry of target.persistent) if (entry.type === "bleed") entry.parasite = owner.parasiteFill;
+        if (owner?.devourFill && /^Devouring Flesh \(slime lash\)/.test(state.castingNow.name)) for (const entry of target.persistent) if (entry.type === "acid") entry.noFlat = true;
+    }
     const dealt = dealDamage(state, target, total, { source, critical, nonlethal });
+    // (2026-11-27, Back Rider 17th — NCFILL2: a foe's physical hit on the stand riding a creature also hits that creature, the same damage.)
+    if (dealt > 0 && physical && !intercepted && target.ridingId && source && source.side !== target.side && state.round < (target.rideUntil ?? 0)) {
+        const ridden = state.byId.get(target.ridingId);
+        if (ridden && isActive(ridden)) { log(state, `  the blow goes through to ${ridden.name} (Back Rider)`); applyDamage(state, ridden, [{ type: "untyped", amount: dealt, persistent: false, precision: false }], { source: state.byId.get(target.sharesHpWith) ?? target, intercepted: true }); }
+    }
     // (2026-11-27, Puppet Marks rider — PUPPET_V=rider: once a turn, the stand's Strike that hits marks a limb.)
     // (rider4: a mark on every stand hit, and the marking jerk leaves it off-guard until the user's next turn.)
     if (dealt > 0 && physical && source?.puppetRider && source.side !== target.side && (source.puppetRiderAll || source.puppetRound !== state.round) && isActive(target)) {
@@ -3400,4 +3429,15 @@ export function interact(state, c, what, strikeName) {
         c.weakGrip?.delete(strikeName);
         log(state, `  ${c.name} gets a firm grip on its ${strikeName}`);
     }
+}
+
+// (2026-11-27) A damage formula's roll ("3d8+4[bludgeoning]", "2d6"), for the NCFILL2 fills.
+export function rollFormula(state, formula) {
+    let total = 0;
+    for (const m of String(formula).replace(/\[[^\]]*\]/g, "").matchAll(/([+-]?)\s*(\d+)(?:d(\d+))?/g)) {
+        const sign = m[1] === "-" ? -1 : 1;
+        if (m[3]) { for (let i = 0; i < Number(m[2]); i++) total += sign * (1 + Math.floor(state.rng.next() * Number(m[3]))); }
+        else total += sign * Number(m[2]);
+    }
+    return Math.max(0, total);
 }

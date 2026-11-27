@@ -629,6 +629,12 @@ export function applyCondition(state, target, slug, value, duration, source, sco
         if ((target.puppetMarks ?? 0) >= 4 && !target.puppetControlled) { target.puppetControlled = true; return applyCondition(state, target, "controlled", null, { mode: "fixed", value: 1, unit: "rounds" }, source, scope); }
         return false;
     }
+    // (2026-11-27, Back Rider 17th — NCFILL2: the ride's failure (its frightened row) puts the stand on that creature's back for a minute.)
+    if (slug === "frightened" && source && target.side !== source.side && state.castingNow?.name === "Back Rider (ride)") {
+        const user = source.sharesHpWith ? state.byId.get(source.sharesHpWith) : source;
+        const stand = user?.backRider17 ? state.list.find((o) => o.sharesHpWith === user.id) : null;
+        if (stand) { stand.ridingId = target.id; stand.rideUntil = state.round + 10; }
+    }
     // (2026-11-27, Pain Link as a real link — PAINLINK_REAL=1: the link's failure marks the host (actions.js shares the user's damage).)
     if (slug === "off-guard" && source && target.side !== source.side && state.castingNow?.name === "Pain Link" && globalThis.process?.env?.PAINLINK_REAL !== "0") {
         const user = source.sharesHpWith ? state.byId.get(source.sharesHpWith) : source;
@@ -4783,7 +4789,10 @@ function oddsFor(caster, spell, target, attacks, actions) {
     // (2026-10-27: a skill, a Lore or Perception rolled as a save at a fixed DC, Mountain to the Sky's Athletics — its modifier, as the roll has it.)
     const saveOf = (entry) => (SAVES.has(entry) ? saveModifier(target, entry) + saveBonusAgainst(target, entry, spell) : skillValue(target, entry) - statusPenalty(target, "skill"));
     const slug = slugs.reduce((best, entry) => (saveOf(entry) > saveOf(best) ? entry : best));
-    const save = saveOf(slug);
+    // (2026-11-27, SCEN_COVER: a covered foe's +2 circumstance to Reflex against a spell or ability — B477 —, but not against Property Theft's
+    // bubbles from 13th (ignoreCover, NCFILL2), nor an area's burst from inside its cover.)
+    const covered = slug === "reflex" && target.side !== caster.side && (target.scenCover ?? 0) >= 2 && !(caster.ignoreCover && /^Property Theft/.test(spell.name ?? "")) ? 2 : 0;
+    const save = saveOf(slug) + covered;
     const dc = check.against?.dc === "fixed" ? check.against.value : (spell.dc ?? 10) - penalty + effectBonus(caster, "spell");
     // (B302: its Evasion and the like; 2026-10-20, incapacitation's degree better.)
     const odds = adjustedSaveOdds(target, slug, degreeDistribution(save, dc), spell);
@@ -5294,8 +5303,8 @@ export function targetSets(state, caster, spell, { enemies, allies = [], inMelee
         // Spell effects: any ally in reach, the caster included.
         if (info.helpful) {
             // (2026-11-06, "1 ally" — Allegro's —: an ally is another creature, never the caster.)
-            const allyOnly = /^(?:\d+|one|two|three) (?:ally|allies)$/i.test(String(spell.plan?.targeting?.target ?? "").trim());
-            const friends = [...(allyOnly ? [] : [caster]), ...allies].filter((ally) => ally.status === ACTIVE && reaches(ally));
+            const allyOnly = /^(?:\d+|one|two|three) (?:ally|allies)$/i.test(String(spell.plan?.targeting?.target ?? "").trim()) || spell.name === "Phase Store (dive into an ally)";  // (2026-11-27: its willing ally, never the user)
+            const friends = [...(allyOnly ? [] : [caster]), ...allies].filter((ally) => ally.status === ACTIVE && reaches(ally) && !(spell.name === "Phase Store (dive into an ally)" && (ally.sharesHpWith === caster.id || ally.summonedBy)));
             if (info.targets <= 1) sets.push(...friends.map((ally) => ({ targets: [ally] })));
             else if (friends.length) sets.push({ targets: friends.slice(0, info.targets) });
         }

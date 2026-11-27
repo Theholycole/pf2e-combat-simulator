@@ -180,6 +180,20 @@ export const SPACE = {
             const spells = [ctx.make("Phase Store (stored blow)", { actions: ctx.buffed ? 1 : 2, damage: strikeFormula(ctx.main, "bludgeoning"), kind: "bludgeoning", target, effects })];
             if (ctx.lv >= (ctx.buffed ? 5 : 9)) spells.push(ctx.make("Phase Store (surge blow)", { actions: 2, damage: ctx.S("bludgeoning"), kind: "bludgeoning", target, effects, surge: true }));
             for (const entry of spells) entry.plan.targeting.range = range;
+            // (2026-11-27, NCFILL2 9th: 1 action, the stand dives into a willing ally (30 ft) and holds a stored blow there — the first physical
+            // damage a foe deals it reduced by the user's level, the blow (the stand's Strike damage, basic Reflex) on that foe if adjacent;
+            // actions.js. One diving stand: the dive ends the ally's earlier one.)
+            if (ctx.buffed && (globalThis.process?.env?.NCFILL2 ?? "1") === "1" && ctx.lv >= 9) {
+                const name = "Phase Store (dive into an ally)";
+                const uuid = "stand.phase-store-dive-into-an-ally";
+                const p = ctx.savePlan(name, { actions: 1, traits: ["concentrate", "occult", "stand"], target: "1 willing ally", range: "30 feet", damage: null, basic: false });
+                p.resolution = { kind: "effect", check: null, sharedDamage: null, outcomes: {}, applications: [{ kind: "native-spell-effect", uuid, label: name, recipients: "target" }] };
+                const dive = ctx.entry(name, p);
+                dive.effects = { [uuid]: ctx.effectModel(name, 10, globalThis.process?.env?.PHASE_EMPTY === "1" ? {} : globalThis.process?.env?.PHASE_TEMP === "1" ? { tempHp: ctx.lv, phaseStore: { amount: 0, damage: strikeFormula(ctx.main, "bludgeoning"), dc: ctx.dc } } : { phaseStore: { amount: ctx.lv, damage: strikeFormula(ctx.main, "bludgeoning"), dc: ctx.dc } }) };
+                if (globalThis.process?.env?.PHASE_ONCE === "1") dive.pool = "phase-dive";
+                spells.push(dive);
+                if (globalThis.process?.env?.PHASE_ONCE === "1") return { spells, spellPools: { "phase-dive": 1 } };
+            }
             return { spells };
         },
         notes: [

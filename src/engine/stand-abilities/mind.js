@@ -1,3 +1,4 @@
+import { low } from "../creature-tables.js";
 // Stand Abilities: mind theme (see index.js for the contract).
 // (2026-11-24: "## Mind and Sense" of content/stand-abilities.md, with the buffed wording.) Defaults (abilities.mjs): a surge costs 1 Stand
 // Point and 2 actions unless listed; ranges from the stand (a touch of the close-range stand played as 15 feet from its user); saves
@@ -127,6 +128,8 @@ export const MIND = {
                     // (Round 4 cap: the lasting-command surge on one creature only (was two from 13th); 17th's all-actions command dropped.)
                     out.push(ctx.entry("Book Pages (surge, lasting command)", plan(ctx, "Book Pages (surge, lasting command)", { traits: traitsB, target: "1 creature", damage: ctx.S("mental"), kind: "mental", hinder: true, effects: { failure: lastingB, criticalFailure: [["stunned", 1], ...lastingB] } }), { surge: true }));
                 }
+                // (2026-11-27, NCFILL2 9th: an order written before the fight — "acts quickly", +2 status to initiative (fight.js).)
+                if ((globalThis.process?.env?.NCFILL2 ?? "1") === "1" && lv >= 9) return { spells: out, user: { bookOrder: 2 } };
                 return { spells: out };
             }
             const traits = ["mental", "incapacitation"];
@@ -437,6 +440,8 @@ export const MIND = {
                     out.push(ctx.entry("Back Rider (surge, whisper)", plan(ctx, "Back Rider (surge, whisper)", { range: "15 feet", traits: ["mental", "emotion", "fear", "auditory"], damage: ctx.S("mental"), kind: "mental", effects: { success: [["frightened", 1, null]], failure: [["frightened", 2, null]], criticalFailure: [["frightened", 3, null]] }, floor: floorB }), { surge: true }));
                 }
                 if (lv >= 9) out.push(ctx.entry("Back Rider (trip)", plan(ctx, "Back Rider (trip)", { actions: 1, range: "15 feet", save: "fortitude", effects: both([["prone"]]) })));
+                // (2026-11-27, NCFILL2 17th: a foe's hit on the riding stand also hits the creature it rides — spells.js marks the ride, actions.js.)
+                if ((globalThis.process?.env?.NCFILL2 ?? "1") === "1" && lv >= 17) return { spells: out, user: { backRider17: true } };
                 return { spells: out };
             }
             const touch = "15 feet";
@@ -521,8 +526,20 @@ export const MIND = {
             if (ctx.lv >= 5) ctx.convert("Storybook (surge, bystander character)", { from: "commoner", actions: 2, surge: true, lasts: ctx.lv >= 17 ? 10 : 1, initiative: "roll", forced: true });
             return { ...ctx.entry(name, p, { attackRoll: true }), attack: hit, oncePerTurn: true };
             };
-            const spells = [character("Storybook (command character)")];
-            if (lv >= 9) spells.push(character("Storybook (command second character)"));
+            // (2026-11-27, STORY_BODY=1, for the 13th fill's rating: the characters as real Small minions — level − 2, GM Core Low AC, HP and
+            // saves, the stand's main Strike from 5th (Low before), 1 action to pull each out, then commanded (one action, both) for 1 minute
+            // —, foes able to attack them; NCFILL2 13th: resistance to physical damage equal to half the user's level.)
+            const body = globalThis.process?.env?.STORY_BODY === "1";
+            const spells = body ? [] : [character("Storybook (command character)")];
+            if (!body && lv >= 9) spells.push(character("Storybook (command second character)"));
+            if (body) {
+                const cl = lv - 2;
+                const strike = strong ? { ...structuredClone(main), name: "Character's Strike" } : { name: "Character's Strike", bonus: hit, melee: true, agile: false, unarmed: true, reach: 5, damage: [{ dice, die: 6, bonus, type: "bludgeoning" }] };
+                const saves = { fortitude: low("save", cl), reflex: low("save", cl), will: low("save", cl) };
+                const resist = (globalThis.process?.env?.NCFILL2 ?? "1") === "1" && lv >= 13 ? { resistances: [{ type: "physical", value: Math.floor(lv / 2), exceptions: [] }] } : {};
+                const summon = ctx.raise("Storybook (pull out a character)", { count: lv >= 9 ? 2 : 1, corpse: "none", strike, ac: low("ac", cl), hp: low("hp", cl), saves, level: cl, prefix: "story", label: "Story character", traits: ["humanoid", "minion"], invisible: false, more: { size: "small", ...resist } });
+                summon.actions = 1;
+            }
             if (lv >= 5) {
                 const rounds = lv >= 17 ? ctx.minutes(1) : ctx.round1;
                 spells.push(ctx.entry("Storybook (surge, cast in the story)", plan(ctx, "Storybook (surge, cast in the story)", { traits: ["mental"], effects: both([["fascinated", null, rounds]]), notes: both([command()]) }), { surge: true }));

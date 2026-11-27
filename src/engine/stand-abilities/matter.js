@@ -229,6 +229,8 @@ export const MATTER = {
                 if (ctx.lv >= 17) spells.push(saveOnly(ctx, "Property Theft (air)", { actions: 1, save: "fortitude", target, range, effects: { failure: [["voiceless", null, r1]], criticalFailure: [["voiceless", null, r1]] } }));
                 // (Round 2: a bubble popped by hand on the creature the stand hits — friction's Reflex save as its rider.)
                 const pop = touchStrike(ctx, "Property Theft (bubble strike)", "reflex", { failure: [["prone"], ["off-guard", null, r1]], criticalFailure: [["prone"], ["off-guard", null, min]] });
+                // (2026-11-27, NCFILL2 13th: the bubbles ignore cover — spells.js, SCEN_COVER.)
+                if ((globalThis.process?.env?.NCFILL2 ?? "1") === "1" && ctx.lv >= 13) return { spells, stand: { strikeActivities: [pop] }, user: { ignoreCover: true } };
                 return { spells, stand: { strikeActivities: [pop] } };
             }
             const range = ctx.lv >= 5 ? "40 feet" : "20 feet";
