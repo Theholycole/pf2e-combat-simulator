@@ -176,7 +176,7 @@ test("the seven stand types: grades, the colony's weakness and Spread Thin, the 
     assert.equal(classPC("stand-long", 7, { spell: fake }).companions[0].strikes[0].partnerDie, "far");
     const merged = classPC("stand-integrated", 13, { spell: fake });
     assert.equal(merged.companions, undefined);
-    assert.equal(merged.extraActions, 2);  // (2026-11-27: Act Together kept while merged, plus Full Merge)
+    assert.equal(merged.extraActions, 1);  // (2026-11-27: Act Together kept while merged; Full Merge adds no 5th action)
     assert.equal(classPC("stand-integrated", 5, { spell: fake }).extraActions, 1);
     assert.equal(classPC("stand-bound", 5, { spell: fake }).companions?.length ?? 0, 0);  // (BOUND_HELD: the held vessel is the user's body)
     assert.equal(classPC("stand-bound", 13, { spell: fake }).ac, classPC("stand-user", 13, { spell: fake }).ac + 2);

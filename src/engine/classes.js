@@ -910,7 +910,9 @@ function standUser(type, { rush = false, ability = "flame", heaven = false, hidd
                         // (2026-11-27, Cole: merged integrated stands keep Act Together as Worn Stand's text says — 4 actions a turn from 1st (one body,
                         // one attack penalty), Full Merge (13th) a free stand action on top: 5. INTEGRATED_AT=0: the old reading (3, Full Merge 4).)
                         const at = globalThis.process?.env?.INTEGRATED_AT !== "0";
-                        const extra = (at ? 1 : 0) + (lv >= 13 ? 1 : 0);
+                        // (2026-11-27, Cole: Full Merge adds no 5th action — at 13th you and the stand split Act Together's actions as you like,
+                        // which one body already does; FULLMERGE_V=free: the old free stand action, 5 a turn.)
+                        const extra = at ? 1 + (lv >= 13 && globalThis.process?.env?.FULLMERGE_V === "free" ? 1 : 0) : (lv >= 13 ? 1 : 0);
                         return extra ? { extraActions: extra } : {};
                     })()), ...(custom?.user ?? {}),
                         // (2026-11-25 INTEGRATED_GHOST, on by default since 2026-11-25 (Cole adopted it; INTEGRATED_GHOST=0 turns it off): merged, the user has the stand's ghostly resistance — half its level, minimum 1, to all damage but force, spirit and ghost touch.)
