@@ -3279,6 +3279,15 @@ export function castSpell(state, caster, spellIndex, targetIds, actions, options
     // (B304, Consume Flesh: "from any given corpse only once" — each use takes one of the fight's corpses.)
     if ((spell?.plan?.needs ?? []).some((need) => need.corpse || need.any?.some((each) => each.corpse))) caster.corpsesUsed = (caster.corpsesUsed ?? 0) + 1;
     castPlan(state, caster, spell, targetIds, actions, options);
+    // (2026-11-27, Flesh Spray's close-wound heal: "lose up to D HP, and the ally heals twice that much" — spell.selfCost, a formula rolled
+    // and lost by the caster (its stand's shared HP), never below 1.)
+    if (spell?.selfCost && caster.hp) {
+        const m = /^(\d+)d(\d+)(?:\+(\d+))?/.exec(String(spell.selfCost));
+        let lost = m ? Number(m[3] ?? 0) : Number(spell.selfCost) || 0;
+        if (m) for (let i = 0; i < Number(m[1]); i++) lost += state.rng.die(Number(m[2]));
+        lost = Math.max(0, Math.min(lost, caster.hp.value - 1));
+        if (lost > 0) { caster.hp.value -= lost; log(state, `  ${caster.name} loses ${lost} HP to the spray`); }
+    }
     // (2026-11-05, Communal Healing: a heal spell that heals a single creature — another living one in reach of it, the caster or an ally,
     // regains Hit Points equal to its rank; the most hurt ally taken.)
     if (caster.communalHealing && spell?.plan?.source?.slug === "heal" && (targetIds ?? []).length === 1) {

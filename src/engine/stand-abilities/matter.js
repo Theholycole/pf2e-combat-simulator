@@ -179,8 +179,8 @@ export const MATTER = {
                 const bonus = Math.max(0, Math.round(average - (dice * (die + 1)) / 2));
                 const strike = ctx.lv >= 13 ? { ...structuredClone(ctx.main), name: "Stand's Strike" } : { name: "Bite", bonus: lowAt(LOW_ATTACK, level), melee: true, agile: false, unarmed: true, reach: 5, damage: [{ dice, die, bonus, type: "piercing" }] };
                 const saves = { fortitude: low("save", level), reflex: low("save", level), will: low("save", level) };
-                ctx.raise("Life-Giving (animate an object)", { count, corpse: "none", strike, ac: low("ac", level), hp: low("hp", level), saves, level, prefix: "lg-animal", label: "Life-Giving animal", traits: ["animal", "minion"], invisible: false,
-                    more: { size: "tiny", ...(ctx.lv >= 9 ? { reflectHalf: true } : {}), ...(LG >= 2 && ctx.lv >= 9 ? { interceptAttack: { name: "Leap In", share: 0.2, ...(LG === 3 ? {} : { near: true }), ...(LG === 4 ? { noReflect: true } : {}) } } : {}) } });
+                ctx.raise("Life-Giving (animate an object)", { count, corpse: "none", strike, ac: low("ac", level), hp: [7, 8, 9].includes(LG) ? Math.max(1, Math.floor(low("hp", level) / 4)) : low("hp", level), saves, level, prefix: "lg-animal", label: "Life-Giving animal", spare: [5, 8, 12].includes(LG) ? 4 : 0, traits: ["animal", "minion"], invisible: false,
+                    more: { size: "tiny", ...(ctx.lv >= 9 ? { reflectHalf: true } : {}), ...(LG >= 2 && ctx.lv >= 9 ? { interceptAttack: { name: "Leap In", share: 0.2, ...(LG === 2 || LG === 4 || globalThis.process?.env?.LG_NEAR === "1" ? { near: true } : {}), ...(LG === 4 ? { noReflect: true } : {}), ...([5, 8, 12].includes(LG) ? { mode: "destroy" } : [6, 9, 11, 13].includes(LG) ? { mode: "half" } : LG === 14 ? { mode: "cap" } : {}), ...(LG === 10 ? { never: true } : {}), ...([11, 12, 13, 14].includes(LG) ? { perFight: true } : {}), ...(LG === 13 ? { noReflect: true } : {}) } } : {}) } });
                 spells = [];
             } else spells = [minion(ctx, "Life-Giving (command animals)", { count, standStrike: ctx.lv >= 13, kind: "piercing" })];
             if (ctx.lv >= 5) spells.push(heal(ctx, "Life-Giving (surge heal)", { actions: 2, formula: heals(ctx.lv), surge: true }));
@@ -656,7 +656,8 @@ export const MATTER = {
                 const sealTarget = ctx.lv >= 5 ? "up to 2 creatures" : "1 creature";
                 const seal = (cond) => ({ failure: [[cond, null, r1]], criticalFailure: [[cond, null, ctx.lv >= 5 ? ctx.minutes(1) : r1]] });
                 const spells = [
-                    heal(ctx, "Flesh Spray (close wound)", { actions: 1, formula: twice }),
+                    // (2026-11-27: the HP the user loses now charged — FLESH_COST=0 for the old free heal.)
+                    { ...heal(ctx, "Flesh Spray (close wound)", { actions: 1, formula: twice }), ...(globalThis.process?.env?.FLESH_COST === "0" ? {} : { selfCost: plain(ctx.D("untyped")) }) },
                     saveOnly(ctx, "Flesh Spray (seal eyes)", { actions: 1, save: "reflex", target: sealTarget, effects: seal("blinded") }),
                     saveOnly(ctx, "Flesh Spray (seal mouth)", { actions: 1, save: "reflex", target: sealTarget, effects: seal("voiceless") }),
                     hurt(ctx, "Flesh Spray (rip flesh)", { actions: 1, damage: ctx.D("slashing"), kind: "slashing", save: "fortitude", effects: ctx.lv >= 13 ? { failure: [["blinded", null, r1]], criticalFailure: [["blinded", null, r1]] } : {} })
@@ -667,7 +668,7 @@ export const MATTER = {
                 if (ctx.lv >= 17) spells.push(saveOnly(ctx, "Flesh Spray (seal breath)", { actions: 1, save: "fortitude", effects: { failure: [["voiceless", null, r1]], criticalFailure: [["voiceless", null, r1]] } }));
                 return { spells };
             }
-            const spells = [heal(ctx, "Flesh Spray (close wound)", { actions: 1, formula: plain(ctx.D("untyped")) })];
+            const spells = [{ ...heal(ctx, "Flesh Spray (close wound)", { actions: 1, formula: plain(ctx.D("untyped")) }), ...(globalThis.process?.env?.FLESH_COST === "0" ? {} : { selfCost: plain(ctx.D("untyped")) }) }];
             const r1 = ctx.round1;
             if (ctx.lv >= 5) {
                 spells.push(saveOnly(ctx, "Flesh Spray (seal eyes)", { actions: 1, save: "reflex", effects: { failure: [["blinded", null, r1]], criticalFailure: [["blinded", null, r1]] } }));
@@ -710,11 +711,13 @@ export const MATTER = {
                 // (Round 5 b: the wound slides into the cut — 1d6 extra force on a hit, 2d6 from 5th, 3d6 from 13th.)
                 // (Round 6: trimmed — 1d6, 2d6 from 13th; no 3d6.)
                 sliding.onHit.damage = [`${ctx.lv >= 13 ? 2 : 1}d6[force]`];
-                const stand = { strikeActivities: [sliding] };
+                // (2026-11-27: SLIDE_MOVE=1 or 0.5 — the slid wound heals its source, actions.js slideTransfer.)
+                const move = Number(globalThis.process?.env?.SLIDE_MOVE ?? 1);
+                const stand = { strikeActivities: [sliding], ...(move ? { slideTransfer: move } : {}) };
                 // (Round 5: the surge condition from 5th (was 9th), onto up to two adjacent enemies (was 13th); the slid wound bleeds on a failure from 1st; its pain sickened 2/3 from 13th.)
                 if (ctx.lv >= 5) spells.push(saveOnly(ctx, "Slide (surge condition)", { actions: 1, surge: true, save: "will", range: "touch", target: ctx.lv >= 13 ? "up to 2 creatures" : "1 creature", effects: { failure: [["frightened", value]], criticalFailure: [["frightened", value + 1]] } }));
                 if (ctx.lv >= 17) spells.push(saveOnly(ctx, "Slide (features)", { actions: 1, save: "will", range: "touch", effects: { failure: [["stupefied", 2, ctx.minutes(1)]], criticalFailure: [["stupefied", 2, ctx.minutes(1)]] } }));
-                return { spells, stand };
+                return { spells, stand, ...(move ? { user: { slideTransfer: move } } : {}) };
             }
             if (ctx.lv < 9) return null;
             const value = ctx.lv >= 13 ? 2 : 1;

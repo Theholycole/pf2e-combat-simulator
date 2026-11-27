@@ -1876,7 +1876,7 @@ export function applyDamage(state, target, instances, { source = null, critical 
         // (2026-11-07, Unbelievable Interception: two Strides first — from anywhere but far —, a Mythic Point each.)
         // (2026-11-27, Life-Giving's Leap In: an animal, once a round for all of them — interceptAttack.maker's leapRound —, when the hit
         // deals at least interceptAttack.share of the ally's HP or drops it.)
-        const leapOk = (c) => !c.interceptAttack?.maker || state.byId.get(c.interceptAttack.maker)?.leapRound !== state.round;
+        const leapOk = (c) => !c.interceptAttack?.never && !(c.interceptAttack?.perFight && state.byId.get(c.summonedBy)?.leapUsed) && (!c.interceptAttack?.maker || state.byId.get(c.summonedBy ?? c.interceptAttack.maker)?.leapRound !== state.round);
         const guardian = state.list.find((c) => c.interceptAttack && leapOk(c) && !(c.interceptAttack.once && c.interceptUsed) && !(c.interceptAttack.mythic && !((c.mythicPoints ?? 0) > 0)) && c !== target && c.side === target.side && canReact(c, c.interceptAttack.name) && (sameMelee(c, target) || (c.interceptAttack.near && isActive(c) && canAct(c) && c.band !== "far" && target.band !== "far")));
         if (guardian) {
             const total = adjustDamage(target, instances).total;
@@ -1886,7 +1886,7 @@ export function applyDamage(state, target, instances, { source = null, critical 
             const lethal = total >= target.hp.value + (target.hp.temp ?? 0);
             const shareHit = guardian.interceptAttack.share ? total >= guardian.interceptAttack.share * target.hp.max || fraction(target) <= 0.5 : fraction(guardian) > fraction(target) + 0.2;
             if (lethal || (!guardian.interceptAttack.lethalOnly && shareHit)) {
-                if (guardian.interceptAttack.maker) { const mk = state.byId.get(guardian.interceptAttack.maker); if (mk) mk.leapRound = state.round; }
+                if (guardian.interceptAttack.maker) { const mk = state.byId.get(guardian.summonedBy ?? guardian.interceptAttack.maker); if (mk) { mk.leapRound = state.round; mk.leapUsed = true; } else guardian.interceptUsedRound = state.round; }
                 spendReaction(guardian, guardian.interceptAttack.name);
                 guardian.interceptUsed = true;
                 if (guardian.interceptAttack.mythic) guardian.mythicPoints--;
@@ -1896,6 +1896,29 @@ export function applyDamage(state, target, instances, { source = null, critical 
                 if (guardian.interceptAttack.resist) guardian.resistances = [...(held ?? []), { type: "all-damage", value: guardian.interceptAttack.resist, exceptions: [] }];
                 const noReflect = guardian.interceptAttack.noReflect && guardian.reflectHalf;
                 if (noReflect) guardian.reflectHalf = false;
+                // (2026-11-27, Leap In tone-downs: mode "destroy" — the animal takes what it can and is destroyed, the rest goes on to the ally;
+                // mode "half" — the animal and the ally each take half.)
+                const mode = guardian.interceptAttack.mode;
+                if (mode === "half") {
+                    const halfOf = (list) => list.map((instance) => ({ ...instance, amount: Math.floor(instance.amount / 2) }));
+                    const theirs = halfOf(instances), ours = instances.map((instance, index) => ({ ...instance, amount: instance.amount - theirs[index].amount }));
+                    applyDamage(state, guardian, ours, { source, critical, nonlethal, physical, intercepted: true });
+                    if (noReflect) guardian.reflectHalf = true;
+                    guardian.resistances = held;
+                    return applyDamage(state, target, theirs, { source, critical, nonlethal, physical, intercepted: true });
+                }
+                if (mode === "destroy" || mode === "cap") {
+                    const room = Math.max(0, guardian.hp.value + (guardian.hp.temp ?? 0));
+                    const whole = adjustDamage(guardian, instances).total;
+                    const scale = whole > 0 ? Math.min(1, room / whole) : 1;
+                    const absorbed = instances.map((instance) => ({ ...instance, amount: Math.floor(instance.amount * scale) }));
+                    const rest = instances.map((instance, index) => ({ ...instance, amount: instance.amount - absorbed[index].amount }));
+                    applyDamage(state, guardian, absorbed, { source, critical, nonlethal, physical, intercepted: true });
+                    if (noReflect) guardian.reflectHalf = true;
+                    guardian.resistances = held;
+                    if (mode === "destroy" && isActive(guardian)) { guardian.hp.value = 0; kill(state, guardian); }
+                    return rest.some((instance) => instance.amount > 0) ? applyDamage(state, target, rest, { source, critical, nonlethal, physical, intercepted: true }) : 0;
+                }
                 const dealt = applyDamage(state, guardian, instances, { source, critical, nonlethal, physical, intercepted: true });
                 if (noReflect) guardian.reflectHalf = true;
                 guardian.resistances = held;
@@ -2044,6 +2067,15 @@ export function applyDamage(state, target, instances, { source = null, critical 
     }
     for (const instance of adjusted.persistent) addPersistent(target, instance, source);
     const dealt = dealDamage(state, target, total, { source, critical, nonlethal });
+    // (2026-11-27, Slide with the wound really moving — SLIDE_MOVE: the force damage the user's or stand's slid wound deals heals the most
+    // hurt creature on its side, all of it (1) or half (0.5), up to what it's missing; only force — the slid wound's —, not the Strike's.)
+    if (dealt > 0 && source?.slideTransfer && source.side !== target.side) {
+        const all = instances.reduce((sum, instance) => sum + Math.max(0, instance.amount), 0);
+        const force = instances.filter((instance) => instance.type === "force" && !instance.persistent).reduce((sum, instance) => sum + Math.max(0, instance.amount), 0);
+        const moved = all > 0 ? Math.floor(dealt * (force / all) * source.slideTransfer) : 0;
+        const hurt = state.list.filter((c) => c.side === source.side && isActive(c) && !c.sharesHpWith && !c.summonedBy && c.hp.value < c.hp.max).sort((a, b) => a.hp.value / a.hp.max - b.hp.value / b.hp.max)[0];
+        if (moved > 0 && hurt) log(state, `  the wound moves off ${hurt.name}: ${applyHeal(state, hurt, Math.min(moved, hurt.hp.max - hurt.hp.value))} HP`);
+    }
     // (2026-11-27, Life-Giving 9th: "a creature that damages one of your animals takes half that damage back" — reflectHalf, any damage,
     // area too; untyped, and not reflected again.)
     if (dealt > 1 && target.reflectHalf && source && source !== target && source.side !== target.side && !source.reflectHalf && isActive(source)) {
