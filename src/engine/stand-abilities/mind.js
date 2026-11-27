@@ -597,12 +597,24 @@ export const MIND = {
             const { lv } = ctx;
             if (ctx.buffed) {
                 const rawB = lv >= 9 ? both([{ kind: "disarm", what: "drop" }]) : {};
-                const out = [ctx.entry("Puppet Marks (mark and tug)", plan(ctx, "Puppet Marks (mark and tug)", { actions: 1, range: "15 feet", save: "fortitude", damage: ctx.D("bludgeoning"), kind: "bludgeoning", effects: both([["prone"]]) }))];
+                // (2026-11-27, PUPPET_V: rider — a stand Strike's hit marks a limb, once a turn; split — a Mark action (1 action, the stand's
+                // touch, no save); either way the 1-action Wrench (30 ft) and the surges need a marked limb. Unset: as before. PUPPET_FORCE=1:
+                // the Mark early.)
+                const PV = globalThis.process?.env?.PUPPET_V;
+                const marked = (entry) => { if (PV) entry.plan.needs = [{ target: { conditions: ["puppet-marked"], within: 30 } }]; return entry; };
+                const out = PV
+                    ? [marked(ctx.entry("Puppet Marks (wrench)", plan(ctx, "Puppet Marks (wrench)", { actions: 1, range: "30 feet", save: "fortitude", damage: ctx.D("bludgeoning"), kind: "bludgeoning", effects: both([["prone"]]) })))]
+                    : [ctx.entry("Puppet Marks (mark and tug)", plan(ctx, "Puppet Marks (mark and tug)", { actions: 1, range: "15 feet", save: "fortitude", damage: ctx.D("bludgeoning"), kind: "bludgeoning", effects: both([["prone"]]) }))];
+                if (globalThis.process?.env?.PUPPET_FORCE === "1") out[0] = { ...out[0], forceEarly: true };
+                if (PV === "split") {
+                    const m = ctx.entry("Puppet Marks (mark)", plan(ctx, "Puppet Marks (mark)", { actions: 1, range: "15 feet", save: "fortitude", effects: { criticalSuccess: [["puppet-marked"]], success: [["puppet-marked"]], failure: [["puppet-marked"]], criticalFailure: [["puppet-marked"]] } }));
+                    out.push(globalThis.process?.env?.PUPPET_FORCE === "1" ? { ...m, forceEarly: true } : m);
+                }
                 // (Round 2: the limb wrenched hard — S bludgeoning, basic Fortitude; the control surge (and its bystander) from 13th, was 17th.)
-                if (lv >= 5) out.push(ctx.entry("Puppet Marks (surge, move limb)", plan(ctx, "Puppet Marks (surge, move limb)", { range: "15 feet", save: "fortitude", damage: ctx.S("bludgeoning"), kind: "bludgeoning", effects: both([["prone"], ["off-guard", null, ctx.minutes(1)]]), raw: rawB }), { surge: true }));
-                if (lv >= 13) out.push(ctx.entry("Puppet Marks (surge, control)", plan(ctx, "Puppet Marks (surge, control)", { range: "15 feet", traits: ["mental", "incapacitation"], effects: { criticalFailure: [["controlled", null, ctx.round1]] }, notes: { failure: [command()] } }), { surge: true }));
+                if (lv >= 5) out.push(marked(ctx.entry("Puppet Marks (surge, move limb)", plan(ctx, "Puppet Marks (surge, move limb)", { range: "15 feet", save: "fortitude", damage: ctx.S("bludgeoning"), kind: "bludgeoning", effects: both([["prone"], ["off-guard", null, ctx.minutes(1)]]), raw: rawB }), { surge: true })));
+                if (lv >= 13) out.push(marked(ctx.entry("Puppet Marks (surge, control)", plan(ctx, "Puppet Marks (surge, control)", { range: "15 feet", traits: ["mental", "incapacitation"], effects: { criticalFailure: [["controlled", null, ctx.round1]] }, notes: { failure: [command()] } }), { surge: true })));
                 if (lv >= 13) ctx.convert("Puppet Marks (surge, bystander)", { from: "commoner", actions: 2, surge: true, lasts: 1, initiative: "roll", forced: true });
-                return { spells: out };
+                return { spells: out, ...(PV === "rider" ? { stand: { puppetRider: true } } : {}) };
             }
             if (lv < 5) return { spells: [] };
             const touch = "15 feet";

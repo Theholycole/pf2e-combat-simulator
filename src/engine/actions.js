@@ -2069,6 +2069,11 @@ export function applyDamage(state, target, instances, { source = null, critical 
     }
     for (const instance of adjusted.persistent) addPersistent(target, instance, source);
     const dealt = dealDamage(state, target, total, { source, critical, nonlethal });
+    // (2026-11-27, Puppet Marks rider — PUPPET_V=rider: once a turn, the stand's Strike that hits marks a limb.)
+    if (dealt > 0 && physical && source?.puppetRider && source.side !== target.side && source.puppetRound !== state.round && isActive(target)) {
+        source.puppetRound = state.round; target.cond["puppet-marked"] = 1; target.puppetUntil = state.round + 10;
+        log(state, `  ${source.name} marks a limb of ${target.name}`);
+    }
     // (2026-11-27, Pain Link as a real link — PAINLINK_REAL=1: any damage the user (or its stand, shared HP) takes, each linked host takes
     // too — half, all from 9th (painLinkFraction on the user), no save, no reaction; PAINLINK17=a: 1.5 times; b: stunned 1 the first time
     // each round.)
