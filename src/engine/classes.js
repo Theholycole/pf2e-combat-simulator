@@ -1018,6 +1018,8 @@ CLASSES["stand-ab-none"] = standUser("close", { ability: "none" });
 // (And the types the type-locked abilities run on, with none — what Disassemble/Melting Dart and Ice Armor/Devouring Flesh are measured against.)
 CLASSES["stand-ab-none-automatic"] = standUser("automatic", { ability: "none" });
 CLASSES["stand-ab-none-integrated"] = standUser("integrated", { ability: "none" });
+// (2026-11-27: each stand type with no Stand Ability, for the class check against the fighter.)
+for (const type of ["long", "automatic", "colony", "bound", "evolving"]) CLASSES[`stand-ab-none-${type}`] ??= standUser(type, { ability: "none" });
 for (const name of Object.keys(STAND_ABILITIES)) CLASSES[standAbilitySlug(name)] = standUser(STAND_ABILITY_TYPE[name] ?? "close", { standAbility: name });
 // (With bystanders to turn into weapons — the abilities that can, stand-abilities/index.js STAND_ABILITY_BYSTANDERS: "<slug>-nc".)
 for (const name of STAND_ABILITY_BYSTANDERS) CLASSES[`${standAbilitySlug(name)}-nc`] = standUser(STAND_ABILITY_TYPE[name] ?? "close", { standAbility: name, bystanders: true });
