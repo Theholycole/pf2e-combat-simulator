@@ -1472,6 +1472,8 @@ function expandSpells(env) {
                 const spares = !set.targets.some((target) => target.side === c.side);
                 if (gain <= 0 && c.forceUse && spell.featForced && spell.pool && set.targets.some((target) => target.side !== c.side)) { if (spares) gain = 0.01; }
                 else if (gain <= 0 && c.forceUse && spell.featForced && spell.zone && set.targets.some((target) => target.side !== c.side)) { if (spares) gain = 0.01; }
+                // (2026-11-27, Cole's rule — rate the option as used: spell.forceEarly, cast in round 1 or 2 whenever it's ready.)
+                if (spell.forceEarly && state.round <= 2) gain = Math.max(gain, 0) + 5 * ctx.ownValue;
                 // (2026-11-06, Ki Cutting Sight: about half the time, its dice on the monk's next hit — a foe not already marked.)
                 if (spell.kiCut) {
                     const foe = set.targets.find((target) => target.side !== c.side && target.status === "active" && target.kiCutBy?.by !== c.id);

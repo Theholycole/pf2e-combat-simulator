@@ -103,13 +103,13 @@ const BUFFED = {
                 // (WEATHER_17B: A — heavy weather 1 action; B — a fog version indoors (stupefied 2 only); C — both.)
                 const hwActions = ["A", "C"].includes(env.WEATHER_17B) ? 1 : 2;
                 const heavy = plan(ctx, "Weather (heavy weather)", { actions: hwActions, save: "will", effects: { failure: [["stupefied", 2, ctx.round1], ["slowed", 1, ctx.round1]], criticalFailure: [["stupefied", 2, ctx.round1], ["slowed", 1, ctx.round1]] } });
-                spells.push(zoneEntry(ctx, "Weather (heavy weather)", { actions: hwActions, area: { type: "emanation", value: 60 }, centre: "self", saves: [{ when: ["initial", "start"], plan: heavy }], pool: "stand-weather:heavy" }));
+                spells.push({ ...zoneEntry(ctx, "Weather (heavy weather)", { actions: hwActions, area: { type: "emanation", value: 60 }, centre: "self", saves: [{ when: ["initial", "start"], plan: heavy }], pool: "stand-weather:heavy" }), ...(env.WEATHER_FORCE === "1" ? { forceEarly: true } : {}) });
             }
         }
         if (inside && lv >= 17 && ["B", "C"].includes(env.WEATHER_17B)) {
             const hwActions = env.WEATHER_17B === "C" ? 1 : 2;
             const fogHeavy = plan(ctx, "Weather (heavy fog)", { actions: hwActions, save: "will", effects: { failure: [["stupefied", 2, ctx.round1]], criticalFailure: [["stupefied", 2, ctx.round1]] } });
-            spells.push(zoneEntry(ctx, "Weather (heavy fog)", { actions: hwActions, area: { type: "emanation", value: 60 }, centre: "self", saves: [{ when: ["initial", "start"], plan: fogHeavy }], pool: "stand-weather:heavy" }));
+            spells.push({ ...zoneEntry(ctx, "Weather (heavy fog)", { actions: hwActions, area: { type: "emanation", value: 60 }, centre: "self", saves: [{ when: ["initial", "start"], plan: fogHeavy }], pool: "stand-weather:heavy" }), ...(env.WEATHER_FORCE === "1" ? { forceEarly: true } : {}) });
         }
         if (od && lv >= 9 && (inside || every)) {
             const crit = env.WEATHER_ODCRIT === "flat" ? [["sickened", 1, null], ["slowed", 1, ctx.round1]] : [["sickened", 2, null], ["slowed", 1, ctx.round1]];
