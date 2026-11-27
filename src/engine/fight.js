@@ -142,6 +142,15 @@ function createState(snapshot, options, seed, withLog) {
         const partner = c.sharesHpWith ? list.find((other) => other.id === c.sharesHpWith) : null;
         if (partner) c.hp = partner.hp;
         // (2026-11-24, a Heaven stand: its user's Mythic Points, one pool.)
+        // (2026-11-27, STAND_SHARED_MAP (default on; AoN Summoner: "You and your eidolon share your actions and multiple attack penalty"): a
+        // stand user and its stand count one multiple attack penalty — one box, reset at the first of their turns each round (startTurn).)
+        // (AUTO_SHARED_MAP=0: an automatic stand's program actions keep their own penalty; an Autonomous stand out of the user's sight has no
+        // sharesHpWith, so its own always.)
+        if (partner && globalThis.process?.env?.STAND_SHARED_MAP !== "0" && !(c.standType === "automatic" && globalThis.process?.env?.AUTO_SHARED_MAP === "0")) {
+            const box = partner.mapBox ?? (partner.mapBox = { n: partner.attacksThisTurn ?? 0, round: -1 });
+            c.mapBox = box;
+            for (const each of [c, partner]) Object.defineProperty(each, "attacksThisTurn", { get: () => box.n, set: (value) => { box.n = value; }, enumerable: true, configurable: true });
+        }
         if (partner && c.sharedMythic) Object.defineProperty(c, "mythicPoints", { get: () => partner.mythicPoints ?? 0, set: (value) => { partner.mythicPoints = value; }, enumerable: true, configurable: true });
     }
     const state = {
@@ -541,7 +550,8 @@ function startTurn(state, c) {
         c.hp.temp = 0;
         c.tempHpUntilTurn = false;
     }
-    c.attacksThisTurn = 0;
+    if (!c.mapBox) c.attacksThisTurn = 0;
+    else if (c.mapBox.round !== state.round) { c.mapBox.round = state.round; c.attacksThisTurn = 0; }
     c.round = state.round;
     // (Earthbind: brought down, it can take off again on its turn — unless grounded.)
     if (c.cond.landed && !c.cond.grounded) c.cond.landed = false;

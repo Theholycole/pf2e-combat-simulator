@@ -904,7 +904,7 @@ function standUser(type, { rush = false, ability = "flame", heaven = false, hidd
             const featFields = { ...(featStrikes.length ? { strikes: featStrikes } : {}), ...(featActivities.length ? { strikeActivities: featActivities } : {}), ...(featOn("STAND_FEAT_PULL") && lv >= 6 ? { pullToSafety: { name: "Pull to Safety", actions: 1, within: 15 } } : {}) };
             if (type === "integrated") {
                 // Merged: the user is the one body.
-                return {
+                const rest = {
                     strikes: [main, second, ...featStrikes].map((strike) => ({ ...strike, iwr: { ...strike.iwr, runes: ["ghost-touch"] } })), spells, spellPools,
                     ac: 10 + lv + rank(lv, [[1, T], [13, E]]) + Math.min(a.dex, 99) + armorPotency(lv) + (lv >= 7 ? 1 : 0) + guard, fields: { ...((() => {
                         // (2026-11-27, Cole: merged integrated stands keep Act Together as Worn Stand's text says — 4 actions a turn from 1st (one body,
@@ -916,9 +916,23 @@ function standUser(type, { rush = false, ability = "flame", heaven = false, hidd
                         // (2026-11-25 INTEGRATED_GHOST, on by default since 2026-11-25 (Cole adopted it; INTEGRATED_GHOST=0 turns it off): merged, the user has the stand's ghostly resistance — half its level, minimum 1, to all damage but force, spirit and ghost touch.)
                         ...(process.env.INTEGRATED_GHOST !== "0" ? { resistances: [...(custom?.user?.resistances ?? []), { type: "all-damage", value: Math.max(1, Math.floor(lv / 2)), exceptions: ["force", "ghost-touch", "spirit"] }] } : {}) }
                 };
+                // (2026-11-27, INTEGRATED_STANDPARTS (default on): the Stand Ability's stand-side parts — its Strike riders, strike activities,
+                // stand fields — on the merged user, the one body; before, an integrated build dropped them.)
+                if (process.env.INTEGRATED_STANDPARTS !== "0" && custom?.stand) { const merged = rest; join(merged.fields, Object.fromEntries(Object.entries(custom.stand).filter(([k]) => k !== "spells"))); if (custom.stand.spells?.length) merged.spells = [...merged.spells, ...custom.stand.spells]; }
+                return rest;
+            }
+            // (2026-11-27, BOUND_HELD (default on, Cole: a held vessel acts from the user's space — no square of its own, no flanking, not a
+            // separate target): the bound stand user fights with the vessel in hand as one body — its Strikes at the stand's numbers, Act
+            // Together's action its own (4 a turn, one attack penalty), the Stand Ability's stand parts on it, Vessel Guard. BOUND_HELD=0:
+            // the vessel as its own body beside the user, as before.)
+            if (type === "bound" && process.env.BOUND_HELD !== "0" && !hidden) {
+                const fields = { extraActions: 1, ...heavenUser, ...(custom?.user ?? {}), ...(process.env.BOUND_GUARD !== "0" ? vesselGuard(lv, custom?.user) : {}) };
+                join(fields, Object.fromEntries(Object.entries(custom?.stand ?? {}).filter(([k]) => k !== "spells")));
+                join(fields, Object.fromEntries(Object.entries(featFields).filter(([k]) => k !== "strikes")));
+                return { strikes: [main, second, ...featStrikes], spells: [...spells, ...(custom?.stand?.spells ?? [])], spellPools, ...(guard ? { ac: 10 + lv + rank(lv, [[1, T], [13, E]]) + Math.min(a.dex, 99) + armorPotency(lv) + guard } : {}), fields, companions: (custom?.bystanderReserves ?? []).map((spec) => (user) => ({ ...structuredClone(spec), side: user.side ?? "party", reserve: true, summonedBy: user.id, bystander: true, ...(spec.interceptAttack ? { interceptAttack: { ...spec.interceptAttack, maker: user.id } } : {}) })) };
             }
             const stand = (user) => join(join({
-                ...structuredClone(user), summons: [], id: "stand", name: "Stand", kind: "npc", traits: ["eidolon", "stand"], sharesHpWith: user.id, actionsPerTurn: 2, actTogether: false, boostEidolon: 0,
+                ...structuredClone(user), summons: [], id: "stand", name: "Stand", kind: "npc", traits: ["eidolon", "stand"], sharesHpWith: user.id, standType: type, actionsPerTurn: 2, actTogether: false, boostEidolon: 0,
                 ac: standAC,
                 resistances: [...(user.resistances ?? []), ...ghostly, ...(type === "colony" ? ["bludgeoning", "piercing", "slashing"].map((kind) => ({ type: kind, value: half + durRes + half, exceptions: [] })) : [])],
                 ...(type === "colony" ? { weaknesses: [...(user.weaknesses ?? []), { type: "area-damage", value: half, exceptions: [] }] } : {}),
