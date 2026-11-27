@@ -586,10 +586,24 @@ export const MATTER = {
             const die = level >= 4 ? 8 : 6;
             const dice = Math.max(1, Math.round((average * 0.55) / ((die + 1) / 2)));
             const bonus = Math.max(0, Math.round(average - (dice * (die + 1)) / 2));
-            const strike = { name: "Fist", bonus: lowAt(LOW_ATTACK, level), melee: true, agile: false, unarmed: true, reach: 5, damage: [{ dice, die, bonus, type: "bludgeoning" }] };
+            // (2026-11-27, Cole: "for its price it should be stronger when it goes off" — INVDEAD_BUFF, a comma list: mass (one activation
+            // raises a zombie from every corpse in reach, up to the cap), free (the zombies act each turn uncommanded), hit (their Strike at
+            // Moderate attack and damage).)
+            const BUFF = new Set((globalThis.process?.env?.INVDEAD_BUFF ?? "").split(",").filter(Boolean));
+            const strike = BUFF.has("hit")
+                ? (() => { const m = moderate("damage", level); const dd = Math.max(1, Math.round((m * 0.55) / ((die + 1) / 2))); return { name: "Fist", bonus: moderate("attack", level), melee: true, agile: false, unarmed: true, reach: 5, damage: [{ dice: dd, die, bonus: Math.max(0, Math.round(m - (dd * (die + 1)) / 2)), type: "bludgeoning" }] }; })()
+                : { name: "Fist", bonus: lowAt(LOW_ATTACK, level), melee: true, agile: false, unarmed: true, reach: 5, damage: [{ dice, die, bonus, type: "bludgeoning" }] };
             const saves = { fortitude: low("save", level), reflex: low("save", level), will: low("save", level) };
             const corpse = globalThis.process?.env?.INVDEAD_CORPSES === "1" ? "start" : "fight";
-            ctx.raise("Invisible Dead (raise a zombie)", { count, corpse, fromCorpse: ctx.lv >= 17, strike, ac: low("ac", level), hp: low("hp", level), saves, level });
+            // (2026-11-27 variants, INVDEAD_V: 0 as above; 1 rise on death — a free reaction raises a creature that just died, once a round
+            // (the 2-action raise from an older corpse stays); 2 = 1 with stronger zombies — level − 1, GM Core Moderate Strike, AC, HP and
+            // saves; 3 = 2 with two Strikes a command (3 actions after a command: a Stride and two Strikes); 4 = 2 with a Strike as it rises.)
+            const V = Number(globalThis.process?.env?.INVDEAD_V ?? 0);
+            const strong = V >= 2;
+            const zl = strong ? ctx.lv - 1 : level;
+            const zStrike = strong ? (() => { const m = moderate("damage", zl); const zd = zl >= 4 ? 8 : 6; const dd = Math.max(1, Math.round((m * 0.55) / ((zd + 1) / 2))); return { name: "Fist", bonus: moderate("attack", zl), melee: true, agile: false, unarmed: true, reach: 5, damage: [{ dice: dd, die: zd, bonus: Math.max(0, Math.round(m - (dd * (zd + 1)) / 2)), type: "bludgeoning" }] }; })() : strike;
+            const zSaves = strong ? { fortitude: moderate("save", zl), reflex: moderate("save", zl), will: moderate("save", zl) } : saves;
+            ctx.raise("Invisible Dead (raise a zombie)", { count, corpse, fromCorpse: ctx.lv >= 17, strike: zStrike, ac: strong ? moderate("ac", zl) : low("ac", level), hp: strong ? moderate("hp", zl) : low("hp", level), saves: zSaves, level: zl, mass: BUFF.has("mass"), free: BUFF.has("free"), riseOnDeath: V >= 1, riseStrike: V === 4, minionActions: V === 3 ? 3 : 2 });
             const spells = [];
             if (ctx.lv >= (late ? 5 : 9)) {
                 // (The surge, as it was: a command with D more damage a zombie — at most 2D in all, buffed — and grabbed; one roll at a zombie's

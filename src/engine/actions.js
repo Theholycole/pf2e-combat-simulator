@@ -18,7 +18,7 @@ import { adjustedSaveDegree, constructArmorDamaged, flankableBy, mobileStride, o
 import { applyEffect, hasConditional, strikeRollOptions, removeEffect, spendNextStrike, takeAttackFortune } from "./effects.js";
 import { actionTraits, exploitCovers, applyCondition, applyMove, bothHitRider, castPlan, castSpell, rageTriggers, curseOnHit, deathThroes, forbiddingBonus, applyHeal, skillValue, guardSpells, prismaticSpray, markOn, poolReady, retributionAnswer, spendMark, spendPool, touchRetaliation, traitsAllowed, nearbyDeathAnswers, downsAnswers, hitByAnswers, mishapAnswers, provokedReaction, reactToAttack, reactToDamage, reactToHit, reactToMiss, reactToOwnHit, rollCount, rollInstances } from "./spells.js";
 import { parseDamage } from "../../../pf2e-resolution-core/src/index.js";
-import { summonerFalls, summonsOnDamage, summonsOnDeath } from "./summons.js";
+import { activateSummons, canSummon, summonerFalls, summonsOnDamage, summonsOnDeath } from "./summons.js";
 import { destroyBody, inevitableReturn, thrallAuraStrike, thrallBodies, thrallKilled } from "./thralls.js";
 import { hiddenMovementOffGuard, sightDC, unseen } from "./environment.js";
 import { aimsAtHead, attachAfterHit, bestStrikeType, cauterizeStumps, critRiderAnswer, critSpecEffect, elementalAnswers, proteanAfterDamage, splitAfterHit, strikeHead, troopAfterDamage } from "./creature-rules.js";
@@ -2577,6 +2577,16 @@ function kill(state, target) {
     if (target.kind !== "pc") deathThroes(state, target, melee);
     // (B298: a summon as it dies, Final Spite's horn; the creatures that go with it.)
     if (target.kind !== "pc") summonsOnDeath(state, target);
+    // (2026-11-27, Invisible Dead V1 "rise on death": a free reaction raises the creature that just died as a zombie, once a round.)
+    for (const maker of state.list) {
+        if (maker.side === target.side || !(maker.summons ?? []).some((entry) => entry.riseOnDeath)) continue;
+        const entry = maker.summons.find((each) => each.riseOnDeath);
+        if (maker.risenRound === state.round || !canReact(maker) || !canSummon(state, maker, entry)) continue;
+        spendReaction(maker, "Rise on Death");
+        maker.risenRound = state.round;
+        log(state, `  ${maker.name} raises ${target.name} as a zombie (reaction)`);
+        activateSummons(state, maker, entry, { reaction: true, single: true, body: target });
+    }
     summonerFalls(state, target);
     // (2026-11-06: a necromancer's thrall body destroyed — its count follows, thralls.js.)
     if (target.thrallOf) thrallKilled(state, target);

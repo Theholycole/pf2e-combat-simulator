@@ -13,7 +13,8 @@
 // Pure, but for the state it changes.
 
 import { ACTIVE, DEAD, PENDING } from "./combatant.js";
-import { removeFromSpace } from "./space.js";
+import { engage, removeFromSpace } from "./space.js";
+import { performStrike } from "./actions.js";
 
 // (A summon used once a day or once an hour is used once a fight; any other at most twice.)
 const ONCE = /\bOnce (?:a|an|per) (?:day|hour)\b/i;
@@ -158,11 +159,15 @@ function corpsesFor(state, c, entry) {
 }
 
 // The ability used: its creatures come, as many as it brings (rolled when the text rolls), into the turns as it says.
-export function activateSummons(state, maker, entry, { reaction = false } = {}) {
+export function activateSummons(state, maker, entry, { reaction = false, single = false, body: given = null } = {}) {
     const pool = summonPool(state, entry);
     if (!pool.length) return [];
     maker.summonUses = { ...(maker.summonUses ?? {}), [entry.name]: usesOf(maker, entry) + 1 };
-    const count = Math.min(pool.length, entry.count?.formula ? rollDice(state, entry.count.formula) : Number(entry.count) || entry.perUse);
+    let count = Math.min(pool.length, entry.count?.formula ? rollDice(state, entry.count.formula) : Number(entry.count) || entry.perUse);
+    // (2026-11-27, Invisible Dead buff "mass": one activation raises a zombie from every corpse it can, up to its cap.)
+    if (entry.mass) count = Math.min(pool.length, entry.corpse === "fight" ? corpsesFor(state, maker, entry).length : pool.length, Number.isFinite(entry.max) ? entry.max - state.list.filter((other) => other.summonedBy === maker.id && other.summonName === entry.name && other.status === ACTIVE).length : pool.length);
+    if (single) count = Math.min(count, 1);
+    if (count <= 0) return [];
     // (Past its limit, the oldest go — Undead, Arise!; or no more come.)
     if (Number.isFinite(entry.max)) {
         const here = state.list.filter((other) => other.summonedBy === maker.id && other.summonName === entry.name && other.status === ACTIVE).sort((a, b) => a.summonedRound - b.summonedRound);
@@ -171,9 +176,9 @@ export function activateSummons(state, maker, entry, { reaction = false } = {}) 
     }
     const coming = pool.slice(0, count);
     for (const c of coming) {
-        // (2026-11-27, Invisible Dead: the corpse it rises from, used up; at 17th, a creature that died this fight lends its size, Speed and reach.)
+        // (2026-11-27, Invisible Dead: the corpse it rises from, used up; at 17th, a creature that died this fight lends its size and reach.)
         if (entry.corpse === "fight" || entry.fromCorpse) {
-            const body = corpsesFor(state, maker, entry)[0];
+            const body = given && !(maker.corpsesUsed ?? []).includes(given.id) ? given : corpsesFor(state, maker, entry)[0];
             if (body) {
                 maker.corpsesUsed = [...(maker.corpsesUsed ?? []), body.id];
                 if (entry.fromCorpse) {
@@ -207,6 +212,14 @@ export function activateSummons(state, maker, entry, { reaction = false } = {}) 
     if (reaction) maker.reactionUsed = true;
     state.stats.summons = (state.stats.summons ?? 0) + coming.length;
     state.log?.push(`  ${maker.name} uses ${entry.name}: ${coming.map((c) => c.name).join(", ")} ${coming.length === 1 ? "comes" : "come"}${entry.initiative === "roll" ? " and roll initiative" : ""}`);
+    // (2026-11-27, Invisible Dead V4: a zombie Strikes as it rises — its target off-guard to it, the zombie unseen: +2.)
+    if (entry.riseStrike) for (const c of coming) {
+        const foe = state.list.filter((other) => other.side !== c.side && other.status === ACTIVE && other.kind !== "object").sort((a, b) => a.hp.value - b.hp.value)[0];
+        if (!foe || !c.strikes?.[0]) continue;
+        engage(state, c, foe);
+        state.log?.push(`  ${c.name} lashes out as it rises`);
+        performStrike(state, c, foe, { ...c.strikes[0], bonus: c.strikes[0].bonus + 2 });
+    }
     return coming;
 }
 
@@ -230,7 +243,7 @@ export function dismiss(state, c) {
 
 // Its maker's turn starting: those whose time is up go; a sustained summon costs it an action while its creatures are here.
 export function summonTurnStart(state, maker) {
-    if (maker.minionOf) maker.actionsLeft = Math.min(maker.actionsLeft, 2);
+    if (maker.minionOf) maker.actionsLeft = Math.min(maker.actionsLeft, maker.minionActions ?? 2);
     let sustaining = false;
     for (const c of state.list) {
         if (c.summonedBy !== maker.id || c.status !== ACTIVE) continue;

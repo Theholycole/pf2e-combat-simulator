@@ -823,14 +823,14 @@ function standUser(type, { rush = false, ability = "flame", heaven = false, hidd
                 // from round 1) or "fight" (none at first: each needs a creature that died this fight — summons.js canSummon). fromCorpse (17th):
                 // the zombie takes that creature's size and reach.)
                 const zombieReserves = [];
-                const raise = (name, { count = 1, corpse = "fight", fromCorpse = false, strike, ac, hp, saves, level }) => {
+                const raise = (name, { count = 1, corpse = "fight", fromCorpse = false, strike, ac, hp, saves, level, mass = false, free = false, riseOnDeath = false, riseStrike = false, minionActions = 2 }) => {
                     const ids = [];
                     for (let index = 0; index < count; index++) {
-                        const made = { id: `zombie-${index}`, name: `Invisible zombie ${index + 1}`, kind: "npc", level, traits: ["minion", "mindless", "undead", "zombie"], hp: { value: hp, max: hp }, ac, saves: { ...saves }, perception: saves.will, speed: 25, reach: 5, strikes: [structuredClone(strike)], reactions: { aoo: false, shieldBlock: false }, senses: [], permanent: [{ slug: "invisible" }], immunities: ["death-effects", "disease", "mental", "paralyzed", "poison", "unconscious"] };
+                        const made = { id: `zombie-${index}`, name: `Invisible zombie ${index + 1}`, kind: "npc", level, traits: ["minion", "mindless", "undead", "zombie"], hp: { value: hp, max: hp }, ac, saves: { ...saves }, perception: saves.will, speed: 25, reach: 5, strikes: [structuredClone(strike)], reactions: { aoo: false, shieldBlock: false }, senses: [], permanent: [{ slug: "invisible" }], immunities: ["death-effects", "disease", "mental", "paralyzed", "poison", "unconscious"], ...(minionActions !== 2 ? { minionActions } : {}) };
                         zombieReserves.push(made);
                         ids.push(made.id);
                     }
-                    const summon = { name, actions: 2, count: 1, perUse: 1, uses: count + (corpse === "fight" ? 2 : 0), lasts: 10, initiative: "minion", sustained: true, max: count, corpse, ...(fromCorpse ? { fromCorpse: true } : {}), reserveIds: ids };
+                    const summon = { name, actions: 2, count: mass ? count : 1, perUse: mass ? count : 1, uses: count + (corpse === "fight" ? 2 : 0), lasts: 10, initiative: "minion", sustained: !free, max: count, corpse, ...(mass ? { mass: true } : {}), ...(riseOnDeath ? { riseOnDeath: true } : {}), ...(riseStrike ? { riseStrike: true } : {}), ...(fromCorpse ? { fromCorpse: true } : {}), reserveIds: ids };
                     summons.push(summon);
                     return summon;
                 };
