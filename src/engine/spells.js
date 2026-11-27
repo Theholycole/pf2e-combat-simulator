@@ -4546,6 +4546,8 @@ export function traitsAllowed(c, traits, { raging = false } = {}) {
 
 export function canCast(c, spell) {
     if (!castableAtAll(spell)) return false;
+    // (2026-11-27, Invisible Dead's surge: only with a zombie of its up — summons.js raisedZombies.)
+    if (spell.needsZombies && !(c.raisedZombies ?? []).some((z) => z.status === "active")) return false;
     // (2026-10-22, Steal Voice: voiceless — no spell but a subtle one, no auditory action.)
     if (c.cond?.voiceless && ((isSpellCast(spell) && !(spell.plan?.traits ?? []).includes("subtle")) || (spell.plan?.traits ?? []).includes("auditory"))) return false;
     // (2026-10-22, family 6: in a battle form, no spells.)

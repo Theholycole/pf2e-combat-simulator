@@ -26,6 +26,12 @@ function row(table, level) {
     return base.map((value, i) => value + step[i] * (level - 24));
 }
 
+// (2026-11-27: GM Core's Low column — a minion's numbers, stand-abilities/matter.js Invisible Dead.)
+export function low(stat, level) {
+    const [table, names] = TABLES[stat];
+    return row(table, level)[names.indexOf("low")];
+}
+
 export function moderate(stat, level) {
     const [table, names] = TABLES[stat];
     return row(table, level)[names.indexOf("moderate")];

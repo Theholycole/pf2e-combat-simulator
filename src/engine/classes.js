@@ -816,13 +816,31 @@ function standUser(type, { rush = false, ability = "flame", heaven = false, hidd
                     summons.push(summon);
                     return summon;
                 };
+                // (2026-11-27, Invisible Dead, Cole: "does the sim actually look for nearby corpses for the ability price?" — raise(name, …): a
+                // summon entry of real zombies, off the field as the user's reserves until raised — 2 actions each, one at a time, up to count —,
+                // then targetable minions (level − 2, GM Core Low AC, HP, saves and Strike; invisible) that act after the user when commanded,
+                // one action a turn for all of them (summons.js sustained), for 1 minute. corpse: "start" (a graveyard or a battlefield: bodies
+                // from round 1) or "fight" (none at first: each needs a creature that died this fight — summons.js canSummon). fromCorpse (17th):
+                // the zombie takes that creature's size and reach.)
+                const zombieReserves = [];
+                const raise = (name, { count = 1, corpse = "fight", fromCorpse = false, strike, ac, hp, saves, level }) => {
+                    const ids = [];
+                    for (let index = 0; index < count; index++) {
+                        const made = { id: `zombie-${index}`, name: `Invisible zombie ${index + 1}`, kind: "npc", level, traits: ["minion", "mindless", "undead", "zombie"], hp: { value: hp, max: hp }, ac, saves: { ...saves }, perception: saves.will, speed: 25, reach: 5, strikes: [structuredClone(strike)], reactions: { aoo: false, shieldBlock: false }, senses: [], permanent: [{ slug: "invisible" }], immunities: ["death-effects", "disease", "mental", "paralyzed", "poison", "unconscious"] };
+                        zombieReserves.push(made);
+                        ids.push(made.id);
+                    }
+                    const summon = { name, actions: 2, count: 1, perUse: 1, uses: count + (corpse === "fight" ? 2 : 0), lasts: 10, initiative: "minion", sustained: true, max: count, corpse, ...(fromCorpse ? { fromCorpse: true } : {}), reserveIds: ids };
+                    summons.push(summon);
+                    return summon;
+                };
                 // (2026-11-24, Cole: "Buff all the stand abilities to be closer in power with each other. Dont lower any yet." — the buffed
                 // rule text, ctx.buffed: STAND_BUFFED=1, or a build named "<slug>-buffed"; the stand10 balance.)
-                const ctx = { lv, dc, attack, D, S, halfS, range, pool, make, entry, savePlan, effectModel, rounds, minutes: (n) => rounds(10 * n), round1, steps: steps(lv), main, second, bystanders, convert, buffed: buffedBuild || globalThis.process?.env?.STAND_BUFFED === "1" };
+                const ctx = { lv, dc, attack, D, S, halfS, range, pool, make, entry, savePlan, effectModel, rounds, minutes: (n) => rounds(10 * n), round1, steps: steps(lv), main, second, bystanders, convert, raise, buffed: buffedBuild || globalThis.process?.env?.STAND_BUFFED === "1" };
                 custom = STAND_ABILITIES[standAbility].build(ctx) ?? {};
                 // (A conversion the planner never picks — a commoner's fist, worth nothing to it — is forced, the brief's rule: forceUse with its
                 // entry's featForced, planner.js's forcedSummon.)
-                if (summons.length) custom = { ...custom, user: { ...(custom.user ?? {}), summons: [...(custom.user?.summons ?? []), ...summons], ...(summons.some((each) => each.featForced) ? { forceUse: true } : {}) }, bystanderReserves: reserves };
+                if (summons.length) custom = { ...custom, user: { ...(custom.user ?? {}), summons: [...(custom.user?.summons ?? []), ...summons], ...(summons.some((each) => each.featForced) ? { forceUse: true } : {}) }, bystanderReserves: [...reserves, ...zombieReserves] };
                 if (STAND_ABILITY_FORCED.includes(standAbility) && custom.spells?.length) custom = { ...custom, spells: custom.spells.map((each) => ({ ...each, featForced: true })), user: { ...(custom.user ?? {}), forceUse: true } };
                 spells.push(...(custom.spells ?? []));
             }

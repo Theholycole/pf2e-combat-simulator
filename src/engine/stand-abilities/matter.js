@@ -10,7 +10,7 @@
 // Surges: the user's pool of 2 Stand Points; when the stand has surges of its own too, the stand gets 1 and the user 1 (the two pools of
 // the engine are separate).
 import { key } from "../party.js";
-import { moderate } from "../creature-tables.js";
+import { low, moderate } from "../creature-tables.js";
 
 // GM Core Low Strike attack and damage, levels −1 to 24.
 const LOW_ATTACK = [4, 4, 5, 7, 8, 9, 11, 12, 13, 15, 16, 17, 19, 20, 21, 23, 24, 25, 27, 28, 29, 31, 32, 33, 35, 36];
@@ -574,18 +574,30 @@ export const MATTER = {
         ]
     },
     "Invisible Dead": {
+        // (2026-11-27, Cole: "does the sim actually look for nearby corpses for the ability price?" — it didn't; now it does: real zombies,
+        // classes.js ctx.raise / summons.js. INVDEAD_CORPSES=1: bodies from round 1 (a graveyard, a battlefield); otherwise none at first,
+        // and each zombie needs a creature that died this fight.)
         build(ctx) {
             // (a5ce436: three zombies at 9th; the surge at 5th.)
             const late = ctx.buffed && LATE;
             const count = ctx.lv >= 13 ? 4 : late && ctx.lv >= 9 ? 3 : ctx.lv >= 5 ? 2 : 1;
-            // (Invisible: the target off-guard to them, +2.)
-            const spells = [minion(ctx, "Invisible Dead (command zombies)", { count, attackBonus: 2 })];
+            const level = ctx.lv - 2;
+            const average = lowAt(LOW_DAMAGE, level);
+            const die = level >= 4 ? 8 : 6;
+            const dice = Math.max(1, Math.round((average * 0.55) / ((die + 1) / 2)));
+            const bonus = Math.max(0, Math.round(average - (dice * (die + 1)) / 2));
+            const strike = { name: "Fist", bonus: lowAt(LOW_ATTACK, level), melee: true, agile: false, unarmed: true, reach: 5, damage: [{ dice, die, bonus, type: "bludgeoning" }] };
+            const saves = { fortitude: low("save", level), reflex: low("save", level), will: low("save", level) };
+            const corpse = globalThis.process?.env?.INVDEAD_CORPSES === "1" ? "start" : "fight";
+            ctx.raise("Invisible Dead (raise a zombie)", { count, corpse, fromCorpse: ctx.lv >= 17, strike, ac: low("ac", level), hp: low("hp", level), saves, level });
+            const spells = [];
             if (ctx.lv >= (late ? 5 : 9)) {
-                // (Round 4 cap, buffed path only: the surge's extra damage at most 2D in all — was D a zombie, 4D with four.)
+                // (The surge, as it was: a command with D more damage a zombie — at most 2D in all, buffed — and grabbed; one roll at a zombie's
+                // numbers, only with a zombie up.)
                 const extraCount = ctx.buffed ? Math.min(count, 2) : count;
                 const extra = plain(ctx.D("untyped")).replace(/^(\d+)d/, (m, n) => `${Number(n) * extraCount}d`) + "[bludgeoning]";
                 const grab = ctx.buffed ? { criticalSuccess: [["grabbed", null, ctx.round1]] } : { success: [["grabbed", null, ctx.round1]], criticalSuccess: [["grabbed", null, ctx.round1]] };
-                spells.push(minion(ctx, "Invisible Dead (surge command zombies)", { count, attackBonus: 2, surge: true, extraDamage: extra, effects: grab }));
+                spells.push({ ...minion(ctx, "Invisible Dead (surge command zombies)", { count: 1, attackBonus: 2, surge: true, extraDamage: extra, effects: grab }), needsZombies: true });
             }
             return { spells };
         },
@@ -596,10 +608,10 @@ export const MATTER = {
             "Round 4 (cap): never buffed; its lowered version caps the surge's extra damage at 2D per command (two zombies' worth) — with four zombies from 13th it was 4D — and grabs only on a critical hit (was any hit). Played on the zombies' one damage roll."
         ],
         notes: [
-            "Zombies as minion(): one Low Strike each per command (one 1-action command for all of them, once a turn), +2 to hit (invisible: the target off-guard); raising them (2 actions) not charged, corpses assumed nearby, they can't be hit.",
-            "5th: two zombies, 13th: four — their damage on one roll.",
-            "9th: the surge played per command (1 action, 1 Stand Point): D more damage a zombie and grabbed for a round on a hit — not kept for the minute.",
-            "17th: zombies from the fight's dead, as their size — no change played."
+            "2026-11-27: real zombies (summons.js): 2 actions to raise each, up to 1 (5th: 2, 13th: 4); level − 2 minions with GM Core Low AC, HP, saves and Strike, invisible (hidden: a DC 11 flat check to target), targetable, lasting 1 minute; one action a turn commands them all (they act after the user).",
+            "Corpses: INVDEAD_CORPSES=1, bodies from round 1; otherwise each zombie needs a creature that died this fight (30 ft not checked).",
+            "9th: the surge as before (1 action, 1 Stand Point), one roll at a zombie's numbers with the extra damage — only while a zombie is up.",
+            "17th: a zombie from a creature that died this fight takes its size and melee reach; its Strike stays the zombie's."
         ]
     },
     "Flesh Spray": {

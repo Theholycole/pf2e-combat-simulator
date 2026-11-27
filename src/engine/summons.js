@@ -144,8 +144,17 @@ export function summonPool(state, entry) {
 const usesOf = (c, entry) => c.summonUses?.[entry.name] ?? 0;
 export function canSummon(state, c, entry) {
     if (usesOf(c, entry) >= entry.uses || !summonPool(state, entry).length) return false;
+    // (2026-11-27, Invisible Dead: a zombie needs a corpse — corpse "fight": a creature that died this fight, one each, not one of its own.)
+    if (entry.corpse === "fight" && corpsesFor(state, c, entry).length === 0) return false;
     const here = state.list.filter((other) => other.summonedBy === c.id && other.summonName === entry.name && other.status === ACTIVE).length;
     return !Number.isFinite(entry.max) || here < entry.max || entry.oldest;
+}
+
+// (2026-11-27) The bodies a corpse-raising summon can still use: creatures dead this fight (not its own summons), none used yet. (The text's
+// 30 feet not checked: the fight's dead are taken as near enough.)
+function corpsesFor(state, c, entry) {
+    const used = new Set(c.corpsesUsed ?? []);
+    return state.list.filter((other) => other.status === DEAD && !other.reserve && other.summonName !== entry.name && !used.has(other.id) && other.kind !== "object");
 }
 
 // The ability used: its creatures come, as many as it brings (rolled when the text rolls), into the turns as it says.
@@ -162,6 +171,21 @@ export function activateSummons(state, maker, entry, { reaction = false } = {}) 
     }
     const coming = pool.slice(0, count);
     for (const c of coming) {
+        // (2026-11-27, Invisible Dead: the corpse it rises from, used up; at 17th, a creature that died this fight lends its size, Speed and reach.)
+        if (entry.corpse === "fight" || entry.fromCorpse) {
+            const body = corpsesFor(state, maker, entry)[0];
+            if (body) {
+                maker.corpsesUsed = [...(maker.corpsesUsed ?? []), body.id];
+                if (entry.fromCorpse) {
+                    if (body.size) c.size = body.size;
+                    if (body.speed) c.speed = body.speed;
+                    const reach = Math.max(5, Number(body.reach) || 5, ...(body.strikes ?? []).filter((each) => each.melee).map((each) => Number(each.reach) || 5));
+                    c.reach = reach;
+                    c.strikes = c.strikes.map((each) => ({ ...each, reach }));
+                }
+            }
+        }
+        if (entry.corpse) maker.raisedZombies = [...(maker.raisedZombies ?? []), c];
         c.status = ACTIVE;
         c.side = maker.side;
         c.band = maker.band === "engaged" ? "near" : maker.band ?? "near";
