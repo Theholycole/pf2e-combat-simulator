@@ -169,7 +169,7 @@ export const MATTER = {
             // targetable, 1 minute, one command a turn) that reflect half the damage they take from 9th, area damage too; 2 = 1 with Leap In
             // from 9th (a reaction once a round for all of them: an animal beside an ally hit by a Strike takes it instead, when it would deal
             // at least 30% of the ally's HP or drop it).)
-            const LG = Number(globalThis.process?.env?.LG_V ?? 0);
+            const LG = Number(globalThis.process?.env?.LG_V ?? 13);
             let spells;
             if (LG >= 1) {
                 const level = ctx.lv - 2;
