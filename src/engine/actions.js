@@ -95,6 +95,9 @@ export function attackModifier(state, attacker, target, strike, attacksMade, { p
     modifier -= circumstancePenalty(state, attacker, target, strike, { prone });
     modifier += traitAttackBonus(strike, target, history);
     if (!strike.melee) modifier -= rangePenalty(strike, distanceBetween(attacker, target)) ?? 0;
+    // (2026-11-27, Cole: a held bound vessel's own Act Together Strike takes −2, it swings itself — played as a Strike that is the bound user's
+    // 4th action of its turn (the vessel's share of the four); VESSEL_PENALTY=0: none.)
+    if (attacker.boundHeld && state?.list && (attacker.actionCount ?? 0) >= 3 && globalThis.process?.env?.VESSEL_PENALTY !== "0") modifier -= 2;
     return modifier;
 }
 

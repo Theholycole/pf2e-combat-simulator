@@ -907,7 +907,7 @@ function standUser(type, { rush = false, ability = "flame", heaven = false, hidd
                 // Merged: the user is the one body.
                 const rest = {
                     strikes: [main, second, ...featStrikes].map((strike) => ({ ...strike, iwr: { ...strike.iwr, runes: ["ghost-touch"] } })), spells, spellPools,
-                    ac: 10 + lv + rank(lv, [[1, T], [13, E]]) + Math.min(a.dex, 99) + armorPotency(lv) + (lv >= 7 ? 1 : 0) + guard, fields: { ...((() => {
+                    ac: 10 + lv + rank(lv, [[1, T], [13, E]]) + Math.min(a.dex, 99) + armorPotency(lv) + (lv >= 7 && process.env.SECOND_SKIN_AC === "1" ? 1 : 0) + guard, fields: { ...((() => {
                         // (2026-11-27, Cole: merged integrated stands keep Act Together as Worn Stand's text says — 4 actions a turn from 1st (one body,
                         // one attack penalty), Full Merge (13th) a free stand action on top: 5. INTEGRATED_AT=0: the old reading (3, Full Merge 4).)
                         const at = globalThis.process?.env?.INTEGRATED_AT !== "0";
@@ -929,7 +929,7 @@ function standUser(type, { rush = false, ability = "flame", heaven = false, hidd
             // Together's action its own (4 a turn, one attack penalty), the Stand Ability's stand parts on it, Vessel Guard. BOUND_HELD=0:
             // the vessel as its own body beside the user, as before.)
             if (type === "bound" && process.env.BOUND_HELD !== "0" && !hidden) {
-                const fields = { extraActions: 1, ...heavenUser, ...(custom?.user ?? {}), ...(process.env.BOUND_GUARD !== "0" ? vesselGuard(lv, custom?.user) : {}) };
+                const fields = { extraActions: 1, boundHeld: true, ...heavenUser, ...(custom?.user ?? {}), ...(process.env.BOUND_GUARD !== "0" ? vesselGuard(lv, custom?.user) : {}) };
                 join(fields, Object.fromEntries(Object.entries(custom?.stand ?? {}).filter(([k]) => k !== "spells")));
                 join(fields, Object.fromEntries(Object.entries(featFields).filter(([k]) => k !== "strikes")));
                 return { strikes: [main, second, ...featStrikes], spells: [...spells, ...(custom?.stand?.spells ?? [])], spellPools, ...(guard ? { ac: 10 + lv + rank(lv, [[1, T], [13, E]]) + Math.min(a.dex, 99) + armorPotency(lv) + guard } : {}), fields, companions: (custom?.bystanderReserves ?? []).map((spec) => (user) => ({ ...structuredClone(spec), side: user.side ?? "party", reserve: true, summonedBy: user.id, bystander: true, ...(spec.interceptAttack ? { interceptAttack: { ...spec.interceptAttack, maker: user.id } } : {}) })) };
