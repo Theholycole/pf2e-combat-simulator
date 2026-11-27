@@ -75,23 +75,40 @@ const BUFFED = {
         return { spells };
     },
     Weather(ctx) {
+        // (2026-11-27, Oxygen Overdose and the reordering, Cole's picks — env switches for the rating runs:
+        //   WEATHER_SKY  out (default: open sky, everything but the overdose) | in (an enclosed space: fog and the overdose only)
+        //   WEATHER_OD   1 (default, adopted 2026-11-27) | 0: no Oxygen Overdose; at 9th (2 actions, a 10-ft burst within 30 ft, Fortitude: sickened 1 and slowed
+        //                1 for 1 round; sickened 2 and slowed 1 on a critical failure — WEATHER_ODCRIT=flat: sickened 1 and slowed 1)
+        //   WEATHER_OD_EVERY=1  the overdose usable outdoors too (the upper bound)
+        //   WEATHER_ORDER  re (default, adopted): rain and lightning at 5th, the moisture pull at 9th | cur: the old order.)
         const { lv, S } = ctx;
+        const env = globalThis.process?.env ?? {};
+        const inside = env.WEATHER_SKY === "in", od = env.WEATHER_OD !== "0", every = env.WEATHER_OD_EVERY === "1", re = env.WEATHER_ORDER !== "cur";
         const spells = [zoneEntry(ctx, "Weather (fog)", { actions: 2, area: { type: "burst", value: 15 }, centre: "self", concealed: true })];
-        const offGuard = { failure: [["off-guard", null, ctx.round1]], criticalFailure: [["off-guard", null, ctx.round1]] };
-        spells.push(ctx.make("Weather (hail)", { actions: 1, damage: ctx.D("cold"), kind: "cold", effects: offGuard }));
-        if (lv >= 5) {
-            const uuid = "stand:weather-rain";
-            const model = ctx.effectModel("Weather (rain and wind)", 1, { conditional: [{ on: "attack", type: "circumstance", value: -2, predicate: ["item:ranged"] }] });
-            const rain = autoPlan(ctx, "Weather (surge rain)", { actions: 2, success: { nativeEffects: [{ kind: "native-spell-effect", uuid }] } });
-            spells.push(zoneEntry(ctx, "Weather (surge rain)", { actions: 2, area: { type: "burst", value: 30 }, range: 30, terrain: true, surge: true, saves: [{ when: ["initial", "start"], plan: rain }], effects: { [uuid]: model } }));
-            spells.push(ctx.entry("Weather (moisture)", plan(ctx, "Weather (moisture)", { actions: 1, save: "fortitude", target: lv >= 13 ? "up to 3 creatures" : "1 creature", effects: { failure: [["sickened", 2, null]], criticalFailure: [["sickened", 3, null]] } })));
-            spells.push(ctx.make("Weather (surge lightning)", { actions: 2, damage: S("electricity"), kind: "electricity", surge: true, target: lv >= 17 ? "up to 5 creatures" : lv >= 13 ? "up to 3 creatures" : "1 creature", effects: { criticalFailure: [["stunned", 1, null]] } }));
+        if (!inside) {
+            const offGuard = { failure: [["off-guard", null, ctx.round1]], criticalFailure: [["off-guard", null, ctx.round1]] };
+            spells.push(ctx.make("Weather (hail)", { actions: 1, damage: ctx.D("cold"), kind: "cold", effects: offGuard }));
+            if (lv >= 5) {
+                const uuid = "stand:weather-rain";
+                const model = ctx.effectModel("Weather (rain and wind)", 1, { conditional: [{ on: "attack", type: "circumstance", value: -2, predicate: ["item:ranged"] }] });
+                const rain = autoPlan(ctx, "Weather (surge rain)", { actions: 2, success: { nativeEffects: [{ kind: "native-spell-effect", uuid }] } });
+                spells.push(zoneEntry(ctx, "Weather (surge rain)", { actions: 2, area: { type: "burst", value: 30 }, range: 30, terrain: true, surge: true, saves: [{ when: ["initial", "start"], plan: rain }], effects: { [uuid]: model } }));
+                // (WEATHER_17=1, the proposed 17th: the lightning stuns 1 on a failure, 2 on a critical failure; heavy weather once per 10 minutes —
+                // the same as once a day in one fight.)
+                const stun17 = lv >= 17 && env.WEATHER_17 === "1" ? { failure: [["stunned", 1, null]], criticalFailure: [["stunned", 2, null]] } : { criticalFailure: [["stunned", 1, null]] };
+                spells.push(ctx.make("Weather (surge lightning)", { actions: 2, damage: S("electricity"), kind: "electricity", surge: true, target: lv >= 17 ? "up to 5 creatures" : lv >= 13 ? "up to 3 creatures" : "1 creature", effects: stun17 }));
+            }
+            if (lv >= (re ? 9 : 5)) spells.push(ctx.entry("Weather (moisture)", plan(ctx, "Weather (moisture)", { actions: 1, save: "fortitude", target: lv >= 13 ? "up to 3 creatures" : "1 creature", effects: { failure: [["sickened", 2, null]], criticalFailure: [["sickened", 3, null]] } })));
+            if (lv >= 17) {
+                const heavy = plan(ctx, "Weather (heavy weather)", { actions: 2, save: "will", effects: { failure: [["stupefied", 2, ctx.round1], ["slowed", 1, ctx.round1]], criticalFailure: [["stupefied", 2, ctx.round1], ["slowed", 1, ctx.round1]] } });
+                spells.push(zoneEntry(ctx, "Weather (heavy weather)", { actions: 2, area: { type: "emanation", value: 60 }, centre: "self", saves: [{ when: ["initial", "start"], plan: heavy }], pool: "stand-weather:heavy" }));
+            }
         }
-        if (lv >= 17) {
-            const heavy = plan(ctx, "Weather (heavy weather)", { actions: 2, save: "will", effects: { failure: [["stupefied", 2, ctx.round1], ["slowed", 1, ctx.round1]], criticalFailure: [["stupefied", 2, ctx.round1], ["slowed", 1, ctx.round1]] } });
-            spells.push(zoneEntry(ctx, "Weather (heavy weather)", { actions: 2, area: { type: "emanation", value: 60 }, centre: "self", saves: [{ when: ["initial", "start"], plan: heavy }], pool: "stand-weather:heavy" }));
+        if (od && lv >= 9 && (inside || every)) {
+            const crit = env.WEATHER_ODCRIT === "flat" ? [["sickened", 1, null], ["slowed", 1, ctx.round1]] : [["sickened", 2, null], ["slowed", 1, ctx.round1]];
+            spells.push(ctx.entry("Weather (oxygen overdose)", plan(ctx, "Weather (oxygen overdose)", { actions: 2, save: "fortitude", area: { type: "burst", value: 10 }, range: 30, basic: false, effects: { failure: [["sickened", 1, null], ["slowed", 1, ctx.round1]], criticalFailure: crit } })));
         }
-        return { spells, ...(lv >= 17 ? { spellPools: { "stand-weather:heavy": 1 } } : {}) };
+        return { spells, ...(lv >= 17 && !inside ? { spellPools: { "stand-weather:heavy": 1 } } : {}) };
     },
     Spin(ctx) {
         const { lv, D, S } = ctx;
@@ -127,7 +144,9 @@ const BUFFED = {
         const prone = { criticalFailure: [["prone"]] };
         spells.push(ctx.make("Gravity Flip (flip)", { actions: 1, damage: ctx.D("bludgeoning"), kind: "bludgeoning", effects: prone }));
         if (lv >= 5) {
-            const stun = lv >= 13 ? { failure: [["stunned", 1, null]], criticalFailure: [["stunned", 1, null]] } : { failure: [["sickened", 1, null]], criticalFailure: [["stunned", 1, null]] };
+            // (2026-11-27, Cole: 13th's critical failure stunned 2 — GF_V=1; 0 the old stunned 1.)
+            const gf13 = Number(globalThis.process?.env?.GF_V ?? 1) === 1 ? 2 : 1;
+            const stun = lv >= 13 ? { failure: [["stunned", 1, null]], criticalFailure: [["stunned", gf13, null]] } : { failure: [["sickened", 1, null]], criticalFailure: [["stunned", 1, null]] };
             spells.push(ctx.make("Gravity Flip (surge inside out)", { actions: 2, damage: S("bludgeoning"), kind: "bludgeoning", save: "fortitude", surge: true, effects: stun }));
         }
         return { spells };
