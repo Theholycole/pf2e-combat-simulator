@@ -145,6 +145,8 @@ export const SPACE = {
             const stand = userOnly(user);
             // (Round 2, 1st: the stand steps through the other world beside a creature and Strikes it off-guard, once a turn.)
             if (ctx.buffed) stand.strikeActivities = [strikeActivity("Dimension Step (from the other world)", { strides: 1, offGuard: true, oncePerTurn: true })];
+            // (NCFILL 17th: reaction, once a round, sandwiched (assumed): an attack that would hit you misses — a +50 AC reaction on a hit.)
+            if (globalThis.process?.env?.NCFILL === "1" && ctx.buffed && ctx.lv >= 17) user.acReaction = { value: 50, when: "hit", name: "Dimension Step (halfway into the other world)" };
             return { user, spells, stand };
         },
         notes: [
@@ -361,7 +363,10 @@ export const SPACE = {
             const prone = ctx.lv >= 13 ? { failure: [["prone", null, null]], criticalFailure: [["prone", null, null]] } : {};
             if (ctx.lv >= 5) spells.push(control(ctx, "Grid Teleport (attended object)", { actions: 1, save: "reflex", disarm: ["failure", "criticalFailure"] }));
             if (ctx.lv >= 5) spells.push(ctx.make("Grid Teleport (surge, falling object)", { actions: 2, damage: ctx.S("bludgeoning"), kind: "bludgeoning", surge: true, effects: prone }));
-            return { spells, user: ctx.lv >= 13 ? { safeMove: { name: "Grid Teleport (teleport self)", actions: 1 } } : {} };
+            // (NCFILL 9th: reaction, once a round: a ranged weapon attack at a creature in your grid misses — the stand's allyAcReaction, the
+            // grid taken as 15 ft around it; the D bludgeoning to an attacker in the grid isn't played.)
+            const gt9 = globalThis.process?.env?.NCFILL === "1" && ctx.lv >= 9 ? { allyAcReaction: { name: "Grid Teleport (teleport projectile)", value: 50, within: 15, self: true, ranged: true } } : {};
+            return { spells, user: { ...(ctx.lv >= 13 ? { safeMove: { name: "Grid Teleport (teleport self)", actions: 1 } } : {}), ...gt9 } };
         },
         buff: {
             "1": "1 minute: draw a 30-ft grid. In combat, you can instead draw a 15-ft grid around your stand with 1 action; it lasts 1 minute. 1 action: teleport an unattended object in the grid to another square in it. If you teleport a loose object (a stone, a dropped weapon) into the air above a creature in the grid, it falls on it: D bludgeoning damage (basic Reflex).",

@@ -836,7 +836,7 @@ function standUser(type, { rush = false, ability = "flame", heaven = false, hidd
                 };
                 // (2026-11-24, Cole: "Buff all the stand abilities to be closer in power with each other. Dont lower any yet." — the buffed
                 // rule text, ctx.buffed: STAND_BUFFED=1, or a build named "<slug>-buffed"; the stand10 balance.)
-                const ctx = { lv, dc, attack, D, S, halfS, range, pool, make, entry, savePlan, effectModel, rounds, minutes: (n) => rounds(10 * n), round1, steps: steps(lv), main, second, bystanders, convert, raise, buffed: buffedBuild || globalThis.process?.env?.STAND_BUFFED === "1" };
+                const ctx = { lv, dc, attack, D, S, halfS, range, pool, make, entry, savePlan, effectModel, rounds, minutes: (n) => rounds(10 * n), round1, steps: steps(lv), main, second, bystanders, convert, raise, type, buffed: buffedBuild || globalThis.process?.env?.STAND_BUFFED === "1" };
                 custom = STAND_ABILITIES[standAbility].build(ctx) ?? {};
                 // (A conversion the planner never picks — a commoner's fist, worth nothing to it — is forced, the brief's rule: forceUse with its
                 // entry's featForced, planner.js's forcedSummon.)

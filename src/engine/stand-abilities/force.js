@@ -161,6 +161,9 @@ const BUFFED = {
             const stun = lv >= 13 ? { failure: [["stunned", 1, null]], criticalFailure: [["stunned", gf13, null]] } : { failure: [["sickened", 1, null]], criticalFailure: [["stunned", 1, null]] };
             spells.push(ctx.make("Gravity Flip (surge inside out)", { actions: 2, damage: S("bludgeoning"), kind: "bludgeoning", save: "fortitude", surge: true, effects: stun }));
         }
+        // (NCFILL 17th: reverse gravity in a 30-ft emanation for creatures you choose — Reflex negates; a 20-ft fall up and back: 10
+        // bludgeoning and prone.)
+        if (globalThis.process?.env?.NCFILL === "1" && lv >= 17) spells.push(ctx.entry("Gravity Flip (surge reverse)", plan(ctx, "Gravity Flip (surge reverse)", { actions: 2, kind: "bludgeoning", save: "reflex", area: { type: "emanation", value: 30, foes: true }, extra: { failure: ["10[bludgeoning]"], criticalFailure: ["10[bludgeoning]"] }, effects: { failure: [["prone"]], criticalFailure: [["prone"]] } }), { surge: true }));
         return { spells };
     },
     Magnetism(ctx) {
@@ -168,7 +171,9 @@ const BUFFED = {
         const lasts = ctx.minutes(1);
         const fail = [["clumsy", 1, lasts], ...(lv >= 17 ? [["immobilized", null, lasts]] : [])];
         const critFail = [["clumsy", 2, lasts], ...(lv >= 17 ? [["immobilized", null, lasts]] : [])];
-        const spells = [ctx.entry("Magnetism (magnetize)", plan(ctx, "Magnetism (magnetize)", { actions: 1, kind: "bludgeoning", save: "fortitude", damage: ctx.D("bludgeoning"), target: lv >= 13 ? "up to 3 creatures" : "1 creature", effects: { failure: fail, criticalFailure: critFail } }))];
+        // (NCFILL 9th: two magnetized creatures pulled together and colliding — approximated as D more bludgeoning on a failure.)
+        const pull9 = globalThis.process?.env?.NCFILL === "1" && lv >= 9 ? { failure: [ctx.D("bludgeoning")], criticalFailure: [ctx.D("bludgeoning")] } : {};
+        const spells = [ctx.entry("Magnetism (magnetize)", plan(ctx, "Magnetism (magnetize)", { actions: 1, kind: "bludgeoning", save: "fortitude", damage: ctx.D("bludgeoning"), target: lv >= 13 ? "up to 3 creatures" : "1 creature", effects: { failure: fail, criticalFailure: critFail }, extra: pull9 }))];
         if (lv >= 5) spells.push(ctx.make("Magnetism (surge pull)", { actions: 2, damage: S("bludgeoning"), kind: "bludgeoning", surge: true, effects: { failure: [["clumsy", 1, lasts]], criticalFailure: [["clumsy", 2, lasts]] } }));
         return { spells };
     },
@@ -209,6 +214,8 @@ const BUFFED = {
             selfEffects: [{ name: "Ice Armor", actions: 1, model: armor }],
             ...(lv >= 13 ? { acReaction: { value: 50, when: "hit", against: "ranged", name: "Ice Armor (shatter projectile)" } } : {})
         };
+        // (2026-11-27, open to all types: a separate stand wears the ice itself — armor, retaliation, reaction on the stand.)
+        if (ctx.type && ctx.type !== "integrated") return { spells, stand: user };
         return { spells, user };
     },
     "Air Shots"(ctx) {
@@ -244,7 +251,9 @@ const BUFFED = {
         const { lv, S, round1 } = ctx;
         const area = { type: "burst", value: lv >= 13 ? 10 : 5, foes: true };
         const sick = { failure: [["sickened", 1, null]], criticalFailure: [["sickened", 2, null]] };
-        const spells = [ctx.entry("Pressure (air pressure)", plan(ctx, "Pressure (air pressure)", { actions: 1, save: "fortitude", area, effects: sick }))];
+        // (NCFILL 17th: leaving a pressurized area — taken as most do — D persistent bleed and sickened 1 on a failure.)
+        const decomp = globalThis.process?.env?.NCFILL === "1" && lv >= 17 ? { failure: [ctx.D("bleed").replace(/\[[^\]]*\]$/, "") + "[persistent,bleed]"], criticalFailure: [ctx.D("bleed").replace(/\[[^\]]*\]$/, "") + "[persistent,bleed]"] } : {};
+        const spells = [ctx.entry("Pressure (air pressure)", plan(ctx, "Pressure (air pressure)", { actions: 1, save: "fortitude", area, effects: sick, extra: decomp }))];
         if (lv >= 5) spells.push(ctx.make("Pressure (surge blast)", { actions: 2, damage: S("bludgeoning"), kind: "bludgeoning", save: "fortitude", area, surge: true, effects: sick }));
         {
             const slow = lv >= 13 ? ctx.minutes(1) : round1;

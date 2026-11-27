@@ -161,6 +161,8 @@ const BUFFED = {
             spells.push(engulf);
         }
         out.spells = spells;
+        // (2026-11-27, open to all types: a separate stand is coated instead — the slime armor on the stand.)
+        if (ctx.type && ctx.type !== "integrated" && out.user) { out.stand = { ...(out.stand ?? {}), ...out.user }; delete out.user; }
         return out;
     },
     Parasite(ctx) {
@@ -179,6 +181,13 @@ const BUFFED = {
             bite.plan.needs = [{ target: { conditions: ["sickened"], within: 30 } }];
             addRows(bite.plan, ["criticalSuccess", ...HIT], "conditionFloor", { slug: "sickened", value: 1, lifetime: "fixed", duration: { value: 10, unit: "rounds" } });
             spells.push(bite);
+        }
+        // (NCFILL 17th: the parasite controls one of the host's actions — Will; a failure taken as an action lost (slowed 1 for a round), a
+        // critical failure controlled for a round.)
+        if (globalThis.process?.env?.NCFILL === "1" && lv >= 17) {
+            const ctl = plan(ctx, "Parasite (surge control)", { actions: 2, save: "will", effects: { failure: [["slowed", 1, ctx.round1]], criticalFailure: [["controlled", null, ctx.round1]] } });
+            ctl.needs = [{ target: { conditions: ["sickened"], within: 30 } }];
+            spells.push(ctx.entry("Parasite (surge control)", ctl, { surge: true }));
         }
         return { spells };
     },

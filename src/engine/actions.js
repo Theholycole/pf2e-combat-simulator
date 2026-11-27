@@ -2070,9 +2070,11 @@ export function applyDamage(state, target, instances, { source = null, critical 
     for (const instance of adjusted.persistent) addPersistent(target, instance, source);
     const dealt = dealDamage(state, target, total, { source, critical, nonlethal });
     // (2026-11-27, Puppet Marks rider — PUPPET_V=rider: once a turn, the stand's Strike that hits marks a limb.)
-    if (dealt > 0 && physical && source?.puppetRider && source.side !== target.side && source.puppetRound !== state.round && isActive(target)) {
-        source.puppetRound = state.round; target.cond["puppet-marked"] = 1; target.puppetUntil = state.round + 10;
+    // (rider4: a mark on every stand hit, and the marking jerk leaves it off-guard until the user's next turn.)
+    if (dealt > 0 && physical && source?.puppetRider && source.side !== target.side && (source.puppetRiderAll || source.puppetRound !== state.round) && isActive(target)) {
+        source.puppetRound = state.round; target.cond["puppet-marked"] = 1; target.puppetMarks = Math.min(4, (target.puppetMarks ?? 0) + 1); target.puppetUntil = state.round + 10;
         log(state, `  ${source.name} marks a limb of ${target.name}`);
+        if (source.puppetRiderAll) applyCondition(state, target, "off-guard", null, { mode: "fixed", value: 1, unit: "rounds" }, source);
     }
     // (2026-11-27, Pain Link as a real link — PAINLINK_REAL=1: any damage the user (or its stand, shared HP) takes, each linked host takes
     // too — half, all from 9th (painLinkFraction on the user), no save, no reaction; PAINLINK17=a: 1.5 times; b: stunned 1 the first time

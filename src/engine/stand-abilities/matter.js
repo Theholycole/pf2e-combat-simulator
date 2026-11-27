@@ -717,7 +717,10 @@ export const MATTER = {
                 // (Round 5: the surge condition from 5th (was 9th), onto up to two adjacent enemies (was 13th); the slid wound bleeds on a failure from 1st; its pain sickened 2/3 from 13th.)
                 if (ctx.lv >= 5) spells.push(saveOnly(ctx, "Slide (surge condition)", { actions: 1, surge: true, save: "will", range: "touch", target: ctx.lv >= 13 ? "up to 2 creatures" : "1 creature", effects: { failure: [["frightened", value]], criticalFailure: [["frightened", value + 1]] } }));
                 if (ctx.lv >= 17) spells.push(saveOnly(ctx, "Slide (features)", { actions: 1, save: "will", range: "touch", effects: { failure: [["stupefied", 2, ctx.minutes(1)]], criticalFailure: [["stupefied", 2, ctx.minutes(1)]] } }));
-                return { spells, stand, ...(move ? { user: { slideTransfer: move } } : {}) };
+                // (NCFILL 9th: a temporary suture — 1 action, an ally the stand touches regains D, once per ally per 10 minutes: 4 uses a fight.)
+                const suture = globalThis.process?.env?.NCFILL === "1" && ctx.lv >= 9;
+                if (suture) spells.push({ ...heal(ctx, "Slide (suture)", { actions: 1, formula: plain(ctx.D("untyped")) }), pool: "slide-suture" });
+                return { spells, stand, ...(move ? { user: { slideTransfer: move } } : {}), ...(suture ? { spellPools: { "slide-suture": 4 } } : {}) };
             }
             if (ctx.lv < 9) return null;
             const value = ctx.lv >= 13 ? 2 : 1;

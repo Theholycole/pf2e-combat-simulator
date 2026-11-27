@@ -194,7 +194,8 @@ export const FATE = {
             luck.effects = { "fortune-lucky": lucky };
             const spells = [luck];
             if (lv >= 5) {
-                const unlucky = ctx.effectModel("Fortune Directions (unlucky)", rounds, { modifiers: [{ on: "attack", type: "status", value: -2 }] });
+                // (NCFILL 13th: Strikes against a creature in an unlucky square deal an extra weapon die — played as physical weakness 5 while unlucky.)
+            const unlucky = ctx.effectModel("Fortune Directions (unlucky)", rounds, { modifiers: [{ on: "attack", type: "status", value: -2 }], ...(globalThis.process?.env?.NCFILL === "1" && lv >= 13 ? { weaknesses: [{ type: "physical", value: 5 }] } : {}) });
                 const plan2 = effectPlan("Fortune Directions (surge)", [{ kind: "native-spell-effect", uuid: "fortune-unlucky", label: "Fortune Directions (unlucky)", recipients: "enemies-in-area" }]);
                 plan2.activation.time = "2";
                 const surge = ctx.entry("Fortune Directions (surge)", plan2, { surge: true });
@@ -359,6 +360,8 @@ const BUFFED = {
         addRows(jinx, ["success"], "nativeEffects", [{ uuid: "lucky-break-jinx-brush", label: "Lucky Break (jinx)" }]);
         addRows(jinx, ["failure"], "nativeEffects", [{ uuid: "lucky-break-jinx", label: "Lucky Break (jinx)" }]);
         addRows(jinx, ["criticalFailure"], "nativeEffects", [{ uuid: "lucky-break-jinx-crit", label: "Lucky Break (jinx)" }]);
+        // (2026-11-27 NCFILL: 9th — a critical failure against the jinx also falls prone.)
+        if (globalThis.process?.env?.NCFILL === "1" && lv >= 9) addRows(jinx, ["criticalFailure"], "effects", [{ kind: "condition", slug: "prone", value: null, duration: null }]);
         const entry = ctx.entry("Lucky Break (jinx)", jinx);
         entry.effects = { "lucky-break-jinx-brush": ctx.effectModel("Lucky Break (jinx)", 1, { modifiers: sour(-1) }), "lucky-break-jinx": ctx.effectModel("Lucky Break (jinx)", 10, { modifiers: sour(-1) }), "lucky-break-jinx-crit": ctx.effectModel("Lucky Break (jinx)", 10, { modifiers: sour(-1) }) };
         return { stand, user, spells: [entry] };
@@ -387,7 +390,9 @@ const BUFFED = {
             surge.effects = { "fortune-unlucky": unlucky };
             spells.push(surge);
         }
-        return { spells };
+        // (NCFILL 9th: once a round, standing lucky, a critical hit against you becomes a normal hit — taken as always lucky.)
+        const fd9 = globalThis.process?.env?.NCFILL === "1" && lv >= 9 ? { critDowngrade: { name: "Fortune Directions", dc: null } } : null;
+        return { spells, ...(fd9 ? { user: fd9, stand: { ...fd9 } } : {}) };
     },
     "Soul Wager"(ctx) {
         const out = unbuffed("Soul Wager", ctx);

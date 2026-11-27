@@ -623,7 +623,12 @@ export function applyCondition(state, target, slug, value, duration, source, sco
     // (2026-11-27, Iron Blood's Iron Loss — IRONLOSS_V: "iron-loss", value 1 or 2: 1 sickened 1, 2 also slowed 1, 3 the variant's end —
     // ko: stuck, a Fortitude save at the end of each of its turns or unconscious (fight.js endTurn); soft: slowed 2, stuck sickened.)
     // (2026-11-27, Puppet Marks — PUPPET_V: a marked limb, a marker the wrench and the surges need (needs.js reads cond).)
-    if (slug === "puppet-marked") { target.cond["puppet-marked"] = 1; target.puppetUntil = state.round + 10; return true; }
+    if (slug === "puppet-marked") { target.cond["puppet-marked"] = 1; target.puppetMarks = Math.min(4, (target.puppetMarks ?? 0) + 1); target.puppetUntil = state.round + 10; return true; }
+    // (Puppet Marks 17th: a creature with four limbs marked is controlled for 1 round when it fails a wrench, once a minute.)
+    if (slug === "puppet-control") {
+        if ((target.puppetMarks ?? 0) >= 4 && !target.puppetControlled) { target.puppetControlled = true; return applyCondition(state, target, "controlled", null, { mode: "fixed", value: 1, unit: "rounds" }, source, scope); }
+        return false;
+    }
     // (2026-11-27, Pain Link as a real link — PAINLINK_REAL=1: the link's failure marks the host (actions.js shares the user's damage).)
     if (slug === "off-guard" && source && target.side !== source.side && state.castingNow?.name === "Pain Link" && globalThis.process?.env?.PAINLINK_REAL !== "0") {
         const user = source.sharesHpWith ? state.byId.get(source.sharesHpWith) : source;
