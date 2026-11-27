@@ -615,6 +615,23 @@ function stackedValue(target, change, after = false) {
 }
 
 export function applyCondition(state, target, slug, value, duration, source, scope = null) {
+    // (2026-11-27, Aging's drained gas — AGING_V=drain: "aging-drain-<max>", drained up by value to that max. Cold rules: in a fight
+    // drawn cold (AGING_COLD, default 0.2 — a cold foe or chill counterplay), half the Aging effects on foes don't take (chilled or the
+    // cold's +2 to saves) and its damage is halved (actions.js).)
+    if (source?.agingCaster && target.side !== source.side && state.agingCold === undefined) state.agingCold = state.rng.next ? state.rng.next() < Number(globalThis.process?.env?.AGING_COLD ?? 0.2) : Math.random() < 0.2;
+    if (source?.agingCaster && target.side !== source.side && state.agingCold && state.rng.chance(0.5)) return false;
+    // (2026-11-27, Iron Blood's Iron Loss — IRONLOSS_V: "iron-loss", value 1 or 2: 1 sickened 1, 2 also slowed 1, 3 the variant's end —
+    // ko: stuck, a Fortitude save at the end of each of its turns or unconscious (fight.js endTurn); soft: slowed 2, stuck sickened.)
+    if (slug === "iron-loss") {
+        target.ironVariant = globalThis.process?.env?.IRONLOSS_V === "soft" ? "soft" : "ko";
+        const v = Math.min(3, (target.ironLoss ?? 0) + (Number(value) || 1));
+        target.ironLoss = v;
+        let any = applyCondition(state, target, "sickened", 1, null, source, scope);
+        if (v >= 2) any = applyCondition(state, target, "slowed", v >= 3 && target.ironVariant === "soft" ? 2 : 1, null, source, scope) || any;
+        if (v >= 3) { target.ironStuck = true; if (target.ironVariant === "ko") { target.ironKO = true; target.ironDC = target.ironDC ?? state.castingNow?.dc ?? source?.classDC ?? 25; } }
+        return any;
+    }
+    { const m = /^aging-drain-(\d+)$/.exec(String(slug)); if (m) { const now = Number(target.cond?.drained) || 0; const next = Math.min(Number(m[1]), now + (Number(value) || 1)); return next > now ? applyCondition(state, target, "drained", next, duration, source, scope) : false; } }
     // (2026-11-07, Watch Your Back: a –2 status penalty to Will saves against fear effects for a minute — tools/lib/feat-power.mjs's own slug.)
     if (slug === "watch-your-back") {
         target.saveBonuses = [...(target.saveBonuses ?? []).filter((bonus) => bonus.from !== "Watch Your Back"), { saves: ["will"], type: "status", value: -2, predicate: ["fear"], from: "Watch Your Back" }];

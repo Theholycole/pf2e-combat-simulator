@@ -1758,6 +1758,8 @@ function guards(state, c, target, { physical = false, critical = false } = {}) {
 
 // (B193: spell { rank, targeted } — the damage of a spell aimed at it, for Divert Essence.)
 export function applyDamage(state, target, instances, { source = null, critical = false, nonlethal = false, physical = false, intercepted = false, spell = null, areaReflex = false } = {}) {
+    // (2026-11-27, Aging's cold rules: in a cold fight its damage is halved — spells.js applyCondition draws the fight.)
+    if (source?.agingCaster && state.agingCold && target.side !== source.side) instances = instances.map((instance) => ({ ...instance, amount: Math.floor(instance.amount / 2) }));
     // (2026-10-22, under water: a critical hit costs a round of air.)
     if (critical && target.air !== undefined) airLost(state, target);
     // (2026-10-22, Indestructibility: harmed by nothing till its next turn.)

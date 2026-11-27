@@ -60,12 +60,16 @@ const BUFFED = {
     Aging(ctx) {
         const { lv } = ctx;
         const radius = lv >= 9 ? 30 : 20;
-        const failed = [["fatigued", null, null], ["enfeebled", 1, ctx.round1]];
-        const effects = { failure: failed, criticalFailure: [...failed, ...(lv >= 17 ? [["slowed", 1, ctx.round1]] : [])] };
+        // (2026-11-27, AGING_V=drain: the gas ages them — drained up by 1 on a failure, 2 on a critical failure, to drained 3 (4 from 9th;
+        // AGING_DMAX=2 for 2, 3 from 9th); the cold rules on (spells.js / actions.js agingCaster). AGING_FORCE=1: the aura cast early.)
+        const drain = (globalThis.process?.env?.AGING_V ?? "drain") === "drain";  // (2026-11-27: adopted as the default; AGING_V=old for the previous gas)
+        const dmax = (globalThis.process?.env?.AGING_DMAX === "2" ? 2 : 3) + (lv >= 9 ? 1 : 0);
+        const failed = [["fatigued", null, null], ["enfeebled", 1, ctx.round1], ...(drain ? [[`aging-drain-${dmax}`, 1, null]] : [])];
+        const effects = { failure: failed, criticalFailure: [["fatigued", null, null], ["enfeebled", 1, ctx.round1], ...(drain ? [[`aging-drain-${dmax}`, 2, null]] : []), ...(lv >= 17 ? [["slowed", 1, ctx.round1]] : [])] };
         const area = { type: "emanation", value: radius };
         const valuePlan = plan(ctx, "Aging (gas aura)", { actions: 1, area: { ...area, foes: true }, effects });
         const turnPlan = plan(ctx, "Aging (gas aura)", { actions: 1, effects });
-        const spells = [zoneEntry(ctx, "Aging (gas aura)", valuePlan, { area, centre: "caster", rounds: 10, savePlan: turnPlan })];
+        const spells = [{ ...zoneEntry(ctx, "Aging (gas aura)", valuePlan, { area, centre: "caster", rounds: 10, savePlan: turnPlan }), ...(globalThis.process?.env?.AGING_FORCE === "1" ? { forceEarly: true } : {}) }];
         // (Round 2: the withering grip, at will — 1 action, the stand's touch at its 30 ft like the surge's.)
         const withered = [["enfeebled", 1, ctx.round1]];  // (Round 4 cap: a failure's enfeebled 1 until the end of the user's next turn, was 1 minute.)
         spells.push(ctx.make("Aging (withering grip)", { actions: 1, damage: ctx.D("force"), kind: "force", save: "fortitude", effects: { failure: withered, criticalFailure: [["enfeebled", 2, ctx.minutes(1)]] } }));
@@ -73,7 +77,7 @@ const BUFFED = {
             const drained = ["drained", lv >= 13 ? 2 : 1, null];
             spells.push(ctx.entry("Aging (surge touch)", plan(ctx, "Aging (surge touch)", { actions: 2, damage: ctx.S("force").replace("d6", "d4"), kind: "force", effects: { failure: [drained, ["slowed", 1, ctx.round1]], criticalFailure: [drained, ["slowed", 1, ctx.minutes(1)]] } }), { surge: true }));  // (Round 4 cap: S's dice d4s, was d6s.)
         }
-        return { spells };
+        return { spells, ...(drain ? { user: { agingCaster: true }, stand: { agingCaster: true } } : {}) };
     },
     Virus(ctx) {
         const { lv } = ctx;
@@ -301,7 +305,16 @@ export const AFFLICTION = {
         build(ctx) {
             const { lv, make, D, S } = ctx;
             const bleed = { criticalFailure: ["1d6[persistent,bleed]"] };
+            // (2026-11-27, IRONLOSS_V=ko|soft: the Iron Loss track instead of 5th's sickened, 17th's drained 2 → drained 1; IRONLOSS_FORCE=1 rates
+            // it as used. Off: as before.)
+            const IL = globalThis.process?.env?.IRONLOSS_V;
             const rows = (sick) => {
+                if (IL) {
+                    // (IRONLOSS_TRIM=0: no trims — the 5th sickened (its value) and 17th's drained 2 kept alongside the track.)
+                    const keep = globalThis.process?.env?.IRONLOSS_TRIM === "0";
+                    const failed = [["iron-loss", 1, null], ...(keep && sick ? [["sickened", sick, null]] : []), ...(lv >= 13 ? [["clumsy", 1, ctx.round1]] : [])];
+                    return { failure: failed, criticalFailure: [["iron-loss", 2, null], ...(keep && sick ? [["sickened", sick, null]] : []), ...(lv >= 13 ? [["clumsy", 1, ctx.round1]] : []), ...(lv >= 17 ? [["drained", keep ? 2 : 1, null]] : [])] };
+                }
                 const failed = [...(sick ? [["sickened", sick, null]] : []), ...(lv >= 13 ? [["clumsy", 1, ctx.round1]] : [])];
                 return { failure: failed, criticalFailure: [...failed, ...(lv >= 17 ? [["drained", 2, null]] : [])] };
             };

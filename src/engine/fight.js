@@ -2,6 +2,7 @@
 
 import { createRng } from "./rng.js";
 import { CRITICAL_FAILURE, CRITICAL_SUCCESS, FAILURE, degreeOf, flatCheck, rollCheck, SUCCESS } from "./checks.js";
+import { removeFromSpace as removeFromSpaceIL } from "./space.js";
 import { ACTIVE, DEAD, DOWN, FLED, PENDING, SURRENDERED, canAct, canMove, createCombatant, effectBonus, isActive, isOffGuard, keepPermanent, saveModifier, statusPenalty, strikeUsable } from "./combatant.js";
 import { distanceBetween, engage, engagedEnemies, isIncorporeal, leaveMelee, sameMelee, stridesToEngage } from "./space.js";
 import { reaches as gridReach } from "./grid.js";
@@ -968,6 +969,17 @@ function staysInside(state, c) {
 
 function endTurn(state, c) {
     c.orderActive = false;
+    // (2026-11-27, Iron Loss 3, the ko variant: a Fortitude save at the end of each of its turns, or it falls unconscious.)
+    if (c.ironKO && c.status === ACTIVE) {
+        const { degree } = rollCheck(state.rng, saveModifier(c, "fortitude"), c.ironDC ?? 25);
+        if (degree <= FAILURE) {
+            c.status = DOWN; c.cond.unconscious = true;
+            state.log?.push(`  ${c.name} blacks out from iron loss`);
+            removeFromSpaceIL(state, c);
+        }
+    }
+    // (Iron Loss: sickened and slowed stay while stuck.)
+    if (c.ironStuck && c.status === ACTIVE) { c.cond.sickened = Math.max(c.cond.sickened ?? 0, 1); c.cond.slowed = Math.max(c.cond.slowed ?? 0, c.ironVariant === "soft" ? 2 : 1); }
     // (2026-11-07, Desperate Finisher: its last action done, one more press — a melee Strike at its multiple attack penalty (reaction); no
     // reactions until its next turn. Played when a foe stands beside it and the Strike isn't hopeless — its third attack or less.)
     if (c.desperateFinisher && c.status === ACTIVE && canAct(c) && (c.attacksThisTurn ?? 0) >= 1 && (c.attacksThisTurn ?? 0) <= 2 && canReact(c, "Desperate Finisher")) {
