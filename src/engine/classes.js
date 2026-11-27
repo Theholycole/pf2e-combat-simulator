@@ -718,10 +718,10 @@ function standUser(type, { rush = false, ability = "flame", heaven = false, hidd
     // (2026-11-24, Cole's pick "Raise the weak types": a stand of Durability A or B guards its user too — +2 or +1 circumstance to the
     // user's AC while the stand is adjacent, taken as always: the stand fights beside it.)
     let guard = Math.max(0, durAC);
-    // (2026-11-27, TYPEBUFF — stand-type balance candidates, comma-separated: L1 Distant Precision from 1st; L2 L1 + a third Stand Point;
+    // (2026-11-27, TYPEBUFF — stand-type balance candidates (default L5,A3,E6,C1,I1, Cole's "Full set"; TYPEBUFF= for none), comma-separated: L1 Distant Precision from 1st; L2 L1 + a third Stand Point;
     // A1 automatic resilience: ghostly resistance doubled; A2 the program's end-of-turn action every turn (3 stand actions); E1 Acts at
     // 5th/11th; E3 Acts at 3rd/9th; E4/E5 Acts raise grades; L3 Distant Precision from 1st, 2 dice from 9th; L4 L3 + the user +2 AC vs ranged; C1 Overwhelm from 5th; C2 Spread Thin's extra resistance your level; I1 integrated Power B (d8).)
-    const TB = new Set(String(globalThis.process?.env?.TYPEBUFF ?? "").split(",").filter(Boolean));
+    const TB = new Set(String(globalThis.process?.env?.TYPEBUFF ?? "L5,A3,E6,C1,I1").split(",").filter(Boolean));
     // (TYPEBUFF L5: L3 + a long-range stand's Precision A, "commanded with good precision" — +1 to hit.)
     const prec = (type === "long" && TB.has("L5")) || (type === "automatic" && TB.has("A3")) ? 1 : { A: 1, B: 0, C: 0, D: 0, E: -1 }[grade.precision];
     // (A3: an automatic stand keeps 4 actions; its program Strikes hit harder — Power die d10 and +1 to hit.)
