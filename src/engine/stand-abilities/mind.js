@@ -663,10 +663,12 @@ export const MIND = {
                 // failure from 5th (was 17th).)
                 // (WEB17: strike — 1 action, a stuck creature Strikes an adjacent creature you choose (Will negates): played as confused for its next
                 // turn; restrained — the 5th-level bind also restrains on a failure; off unless set.)
-                const web17 = globalThis.process?.env?.WEB17;
+                const web17 = globalThis.process?.env?.WEB17 ?? "critrestrained";  // (adopted 2026-11-27)
                 if (web17 === "strike" && lv >= 17) { const pp = plan(ctx, "Web Control (puppet strike)", { actions: 1, save: "will", range: "30 feet", effects: { failure: [["confused", null, ctx.round1]], criticalFailure: [["confused", null, ctx.round1]] } }); pp.needs = [{ target: { conditions: ["immobilized"], within: 30 } }]; out.push(ctx.entry("Web Control (puppet strike)", pp)); }
                 if (lv >= 5) out.push(ctx.entry("Web Control (surge, bind)", plan(ctx, "Web Control (surge, bind)", { save: "reflex", area: { type: "burst", value: 15, foes: true }, range: "30 feet", damage: ctx.D("slashing"), kind: "slashing", effects: lv >= 13 ? { failure: [["immobilized", null, ctx.minutes(1)], ["off-guard", null, ctx.minutes(1)], ...muteB], criticalFailure: [["restrained", null, ctx.round1], ["immobilized", null, ctx.minutes(1)], ["off-guard", null, ctx.minutes(1)], ...muteB] } : { failure: [["immobilized", null, ctx.round1], ["off-guard", null, ctx.round1], ...muteB], criticalFailure: [["immobilized", null, ctx.minutes(1)], ["off-guard", null, ctx.minutes(1)], ...muteB] }, raw: rawB }), { surge: true }));
                 if (web17 === "restrained" && lv >= 17) for (const e of out) if (e.name === "Web Control (surge, bind)") e.plan.resolution.outcomes.failure.effects.push({ kind: "condition", slug: "restrained", value: null, duration: ctx.round1 });
+                // (WEB17=critrestrained: restrained for 1 round on a critical failure only.)
+                if (web17 === "critrestrained" && lv >= 17) for (const e of out) if (e.name === "Web Control (surge, bind)") { const row = e.plan.resolution.outcomes.criticalFailure.effects; if (!row.some((x) => x.slug === "restrained")) row.push({ kind: "condition", slug: "restrained", value: null, duration: ctx.round1 }); }
                 return { spells: out };
             }
             if (lv < 5) return { spells: [] };

@@ -147,7 +147,7 @@ export const SPACE = {
             if (ctx.buffed) stand.strikeActivities = [strikeActivity("Dimension Step (from the other world)", { strides: 1, offGuard: true, oncePerTurn: true })];
             // (NCFILL 17th: reaction, once a round, sandwiched (assumed): an attack that would hit you misses — a +50 AC reaction on a hit.)
             // (DIM17: minute — melee only, once a fight (acReactionUses 1); round — melee only, once a round; off unless set.)
-            const dim17 = globalThis.process?.env?.DIM17;
+            const dim17 = globalThis.process?.env?.DIM17 ?? "minute";  // (adopted 2026-11-27)
             if (dim17 && ctx.buffed && ctx.lv >= 17) { user.acReaction = { value: 50, when: "hit", against: "melee", name: "Dimension Step (halfway into the other world)", ...(dim17 === "minute" ? { uses: 1 } : {}) }; }
             return { user, spells, stand };
         },

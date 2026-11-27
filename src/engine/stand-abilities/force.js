@@ -164,7 +164,7 @@ const BUFFED = {
         // (NCFILL 17th: reverse gravity in a 30-ft emanation for creatures you choose — Reflex negates; a 20-ft fall up and back: 10
         // bludgeoning and prone.)
         // (GF17: i — a 40-ft fall, 20 bludgeoning; ii — 20 ft, 10 bludgeoning, stunned 1 on a critical failure; off unless set.)
-        const gf17 = globalThis.process?.env?.GF17;
+        const gf17 = globalThis.process?.env?.GF17 ?? "ii";  // (adopted 2026-11-27)
         if (gf17 && lv >= 17) spells.push(ctx.entry("Gravity Flip (surge reverse)", plan(ctx, "Gravity Flip (surge reverse)", { actions: 2, kind: "bludgeoning", save: "reflex", area: { type: "emanation", value: 30, foes: true }, extra: { failure: [gf17 === "i" ? "20[bludgeoning]" : "10[bludgeoning]"], criticalFailure: [gf17 === "i" ? "20[bludgeoning]" : "10[bludgeoning]"] }, effects: { failure: [["prone"]], criticalFailure: [["prone"], ...(gf17 === "ii" ? [["stunned", 1, null]] : [])] } }), { surge: true }));
         return { spells };
     },
