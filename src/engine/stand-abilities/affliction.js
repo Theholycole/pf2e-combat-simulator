@@ -187,7 +187,7 @@ const BUFFED = {
         const out = unbuffed("Pain Link", ctx);
         // (Round 2: the link tears in — D mental, basic Will; two hosts from 5th, three from 13th; the full share from 9th.)
         if (lv >= 9) {
-            for (const each of [...out.spells, ...(out.stand?.spells ?? [])]) if (each.name === "Pain Link (shared pain)") each.plan.resolution.sharedDamage.triggeredDamage.fraction = 1;
+            for (const each of [...out.spells, ...(out.stand?.spells ?? [])]) if (each.name === "Pain Link (shared pain)" && each.plan.resolution.sharedDamage.triggeredDamage.fraction < 1) each.plan.resolution.sharedDamage.triggeredDamage.fraction = 1;
         }
         const linked = [["off-guard", null, ctx.minutes(1)], ...(lv >= 5 ? [["clumsy", 1, ctx.minutes(1)]] : [])];
         const link = ctx.entry("Pain Link", plan(ctx, "Pain Link", { actions: 1, save: "will", damage: ctx.D("mental"), kind: "mental", target: lv >= 13 ? "up to 3 creatures" : lv >= 5 ? "up to 2 creatures" : "1 creature", effects: { failure: linked, criticalFailure: linked } }));
@@ -307,11 +307,11 @@ export const AFFLICTION = {
             const bleed = { criticalFailure: ["1d6[persistent,bleed]"] };
             // (2026-11-27, IRONLOSS_V=ko|soft: the Iron Loss track instead of 5th's sickened, 17th's drained 2 → drained 1; IRONLOSS_FORCE=1 rates
             // it as used. Off: as before.)
-            const IL = globalThis.process?.env?.IRONLOSS_V;
+            const IL = globalThis.process?.env?.IRONLOSS_V ?? "ko";  // (2026-11-27: the KO track with no trims adopted as the default; IRONLOSS_V= for the old Iron Blood)
             const rows = (sick) => {
                 if (IL) {
                     // (IRONLOSS_TRIM=0: no trims — the 5th sickened (its value) and 17th's drained 2 kept alongside the track.)
-                    const keep = globalThis.process?.env?.IRONLOSS_TRIM === "0";
+                    const keep = globalThis.process?.env?.IRONLOSS_TRIM !== "1";  // (no trims by default; IRONLOSS_TRIM=1 for the trimmed version)
                     const failed = [["iron-loss", 1, null], ...(keep && sick ? [["sickened", sick, null]] : []), ...(lv >= 13 ? [["clumsy", 1, ctx.round1]] : [])];
                     return { failure: failed, criticalFailure: [["iron-loss", 2, null], ...(keep && sick ? [["sickened", sick, null]] : []), ...(lv >= 13 ? [["clumsy", 1, ctx.round1]] : []), ...(lv >= 17 ? [["drained", keep ? 2 : 1, null]] : [])] };
                 }
@@ -415,7 +415,11 @@ export const AFFLICTION = {
             // that dealt it.)
             const share = plan(ctx, "Pain Link (shared pain)", { actions: 1, save: "fortitude", basic: true });
             share.activation.time = "reaction";
-            share.resolution.sharedDamage = { rollOnce: true, components: [], triggeredDamage: { source: "caster-last-damage", fraction: lv >= 17 ? 1 : 0.5, type: "force" } };
+            // (2026-11-27: no save, as the text says — PAINLINK_SAVE=1 for the old basic Fortitude; PAINLINK17=a: the host takes 1.5 times from
+            // 17th; b: stunned 1 the first time each round.)
+            const env = globalThis.process?.env ?? {};
+            const p17 = lv >= 17 ? env.PAINLINK17 : null;
+            share.resolution.sharedDamage = { rollOnce: true, components: [], triggeredDamage: { source: "caster-last-damage", fraction: p17 === "a" ? 1.5 : lv >= 17 ? 1 : 0.5, type: "force", ...(env.PAINLINK_SAVE === "1" ? {} : { noSave: true }), ...(p17 === "b" ? { stun: true } : {}) } };
             const shareEntry = ctx.entry("Pain Link (shared pain)", share, { actionType: "reaction" });
             const spells = [shareEntry];
             if (lv >= 5) {

@@ -2813,7 +2813,7 @@ export function reactionGuardOf(spell, c = null) {
     if (/\bAn ally is hit by a Strike, or an ally fails a saving throw\b/i.test(String(resolution?.note?.text ?? ""))) return { kind: "champion", within };
     if (resolution?.kind === "incarnate" && (resolution.incarnate?.phases ?? []).some((phase) => phase?.kind === "sacrifice")) return { kind: "love", within };
     const triggered = resolution?.sharedDamage?.triggeredDamage;
-    if (resolution?.kind === "save" && triggered?.source === "caster-last-damage") return { kind: "retribution", within, fraction: Number(triggered.fraction) || 0.5, type: String(triggered.type ?? "mental") };
+    if (resolution?.kind === "save" && triggered?.source === "caster-last-damage") return { kind: "retribution", within, fraction: Number(triggered.fraction) || 0.5, type: String(triggered.type ?? "mental"), ...(triggered.noSave ? { noSave: true } : {}), ...(triggered.stun ? { stun: true } : {}) };
     if (resolution?.kind === "effect" && /\bresistance equal to \d+ plus your Strength modifier\b/i.test(JSON.stringify(plan.nativeEffects ?? {}))) return { kind: "resist", amount: 2 * rank + (Number(c?.str) || 0), within };
     return null;
 }
@@ -2970,8 +2970,11 @@ export function retributionAnswer(state, target, source, dealt) {
     spendPool(target, spell);
     state.stats.reactions++;
     const natural = state.rng.d20();
-    const degree = degreeOf(natural + saveModifier(source, "fortitude") + saveBonusAgainst(source, "fortitude", spell), effectDC(spell), natural);
+    // (2026-11-27, Pain Link: no save — triggeredDamage.noSave plays it as a failure, the share in full; stun: stunned 1 the first time a
+    // round.)
+    const degree = entry.noSave ? 1 : degreeOf(natural + saveModifier(source, "fortitude") + saveBonusAgainst(source, "fortitude", spell), effectDC(spell), natural);
     const amount = Math.floor(Math.floor(dealt * entry.fraction) * [2, 1, 0.5, 0][degree]);
+    if (entry.stun && source.linkStunRound !== state.round && isActive(source)) { source.linkStunRound = state.round; if (applyCondition(state, source, "stunned", 1, null, target)) log(state, `  ${source.name} is stunned 1 by the linked pain`); }
     log(state, `  ${target.name} reacts with ${spell.name}: ${source.name} ${DEGREE_NAMES[degree].replace(/([A-Z])/g, " $1").toLowerCase()}`);
     if (amount > 0) applyDamage(state, source, [{ type: entry.type, amount, persistent: false, precision: false }], { source: target, nonlethal: true });
 }
