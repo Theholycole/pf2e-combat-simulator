@@ -607,8 +607,12 @@ export const MIND = {
                 const r2 = ["rider2", "rider3", "rider4"].includes(PV), r3 = PV === "rider3";
                 const og = [["off-guard", null, ctx.round1]];
                 const ctl = r2 && lv >= 17 ? [["puppet-control"]] : [];
-                const wrenchDmg = r2 ? ctx.D("bludgeoning").replace(/^(\d+)d/, (m, n) => `${2 * Number(n)}d`) : ctx.D("bludgeoning");
-                const wrenchFx = r2 ? { success: og, failure: [["prone"], ...og, ...ctl], criticalFailure: [["prone"], ...og, ...ctl] } : both([["prone"]]);
+                // (2026-11-27, PM_BUFF: stun — stunned 1 on a critical failure against Wrench; 3d — also 3D; surge — also the 5th surge needs no mark
+                // and marks two limbs.)
+                const PB = globalThis.process?.env?.PM_BUFF ?? "surge2";  // (2026-11-27: surge2 adopted, +0.269; PM_BUFF= for rider4 alone)
+                const pbStun = ["stun", "3d", "surge", "surge2"].includes(PB), pb3 = ["3d", "surge"].includes(PB), pbSurge = ["surge", "surge2"].includes(PB);  // (surge2: stun + the surge, Wrench at 2D)
+                const wrenchDmg = r2 ? ctx.D("bludgeoning").replace(/^(\d+)d/, (m, n) => `${(pb3 ? 3 : 2) * Number(n)}d`) : ctx.D("bludgeoning");
+                const wrenchFx = r2 ? { success: og, failure: [["prone"], ...og, ...ctl], criticalFailure: [["prone"], ...og, ...ctl, ...(pbStun ? [["stunned", 1, null]] : [])] } : both([["prone"]]);
                 const out = PV
                     ? [marked(ctx.entry("Puppet Marks (wrench)", plan(ctx, "Puppet Marks (wrench)", { actions: 1, range: r3 ? "60 feet" : "30 feet", save: "fortitude", damage: wrenchDmg, kind: "bludgeoning", effects: wrenchFx, ...(r3 && lv >= 9 ? { target: "up to 2 creatures" } : {}) })))]
                     : [ctx.entry("Puppet Marks (mark and tug)", plan(ctx, "Puppet Marks (mark and tug)", { actions: 1, range: "15 feet", save: "fortitude", damage: ctx.D("bludgeoning"), kind: "bludgeoning", effects: both([["prone"]]) }))];
@@ -618,7 +622,8 @@ export const MIND = {
                     out.push(globalThis.process?.env?.PUPPET_FORCE === "1" ? { ...m, forceEarly: true } : m);
                 }
                 // (Round 2: the limb wrenched hard — S bludgeoning, basic Fortitude; the control surge (and its bystander) from 13th, was 17th.)
-                if (lv >= 5) out.push(marked(ctx.entry("Puppet Marks (surge, move limb)", plan(ctx, "Puppet Marks (surge, move limb)", { range: "15 feet", save: "fortitude", damage: ctx.S("bludgeoning"), kind: "bludgeoning", effects: both([["prone"], ["off-guard", null, ctx.minutes(1)]]), raw: rawB }), { surge: true })));
+                if (lv >= 5 && pbSurge) { const mk = [["puppet-marked"], ["puppet-marked"]]; const fb = [["prone"], ["off-guard", null, ctx.minutes(1)]]; out.push(ctx.entry("Puppet Marks (surge, move limb)", plan(ctx, "Puppet Marks (surge, move limb)", { range: "15 feet", save: "fortitude", damage: ctx.S("bludgeoning"), kind: "bludgeoning", effects: { criticalSuccess: mk, success: mk, failure: [...mk, ...fb], criticalFailure: [...mk, ...fb] }, raw: rawB }), { surge: true })); }
+                else if (lv >= 5) out.push(marked(ctx.entry("Puppet Marks (surge, move limb)", plan(ctx, "Puppet Marks (surge, move limb)", { range: "15 feet", save: "fortitude", damage: ctx.S("bludgeoning"), kind: "bludgeoning", effects: both([["prone"], ["off-guard", null, ctx.minutes(1)]]), raw: rawB }), { surge: true })));
                 if (lv >= 13) out.push(marked(ctx.entry("Puppet Marks (surge, control)", plan(ctx, "Puppet Marks (surge, control)", { range: "15 feet", traits: ["mental", "incapacitation"], effects: { criticalFailure: [["controlled", null, ctx.round1]] }, notes: { failure: [command()] } }), { surge: true })));
                 if (lv >= 13) ctx.convert("Puppet Marks (surge, bystander)", { from: "commoner", actions: 2, surge: true, lasts: 1, initiative: "roll", forced: true });
                 return { spells: out, ...(["rider", "rider2", "rider3", "rider4"].includes(PV) ? { stand: { puppetRider: true, ...(PV === "rider4" ? { puppetRiderAll: true } : {}) } } : {}) };
