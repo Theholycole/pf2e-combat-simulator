@@ -102,7 +102,12 @@ const BUFFED = {
             if (lv >= 17) {
                 // (WEATHER_17B: A — heavy weather 1 action; B — a fog version indoors (stupefied 2 only); C — both.)
                 const hwActions = ["A", "C"].includes(env.WEATHER_17B) ? 1 : 2;
-                const heavy = plan(ctx, "Weather (heavy weather)", { actions: hwActions, save: "will", effects: { failure: [["stupefied", 2, ctx.round1], ["slowed", 1, ctx.round1]], criticalFailure: [["stupefied", 2, ctx.round1], ["slowed", 1, ctx.round1]] } });
+                // (WEATHER_HW: a — failure stupefied 2 and slowed 1, critical failure slowed 2, the save at −2 (played as DC +2); b — D electricity
+                // each round instead, basic Reflex.)
+                const hw = env.WEATHER_HW ?? "a";  // (2026-11-27: (a) adopted as the default; WEATHER_HW=old for the previous heavy weather)
+                const heavy = hw === "b" ? plan(ctx, "Weather (heavy weather)", { actions: hwActions, kind: "electricity", save: "reflex", damage: ctx.D("electricity") })
+                    : plan(ctx, "Weather (heavy weather)", { actions: hwActions, save: "will", effects: { failure: [["stupefied", 2, ctx.round1], ["slowed", 1, ctx.round1]], criticalFailure: [["stupefied", 2, ctx.round1], ["slowed", hw === "a" ? 2 : 1, ctx.round1]] } });
+                if (hw === "a") heavy.resolution.check.against.value = ctx.dc + 2;
                 spells.push({ ...zoneEntry(ctx, "Weather (heavy weather)", { actions: hwActions, area: { type: "emanation", value: 60 }, centre: "self", saves: [{ when: ["initial", "start"], plan: heavy }], pool: "stand-weather:heavy" }), ...(env.WEATHER_FORCE === "1" ? { forceEarly: true } : {}) });
             }
         }
