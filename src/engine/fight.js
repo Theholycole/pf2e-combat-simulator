@@ -795,7 +795,7 @@ function startTurn(state, c) {
     }
     // (B298: a minion's two actions; its summons' time, and a sustained one's action.)
     summonTurnStart(state, c);
-    if (globalThis.process?.env?.INTATK_V === "full") internalAttackTurnStart(state, c);
+    if ((globalThis.process?.env?.INTATK_V ?? "full") === "full") internalAttackTurnStart(state, c);
     // (Calm, the charm spells, a condition floor: those that ran out end; a sustained one, an action.)
     lastingTurnStart(state, c);
 
@@ -2803,7 +2803,7 @@ function internalAttackTurnStart(state, c) {
     const infectedBy = (user) => state.list.filter((o) => o.infectedBy === user.id && o.status === ACTIVE && state.round < (o.infectUntil ?? 0));
     // an infected foe retches
     // (INTATK_RETCH: 2 (default) | 1 — the retch's actions; INTATK_RETCH_ONCE=1: each creature tries once.)
-    const retchCost = Number(globalThis.process?.env?.INTATK_RETCH ?? 2), once = globalThis.process?.env?.INTATK_RETCH_ONCE === "1";
+    const retchCost = Number(globalThis.process?.env?.INTATK_RETCH ?? 2), once = globalThis.process?.env?.INTATK_RETCH_ONCE !== "0";  // (2026-11-27: once per infection, adopted)
     if (c.infectedBy && c.status === ACTIVE && (c.actionsLeft ?? 0) >= retchCost && state.round < (c.infectUntil ?? 0) && !(once && c.retchTried)) {
         c.actionsLeft -= retchCost; c.retchTried = true;
         const { degree } = rollCheck(state.rng, saveModifier(c, "fortitude"), c.infectDC ?? 20);

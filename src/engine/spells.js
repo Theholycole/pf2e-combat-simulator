@@ -628,7 +628,7 @@ export function applyCondition(state, target, slug, value, duration, source, sco
         if (user) { target.linkedTo = user.id; target.linkUntil = state.round + 10; }
     }
     // (2026-11-27, Internal Attack's full rule — INTATK_V=full: the creature its sickening lands on is infected (the stand inside it).)
-    if (slug === "sickened" && source && target.side !== source.side && state.castingNow?.name === "Internal Attack" && globalThis.process?.env?.INTATK_V === "full") {
+    if (slug === "sickened" && source && target.side !== source.side && state.castingNow?.name === "Internal Attack" && (globalThis.process?.env?.INTATK_V ?? "full") === "full") {
         const user = source.sharesHpWith ? state.byId.get(source.sharesHpWith) : source;
         if (user) { target.infectedBy = user.id; target.infectDC = state.castingNow?.dc ?? 20; target.infectUntil = state.round + 10; }
     }
