@@ -3582,6 +3582,9 @@ function castPlanInner(state, caster, spell, targetIds, actions, { forcedDegree 
         return;
     }
     if (info.attack) caster.attacksThisTurn++;
+    // (2026-11-27, colony Overwhelm — OVERWHELM_MAP (default on): one attack toward the shared multiple attack penalty; the penalty
+    // doesn't touch its save.)
+    else if (spell.name === "Overwhelm" && globalThis.process?.env?.OVERWHELM_MAP !== "0") caster.attacksThisTurn = (caster.attacksThisTurn ?? 0) + 1;
     // Stupefied: a DC 5 + value flat check, or the spell is lost.
     // (B313: a spell only, as PF2e has it — not an ability or a basic action such as Demoralize.)
     const stupefied = isSpellCast(spell) ? (caster.cond.stupefied ?? 0) : 0;

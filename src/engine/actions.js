@@ -978,7 +978,10 @@ function strikeOnce(state, attacker, target, strike, { reaction = false, trigger
     // (2026-11-05, Flamboyant Cruelty: a melee weapon Strike at a foe with two or more of clumsy, drained, enfeebled, frightened, sickened
     // and stupefied — a circumstance bonus to damage of how many it has.)
     const cruel = attacker.flamboyantCruelty && strike.melee && !strike.unarmed ? ["clumsy", "drained", "enfeebled", "frightened", "sickened", "stupefied"].filter((slug) => (target.cond?.[slug] ?? 0) > 0).length : 0;
-    const penalty = (strike.melee ? attacker.cond.enfeebled : 0) - forcefulBonus(strike, earlier) - effectBonus(attacker, "damage", damageOptions) - (cruel >= 2 ? cruel : 0);
+    // (2026-11-27, Point-Blank Power — STAND_SHARED_FORCEFUL (default on): a stand pair's forceful counts every attack either made this
+    // turn, the shared multiple attack penalty's count; off: the striker's own earlier Strikes with that weapon.)
+    const forcefulEarlier = strike.forceful && attacker.mapBox && !reaction && globalThis.process?.env?.STAND_SHARED_FORCEFUL !== "0" ? attacksMade : earlier;
+    const penalty = (strike.melee ? attacker.cond.enfeebled : 0) - forcefulBonus(strike, forcefulEarlier) - effectBonus(attacker, "damage", damageOptions) - (cruel >= 2 ? cruel : 0);
     if (cruel >= 2) log(state, `  Flamboyant Cruelty: +${cruel} damage`);
     const instances = rollStrikeDamage(state.rng, strike, { critical, penalty });
     // (2026-11-07, Lingering Bomb: a bomb with persistent damage deals none on its direct hit — splash and its persistent damage still —, and
