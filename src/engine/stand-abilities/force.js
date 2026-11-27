@@ -100,15 +100,22 @@ const BUFFED = {
             }
             if (lv >= (re ? 9 : 5)) spells.push(ctx.entry("Weather (moisture)", plan(ctx, "Weather (moisture)", { actions: 1, save: "fortitude", target: lv >= 13 ? "up to 3 creatures" : "1 creature", effects: { failure: [["sickened", 2, null]], criticalFailure: [["sickened", 3, null]] } })));
             if (lv >= 17) {
-                const heavy = plan(ctx, "Weather (heavy weather)", { actions: 2, save: "will", effects: { failure: [["stupefied", 2, ctx.round1], ["slowed", 1, ctx.round1]], criticalFailure: [["stupefied", 2, ctx.round1], ["slowed", 1, ctx.round1]] } });
-                spells.push(zoneEntry(ctx, "Weather (heavy weather)", { actions: 2, area: { type: "emanation", value: 60 }, centre: "self", saves: [{ when: ["initial", "start"], plan: heavy }], pool: "stand-weather:heavy" }));
+                // (WEATHER_17B: A — heavy weather 1 action; B — a fog version indoors (stupefied 2 only); C — both.)
+                const hwActions = ["A", "C"].includes(env.WEATHER_17B) ? 1 : 2;
+                const heavy = plan(ctx, "Weather (heavy weather)", { actions: hwActions, save: "will", effects: { failure: [["stupefied", 2, ctx.round1], ["slowed", 1, ctx.round1]], criticalFailure: [["stupefied", 2, ctx.round1], ["slowed", 1, ctx.round1]] } });
+                spells.push(zoneEntry(ctx, "Weather (heavy weather)", { actions: hwActions, area: { type: "emanation", value: 60 }, centre: "self", saves: [{ when: ["initial", "start"], plan: heavy }], pool: "stand-weather:heavy" }));
             }
+        }
+        if (inside && lv >= 17 && ["B", "C"].includes(env.WEATHER_17B)) {
+            const hwActions = env.WEATHER_17B === "C" ? 1 : 2;
+            const fogHeavy = plan(ctx, "Weather (heavy fog)", { actions: hwActions, save: "will", effects: { failure: [["stupefied", 2, ctx.round1]], criticalFailure: [["stupefied", 2, ctx.round1]] } });
+            spells.push(zoneEntry(ctx, "Weather (heavy fog)", { actions: hwActions, area: { type: "emanation", value: 60 }, centre: "self", saves: [{ when: ["initial", "start"], plan: fogHeavy }], pool: "stand-weather:heavy" }));
         }
         if (od && lv >= 9 && (inside || every)) {
             const crit = env.WEATHER_ODCRIT === "flat" ? [["sickened", 1, null], ["slowed", 1, ctx.round1]] : [["sickened", 2, null], ["slowed", 1, ctx.round1]];
             spells.push(ctx.entry("Weather (oxygen overdose)", plan(ctx, "Weather (oxygen overdose)", { actions: 2, save: "fortitude", area: { type: "burst", value: 10 }, range: 30, basic: false, effects: { failure: [["sickened", 1, null], ["slowed", 1, ctx.round1]], criticalFailure: crit } })));
         }
-        return { spells, ...(lv >= 17 && !inside ? { spellPools: { "stand-weather:heavy": 1 } } : {}) };
+        return { spells, ...(lv >= 17 && (!inside || ["B", "C"].includes(env.WEATHER_17B)) ? { spellPools: { "stand-weather:heavy": 1 } } : {}) };
     },
     Spin(ctx) {
         const { lv, D, S } = ctx;
