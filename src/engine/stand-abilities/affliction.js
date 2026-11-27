@@ -184,7 +184,7 @@ const BUFFED = {
         }
         // (NCFILL 17th: the parasite controls one of the host's actions — Will; a failure taken as an action lost (slowed 1 for a round), a
         // critical failure controlled for a round.)
-        if (globalThis.process?.env?.NCFILL === "1" && lv >= 17) {
+        if ((globalThis.process?.env?.NCFILL ?? "1") === "1" && lv >= 17) {
             const ctl = plan(ctx, "Parasite (surge control)", { actions: 2, save: "will", effects: { failure: [["slowed", 1, ctx.round1]], criticalFailure: [["controlled", null, ctx.round1]] } });
             ctl.needs = [{ target: { conditions: ["sickened"], within: 30 } }];
             spells.push(ctx.entry("Parasite (surge control)", ctl, { surge: true }));

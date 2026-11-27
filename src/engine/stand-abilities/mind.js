@@ -300,7 +300,7 @@ export const MIND = {
             if (ctx.buffed) {
                 const traitsB = ["illusion", "visual", "mental"];
                 const out = [ctx.entry("Illusion Maze (fold)", plan(ctx, "Illusion Maze (fold)", { actions: 1, traits: traitsB, damage: ctx.D("mental"), kind: "mental", effects: { failure: [["off-guard", null, untilNext]], criticalFailure: [["off-guard", null, untilNext]] } }))];
-                if (lv >= 5) out.push(ctx.entry("Illusion Maze (surge, lost)", plan(ctx, "Illusion Maze (surge, lost)", { range: lv >= 13 ? "60 feet" : "30 feet", area: { type: "burst", value: 10, foes: true }, traits: traitsB, effects: { failure: [["fleeing", null, ctx.round1]], criticalFailure: [["fleeing", null, globalThis.process?.env?.NCFILL === "1" && lv >= 17 ? ctx.minutes(1) : ctx.round1]] } }), { surge: true }));  // (NCFILL 17th: lost 1 minute on a critical failure)
+                if (lv >= 5) out.push(ctx.entry("Illusion Maze (surge, lost)", plan(ctx, "Illusion Maze (surge, lost)", { range: lv >= 13 ? "60 feet" : "30 feet", area: { type: "burst", value: 10, foes: true }, traits: traitsB, effects: { failure: [["fleeing", null, ctx.round1]], criticalFailure: [["fleeing", null, globalThis.process?.env?.MAZE17 && lv >= 17 ? (globalThis.process.env.MAZE17 === "r2" ? { mode: "fixed", value: 2, unit: "rounds" } : ctx.minutes(1)) : ctx.round1]] } }), { surge: true }));  // (MAZE17: min — lost 1 minute on a critical failure; r2 — 2 rounds)
                 // (Round 3 tone-down: a 10-ft burst (was 15); lost 2 rounds on a critical failure from 17th, was 1 minute.)
                 // (Round 4 cap: lost 1 round on a critical failure at 17th too; the fold's critical failure off-guard until your next turn.)
                 return { spells: out };
@@ -600,7 +600,7 @@ export const MIND = {
                 // (2026-11-27, PUPPET_V: rider — a stand Strike's hit marks a limb, once a turn; split — a Mark action (1 action, the stand's
                 // touch, no save); either way the 1-action Wrench (30 ft) and the surges need a marked limb. Unset: as before. PUPPET_FORCE=1:
                 // the Mark early.)
-                const PV = globalThis.process?.env?.PUPPET_V;
+                const PV = globalThis.process?.env?.PUPPET_V ?? "rider4";  // (2026-11-27: (a)+(b) adopted; PUPPET_V= for the old mark-and-tug)
                 const marked = (entry) => { if (PV) entry.plan.needs = [{ target: { conditions: ["puppet-marked"], within: PV === "rider3" ? 60 : 30 } }]; return entry; };
                 // (rider2: Wrench 2D and off-guard till your next turn on any hit, marks for the fight, 17th control at four marks; rider3: also
                 // 60 ft and two creatures a wrench from 9th.)
@@ -661,8 +661,12 @@ export const MIND = {
                 // 1 round beside the minute.)
                 // (Round 2: the bind snaps a web over a 15-ft burst of creatures you choose, D slashing basic Reflex; 1 minute on a critical
                 // failure from 5th (was 17th).)
-                if (globalThis.process?.env?.NCFILL === "1" && lv >= 17) out.push(ctx.entry("Web Control (surge, puppet)", plan(ctx, "Web Control (surge, puppet)", { save: "will", range: "30 feet", effects: { failure: [["confused", null, ctx.round1]], criticalFailure: [["controlled", null, ctx.round1]] } }), { surge: true }));
+                // (WEB17: strike — 1 action, a stuck creature Strikes an adjacent creature you choose (Will negates): played as confused for its next
+                // turn; restrained — the 5th-level bind also restrains on a failure; off unless set.)
+                const web17 = globalThis.process?.env?.WEB17;
+                if (web17 === "strike" && lv >= 17) { const pp = plan(ctx, "Web Control (puppet strike)", { actions: 1, save: "will", range: "30 feet", effects: { failure: [["confused", null, ctx.round1]], criticalFailure: [["confused", null, ctx.round1]] } }); pp.needs = [{ target: { conditions: ["immobilized"], within: 30 } }]; out.push(ctx.entry("Web Control (puppet strike)", pp)); }
                 if (lv >= 5) out.push(ctx.entry("Web Control (surge, bind)", plan(ctx, "Web Control (surge, bind)", { save: "reflex", area: { type: "burst", value: 15, foes: true }, range: "30 feet", damage: ctx.D("slashing"), kind: "slashing", effects: lv >= 13 ? { failure: [["immobilized", null, ctx.minutes(1)], ["off-guard", null, ctx.minutes(1)], ...muteB], criticalFailure: [["restrained", null, ctx.round1], ["immobilized", null, ctx.minutes(1)], ["off-guard", null, ctx.minutes(1)], ...muteB] } : { failure: [["immobilized", null, ctx.round1], ["off-guard", null, ctx.round1], ...muteB], criticalFailure: [["immobilized", null, ctx.minutes(1)], ["off-guard", null, ctx.minutes(1)], ...muteB] }, raw: rawB }), { surge: true }));
+                if (web17 === "restrained" && lv >= 17) for (const e of out) if (e.name === "Web Control (surge, bind)") e.plan.resolution.outcomes.failure.effects.push({ kind: "condition", slug: "restrained", value: null, duration: ctx.round1 });
                 return { spells: out };
             }
             if (lv < 5) return { spells: [] };
