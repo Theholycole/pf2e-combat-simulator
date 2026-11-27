@@ -718,7 +718,11 @@ function standUser(type, { rush = false, ability = "flame", heaven = false, hidd
     // user's AC while the stand is adjacent, taken as always: the stand fights beside it.)
     const guard = Math.max(0, durAC);
     const prec = { A: 1, B: 0, C: 0, D: 0, E: -1 }[grade.precision];
-    const primaryDie = { A: 10, B: 8, C: 8, D: 6, E: 6 }[grade.power];
+    // (2026-11-27, TYPEBUFF — stand-type balance candidates, comma-separated: L1 Distant Precision from 1st; L2 L1 + a third Stand Point;
+    // A1 automatic resilience: ghostly resistance doubled; A2 the program's end-of-turn action every turn (3 stand actions); E1 Acts at
+    // 5th/11th; E3 Acts at 3rd/9th; C1 Overwhelm from 5th; C2 Spread Thin's extra resistance your level; I1 integrated Power B (d8).)
+    const TB = new Set(String(globalThis.process?.env?.TYPEBUFF ?? "").split(",").filter(Boolean));
+    const primaryDie = type === "integrated" && TB.has("I1") ? 8 : { A: 10, B: 8, C: 8, D: 6, E: 6 }[grade.power];
     const names = { close: ["Fist", "Kick"], long: ["Tendril", "Whip"], automatic: ["Ram", "Bite"], colony: ["Many Hands", "Tiny Weapons"], bound: ["Blade", "Hilt"], integrated: ["Fist", "Body Weapon"], evolving: ["Fist", "Tail"] }[type];
     return {
         seat: "fighter", hp: 10, attrs: (k, lv) => ({ str: 0, dex: 2, con: martialCon(lv), int: 0, wis: minor(lv), cha: k }), noBackupBow: true,
@@ -746,7 +750,7 @@ function standUser(type, { rush = false, ability = "flame", heaven = false, hidd
             //   6  Eternal Will, as Undying Myth, from 12th with the Dedication.
             const HT = heaven ? 6 : 0;
             const myth = heaven && lv >= 12 && HT >= 1 ? 10 - prof : 0;
-            const fury = type === "close" && lv >= 7 ? { partnerDie: true } : type === "long" && lv >= 7 ? { partnerDie: "far" } : {};
+            const fury = type === "close" && lv >= 7 ? { partnerDie: true } : type === "long" && (lv >= 7 || TB.has("L1") || TB.has("L2")) ? { partnerDie: "far" } : {};
             const runes = (strike) => ({ ...strike, iwr: { ...strike.iwr, ...(potency(lv) ? { traits: ["magical"] } : {}), runes: ["ghost-touch"] } });
             const main = runes(weaponStrike(lv, { name: names[0], die: primaryDie, type: "bludgeoning", toHit: str + prec + myth, damageAttr: str, prof, group: "brawling", extra: { unarmed: true, ...(type === "close" ? { forceful: true } : {}), ...fury } }));
             const second = runes(weaponStrike(lv, { name: names[1], die: 6, type: type === "bound" ? "bludgeoning" : type === "automatic" ? "piercing" : "bludgeoning", toHit: str + prec + myth, damageAttr: str, prof, group: "brawling", extra: { unarmed: true, agile: true, finesse: true, ...fury } }));
@@ -756,7 +760,7 @@ function standUser(type, { rush = false, ability = "flame", heaven = false, hidd
             const half = Math.max(1, Math.floor(lv / 2));
             const ascended = heaven && lv >= 12;
             const grace = ascended && HT >= 2 ? half : 0;
-            const ghostly = [{ type: "all-damage", value: (half + durRes) * (ascended ? 2 : 1) + grace, exceptions: ["force", "ghost-touch", "spirit"] }];
+            const ghostly = [{ type: "all-damage", value: (half + durRes) * (ascended || (type === "automatic" && TB.has("A1")) ? 2 : 1) + grace, exceptions: ["force", "ghost-touch", "spirit"] }];
             const undying = HT >= 4;
             const willAt = HT >= 6 ? 12 : 16;
             const reserve = lv >= willAt && !undying ? 1 : 0;
@@ -856,21 +860,22 @@ function standUser(type, { rush = false, ability = "flame", heaven = false, hidd
                 spells.push(make("Melting Dart", { actions: 1, damage: D("acid"), kind: "acid", attackRoll: true, extra: acid, effects: clumsy }));
                 if (lv >= 9) spells.push(make("Melting Dart (surge, three darts)", { actions: 1, damage: halfS("acid"), kind: "acid", attackRoll: true, target: "up to 3 creatures", surge: true, extra: acid, effects: clumsy }));
             }
-            if (type === "evolving" && lv >= 7) {
+            const act2 = TB.has("E3") ? 3 : TB.has("E1") ? 5 : 7, act3 = TB.has("E3") ? 9 : TB.has("E1") ? 11 : 13;
+            if (type === "evolving" && lv >= act2) {
                 spells.push(make("Ice (shard)", { actions: 1, damage: D("cold"), kind: "cold" }));
-                if (lv >= 9) spells.push(make("Ice (surge spears)", { actions: 2, damage: S("cold"), kind: "cold", area: { type: "burst", value: 10 }, surge: true }));
+                if (lv >= Math.max(5, act2 + 2)) spells.push(make("Ice (surge spears)", { actions: 2, damage: S("cold"), kind: "cold", area: { type: "burst", value: 10 }, surge: true }));
             }
-            if (type === "evolving" && lv >= 13) {
+            if (type === "evolving" && lv >= act3) {
                 spells.push(make("Air Shots", { actions: 1, damage: D("bludgeoning"), kind: "bludgeoning", attackRoll: true }));
                 spells.push(make("Air Shots (surge, three bubbles)", { actions: 2, damage: halfS("bludgeoning"), kind: "bludgeoning", attackRoll: true, target: "up to 3 creatures", surge: true }));
             }
             // (Overwhelm, the colony's 13th: the stand's own 2-action area Strike.)
-            const overwhelm = type === "colony" && lv >= 7 ? (() => {
+            const overwhelm = type === "colony" && lv >= (TB.has("C1") ? 5 : 7) ? (() => {
                 const part = main.damage[0];
                 const entry = make("Overwhelm", { actions: 2, damage: `${part.dice}d${part.die}+${part.bonus}[bludgeoning]`, kind: "bludgeoning", area: { type: "burst", value: lv >= 13 ? 20 : 15, foes: true } });
                 return { ...entry, rechargeGroup: null };
             })() : null;
-            const spellPools = { ...(spells.some((entry) => entry.pool === pool) ? { [pool]: 2 } : {}), ...(custom?.spellPools ?? {}) };
+            const spellPools = { ...(spells.some((entry) => entry.pool === pool) ? { [pool]: type === "long" && TB.has("L2") ? 3 : 2 } : {}), ...(custom?.spellPools ?? {}) };
             const join = (target, more) => {
                 for (const [field, value] of Object.entries(more ?? {})) target[field] = Array.isArray(value) && Array.isArray(target[field]) ? [...target[field], ...value] : value;
                 return target;
@@ -935,9 +940,9 @@ function standUser(type, { rush = false, ability = "flame", heaven = false, hidd
                 return { strikes: [main, second, ...featStrikes], spells: [...spells, ...(custom?.stand?.spells ?? [])], spellPools, ...(guard ? { ac: 10 + lv + rank(lv, [[1, T], [13, E]]) + Math.min(a.dex, 99) + armorPotency(lv) + guard } : {}), fields, companions: (custom?.bystanderReserves ?? []).map((spec) => (user) => ({ ...structuredClone(spec), side: user.side ?? "party", reserve: true, summonedBy: user.id, bystander: true, ...(spec.interceptAttack ? { interceptAttack: { ...spec.interceptAttack, maker: user.id } } : {}) })) };
             }
             const stand = (user) => join(join({
-                ...structuredClone(user), summons: [], id: "stand", name: "Stand", kind: "npc", traits: ["eidolon", "stand"], sharesHpWith: user.id, standType: type, actionsPerTurn: 2, actTogether: false, boostEidolon: 0,
+                ...structuredClone(user), summons: [], id: "stand", name: "Stand", kind: "npc", traits: ["eidolon", "stand"], sharesHpWith: user.id, standType: type, actionsPerTurn: type === "automatic" && TB.has("A2") ? 3 : 2, actTogether: false, boostEidolon: 0,
                 ac: standAC,
-                resistances: [...(user.resistances ?? []), ...ghostly, ...(type === "colony" ? ["bludgeoning", "piercing", "slashing"].map((kind) => ({ type: kind, value: half + durRes + half, exceptions: [] })) : [])],
+                resistances: [...(user.resistances ?? []), ...ghostly, ...(type === "colony" ? ["bludgeoning", "piercing", "slashing"].map((kind) => ({ type: kind, value: half + durRes + (TB.has("C2") ? lv : half), exceptions: [] })) : [])],
                 ...(type === "colony" ? { weaknesses: [...(user.weaknesses ?? []), { type: "area-damage", value: half, exceptions: [] }] } : {}),
                 strikes: [main, second],
                 spells: [...(user.spells ?? []).filter((entry) => entry.kind === "basic"), ...(overwhelm ? [overwhelm] : [])], spellPools: {},
