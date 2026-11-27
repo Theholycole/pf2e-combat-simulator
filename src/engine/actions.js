@@ -138,7 +138,9 @@ export function targetAC(state, attacker, target, strike, flanked) {
     const parried = target.side === "party" && state.list.some((other) => other.selflessParry && other !== target && other.side === target.side && isActive(other) && sameMelee(other, target) && (hasOwnEffect(other, "Parry") || hasOwnEffect(other, "Dueling Parry"))) ? 1 : 0;
     // (2026-11-07, Blanket Defense: beside a guardian that used it this round or last (till its next turn), its raised shield's bonus.)
     const blanket = target.side === "party" ? state.list.find((other) => other.blanketRound != null && other.blanketRound >= state.round - 1 && other !== target && other.side === target.side && isActive(other) && sameMelee(other, target) && other.shield?.raised) : null;
-    const covered = blanket && !target.shield?.raised ? Number(blanket.shield.ac ?? blanket.shield.bonus ?? 2) || 2 : 0;
+    const covered = (blanket && !target.shield?.raised ? Number(blanket.shield.ac ?? blanket.shield.bonus ?? 2) || 2 : 0)
+        // (2026-11-27, TYPEBUFF L4: a long-range stand's user, far behind its stand, +2 circumstance to AC against ranged Strikes.)
+        + (target.farOperator && !strike.melee ? 2 : 0);
     return covered + armorClass(target, { ranged: !strike.melee, coverBonus: strike.unerring ? 0 : strike.melee ? coverFor(state, target) : coverFor(state, target, attacker), flanked: flanked || feinted || borne, options }) - berserkPenalty(state, target) + outwit + attached - branded + forbiddingBonus(target, attacker) + parried + (target.fierceGrasp && attacker.grabbedBy === target.id && (attacker.cond?.grabbed || attacker.cond?.restrained) ? 1 : 0);
 }
 
@@ -416,7 +418,7 @@ export function performStrike(state, attacker, target, strike, options = {}) {
     if (strike?.partnerDie && attacker.sharesHpWith) {
         const user = state.byId.get(attacker.sharesHpWith);
         // (A long-range stand's Distant Precision, "far": a creature not adjacent to its user.)
-        if (user && isActive(user) && (strike.partnerDie === "far" ? !sameMelee(user, target) : sameMelee(user, target))) strike = { ...strike, damage: strike.damage.map((part, index) => (index === 0 ? { ...part, dice: (part.dice ?? 0) + 1 } : part)) };
+        if (user && isActive(user) && (strike.partnerDie === "far" ? !sameMelee(user, target) : sameMelee(user, target))) strike = { ...strike, damage: strike.damage.map((part, index) => (index === 0 ? { ...part, dice: (part.dice ?? 0) + (strike.partnerDice ?? 1) } : part)) };
     }
     if (!options.reaction) {
         const result = strikeOnce(state, attacker, target, strike, options);

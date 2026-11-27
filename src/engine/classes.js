@@ -711,18 +711,19 @@ function standUser(type, { rush = false, ability = "flame", heaven = false, hidd
         bound: { power: "B", durability: "A", precision: "C" }, integrated: { power: "A", durability: "B", precision: "C" },
         evolving: { power: "B", durability: "C", precision: "A" }
     };
-    const grade = GRADES[type];
-    const durAC = { A: 2, B: 1, C: 0, D: -1, E: -2 }[grade.durability];
-    const durRes = { A: 2, B: 1 }[grade.durability] ?? 0;
+    const grade = { ...GRADES[type] };
+    // (TYPEBUFF E4: each Act raises a grade — Act Two Power A, Act Three Durability B; E5: E4 with the Acts at 5th and 11th. Applied in build by level.)
+    let durAC = { A: 2, B: 1, C: 0, D: -1, E: -2 }[grade.durability];
+    let durRes = { A: 2, B: 1 }[grade.durability] ?? 0;
     // (2026-11-24, Cole's pick "Raise the weak types": a stand of Durability A or B guards its user too — +2 or +1 circumstance to the
     // user's AC while the stand is adjacent, taken as always: the stand fights beside it.)
-    const guard = Math.max(0, durAC);
+    let guard = Math.max(0, durAC);
     const prec = { A: 1, B: 0, C: 0, D: 0, E: -1 }[grade.precision];
     // (2026-11-27, TYPEBUFF — stand-type balance candidates, comma-separated: L1 Distant Precision from 1st; L2 L1 + a third Stand Point;
     // A1 automatic resilience: ghostly resistance doubled; A2 the program's end-of-turn action every turn (3 stand actions); E1 Acts at
-    // 5th/11th; E3 Acts at 3rd/9th; C1 Overwhelm from 5th; C2 Spread Thin's extra resistance your level; I1 integrated Power B (d8).)
+    // 5th/11th; E3 Acts at 3rd/9th; E4/E5 Acts raise grades; L3 Distant Precision from 1st, 2 dice from 9th; L4 L3 + the user +2 AC vs ranged; C1 Overwhelm from 5th; C2 Spread Thin's extra resistance your level; I1 integrated Power B (d8).)
     const TB = new Set(String(globalThis.process?.env?.TYPEBUFF ?? "").split(",").filter(Boolean));
-    const primaryDie = type === "integrated" && TB.has("I1") ? 8 : { A: 10, B: 8, C: 8, D: 6, E: 6 }[grade.power];
+    let primaryDie = type === "integrated" && TB.has("I1") ? 8 : { A: 10, B: 8, C: 8, D: 6, E: 6 }[grade.power];
     const names = { close: ["Fist", "Kick"], long: ["Tendril", "Whip"], automatic: ["Ram", "Bite"], colony: ["Many Hands", "Tiny Weapons"], bound: ["Blade", "Hilt"], integrated: ["Fist", "Body Weapon"], evolving: ["Fist", "Tail"] }[type];
     return {
         seat: "fighter", hp: 10, attrs: (k, lv) => ({ str: 0, dex: 2, con: martialCon(lv), int: 0, wis: minor(lv), cha: k }), noBackupBow: true,
@@ -731,6 +732,12 @@ function standUser(type, { rush = false, ability = "flame", heaven = false, hidd
         // (Stand DC: the summoner's spellcasting steps — expert at 9th, master at 17th — with Charisma.)
         classDC: [[1, T], [9, E], [17, M]],
         build(lv, a) {
+            // (TYPEBUFF E4/E5: the evolving stand's Acts raise its grades — Power A from Act Two, Durability B from Act Three.)
+            if (type === "evolving" && (TB.has("E4") || TB.has("E5"))) {
+                const a2 = TB.has("E5") ? 5 : 7, a3 = TB.has("E5") ? 11 : 13;
+                primaryDie = lv >= a2 ? 10 : 8;
+                durAC = lv >= a3 ? 1 : 0; durRes = lv >= a3 ? 1 : 0; guard = Math.max(0, durAC);
+            }
             const str = key(lv) + (lv >= 17 ? 1 : 0); // (Stand Transcendence: +1 to its Strength at 17th.)
             const prof = rank(lv, [[1, T], [5, E], [13, M]]);
             // (2026-11-24, Cole's pick "Give both an earlier combat perk": a long-range stand's Distant Precision at 7th, close-range's Point-Blank
@@ -750,7 +757,7 @@ function standUser(type, { rush = false, ability = "flame", heaven = false, hidd
             //   6  Eternal Will, as Undying Myth, from 12th with the Dedication.
             const HT = heaven ? 6 : 0;
             const myth = heaven && lv >= 12 && HT >= 1 ? 10 - prof : 0;
-            const fury = type === "close" && lv >= 7 ? { partnerDie: true } : type === "long" && (lv >= 7 || TB.has("L1") || TB.has("L2")) ? { partnerDie: "far" } : {};
+            const fury = type === "close" && lv >= 7 ? { partnerDie: true } : type === "long" && (lv >= 7 || TB.has("L1") || TB.has("L2") || TB.has("L3") || TB.has("L4")) ? { partnerDie: "far", ...((TB.has("L3") || TB.has("L4")) && lv >= 9 ? { partnerDice: 2 } : {}) } : {};
             const runes = (strike) => ({ ...strike, iwr: { ...strike.iwr, ...(potency(lv) ? { traits: ["magical"] } : {}), runes: ["ghost-touch"] } });
             const main = runes(weaponStrike(lv, { name: names[0], die: primaryDie, type: "bludgeoning", toHit: str + prec + myth, damageAttr: str, prof, group: "brawling", extra: { unarmed: true, ...(type === "close" ? { forceful: true } : {}), ...fury } }));
             const second = runes(weaponStrike(lv, { name: names[1], die: 6, type: type === "bound" ? "bludgeoning" : type === "automatic" ? "piercing" : "bludgeoning", toHit: str + prec + myth, damageAttr: str, prof, group: "brawling", extra: { unarmed: true, agile: true, finesse: true, ...fury } }));
@@ -962,7 +969,7 @@ function standUser(type, { rush = false, ability = "flame", heaven = false, hidd
             }
             // (The bound vessel: the user's own Strike at the stand's numbers.)
             const strikes = type === "bound" ? [{ ...main, iwr: { ...main.iwr } }] : [];
-            return { strikes, spells, spellPools, ...(guard ? { ac: 10 + lv + rank(lv, [[1, T], [13, E]]) + Math.min(a.dex, 99) + armorPotency(lv) + guard } : {}), fields: { actionsPerTurn: 2, actTogether: true, boostEidolon: 0, ...heavenUser, ...(custom?.user ?? {}), ...(type === "bound" && process.env.BOUND_GUARD !== "0" ? vesselGuard(lv, custom?.user) : {}) }, companions: [stand, ...(custom?.bystanderReserves ?? []).map((spec) => (user) => ({ ...structuredClone(spec), side: user.side ?? "party", reserve: true, summonedBy: user.id, bystander: true, ...(spec.interceptAttack ? { interceptAttack: { ...spec.interceptAttack, maker: user.id } } : {}) }))] };
+            return { strikes, spells, spellPools, ...(guard ? { ac: 10 + lv + rank(lv, [[1, T], [13, E]]) + Math.min(a.dex, 99) + armorPotency(lv) + guard } : {}), fields: { actionsPerTurn: 2, actTogether: true, boostEidolon: 0, ...(type === "long" && TB.has("L4") ? { farOperator: true } : {}), ...heavenUser, ...(custom?.user ?? {}), ...(type === "bound" && process.env.BOUND_GUARD !== "0" ? vesselGuard(lv, custom?.user) : {}) }, companions: [stand, ...(custom?.bystanderReserves ?? []).map((spec) => (user) => ({ ...structuredClone(spec), side: user.side ?? "party", reserve: true, summonedBy: user.id, bystander: true, ...(spec.interceptAttack ? { interceptAttack: { ...spec.interceptAttack, maker: user.id } } : {}) }))] };
         }
     };
 }
