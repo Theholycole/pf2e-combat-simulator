@@ -2069,6 +2069,19 @@ export function applyDamage(state, target, instances, { source = null, critical 
     }
     for (const instance of adjusted.persistent) addPersistent(target, instance, source);
     const dealt = dealDamage(state, target, total, { source, critical, nonlethal });
+    // (2026-11-27, Pain Link as a real link — PAINLINK_REAL=1: any damage the user (or its stand, shared HP) takes, each linked host takes
+    // too — half, all from 9th (painLinkFraction on the user), no save, no reaction; PAINLINK17=a: 1.5 times; b: stunned 1 the first time
+    // each round.)
+    if (dealt > 0 && globalThis.process?.env?.PAINLINK_REAL !== "0") {
+        const user = target.sharesHpWith ? state.byId.get(target.sharesHpWith) : target;
+        if (user?.painLinkFraction) {
+            for (const host of state.list.filter((o) => o.linkedTo === user.id && isActive(o) && state.round < (o.linkUntil ?? 0))) {
+                const amount = Math.floor(dealt * user.painLinkFraction);
+                if (amount > 0) { log(state, `  ${host.name} feels it through the link`); applyDamage(state, host, [{ type: "untyped", amount, persistent: false, precision: false }], { source: user, intercepted: true }); }
+                if (user.painLinkStun && host.linkStunRound !== state.round && isActive(host)) { host.linkStunRound = state.round; applyCondition(state, host, "stunned", 1, null, user); }
+            }
+        }
+    }
     // (2026-11-27, Slide with the wound really moving — SLIDE_MOVE: the force damage the user's or stand's slid wound deals heals the most
     // hurt creature on its side, all of it (1) or half (0.5), up to what it's missing; only force — the slid wound's —, not the Strike's.)
     if (dealt > 0 && source?.slideTransfer && source.side !== target.side) {

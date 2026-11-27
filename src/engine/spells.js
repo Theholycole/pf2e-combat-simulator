@@ -622,6 +622,16 @@ export function applyCondition(state, target, slug, value, duration, source, sco
     if (source?.agingCaster && target.side !== source.side && state.agingCold && state.rng.chance(0.5)) return false;
     // (2026-11-27, Iron Blood's Iron Loss — IRONLOSS_V: "iron-loss", value 1 or 2: 1 sickened 1, 2 also slowed 1, 3 the variant's end —
     // ko: stuck, a Fortitude save at the end of each of its turns or unconscious (fight.js endTurn); soft: slowed 2, stuck sickened.)
+    // (2026-11-27, Pain Link as a real link — PAINLINK_REAL=1: the link's failure marks the host (actions.js shares the user's damage).)
+    if (slug === "off-guard" && source && target.side !== source.side && state.castingNow?.name === "Pain Link" && globalThis.process?.env?.PAINLINK_REAL !== "0") {
+        const user = source.sharesHpWith ? state.byId.get(source.sharesHpWith) : source;
+        if (user) { target.linkedTo = user.id; target.linkUntil = state.round + 10; }
+    }
+    // (2026-11-27, Internal Attack's full rule — INTATK_V=full: the creature its sickening lands on is infected (the stand inside it).)
+    if (slug === "sickened" && source && target.side !== source.side && state.castingNow?.name === "Internal Attack" && globalThis.process?.env?.INTATK_V === "full") {
+        const user = source.sharesHpWith ? state.byId.get(source.sharesHpWith) : source;
+        if (user) { target.infectedBy = user.id; target.infectDC = state.castingNow?.dc ?? 20; target.infectUntil = state.round + 10; }
+    }
     if (slug === "iron-loss") {
         target.ironVariant = globalThis.process?.env?.IRONLOSS_V === "soft" ? "soft" : "ko";
         const v = Math.min(3, (target.ironLoss ?? 0) + (Number(value) || 1));

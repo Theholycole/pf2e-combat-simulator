@@ -192,13 +192,22 @@ const BUFFED = {
         const linked = [["off-guard", null, ctx.minutes(1)], ...(lv >= 5 ? [["clumsy", 1, ctx.minutes(1)]] : [])];
         const link = ctx.entry("Pain Link", plan(ctx, "Pain Link", { actions: 1, save: "will", damage: ctx.D("mental"), kind: "mental", target: lv >= 13 ? "up to 3 creatures" : lv >= 5 ? "up to 2 creatures" : "1 creature", effects: { failure: linked, criticalFailure: linked } }));
         out.spells = [...out.spells.filter((each) => each.name !== "Pain Link"), link];
+        // (2026-11-27, PAINLINK_REAL=1: the real link — the Retributive Pain stand-in dropped; the share on the user (actions.js);
+        // PAINLINK_FORCE=1 links early.)
+        const env = globalThis.process?.env ?? {};
+        if (env.PAINLINK_REAL !== "0") {
+            out.spells = out.spells.filter((each) => each.name !== "Pain Link (shared pain)").map((each) => (each.name === "Pain Link" && env.PAINLINK_FORCE === "1" ? { ...each, forceEarly: true } : each));
+            if (out.stand?.spells) out.stand.spells = out.stand.spells.filter((each) => each.name !== "Pain Link (shared pain)");
+            const p17 = lv >= 17 ? (env.PAINLINK17 ?? "b") : null;  // (2026-11-27: (b) the stun adopted as the default)
+            out.user = { ...(out.user ?? {}), painLinkFraction: p17 === "a" ? 1.5 : lv >= 9 ? 1 : 0.5, ...(p17 === "b" ? { painLinkStun: true } : {}) };
+        }
         return out;
     },
     "Internal Attack"(ctx) {
         const { lv, make, S } = ctx;
         const rounds10 = ctx.minutes(1);
         const crit = [["sickened", 2, rounds10], ...(lv >= 17 ? [["slowed", 1, rounds10]] : [])];
-        const spells = [ctx.entry("Internal Attack", plan(ctx, "Internal Attack", { actions: 1, area: { type: "burst", value: lv >= 13 ? 20 : 10, foes: true }, extra: { failure: [ctx.D("bludgeoning")], criticalFailure: [ctx.D("bludgeoning")] }, effects: { failure: [["sickened", 1, rounds10]], criticalFailure: crit } }))];
+        const spells = [{ ...ctx.entry("Internal Attack", plan(ctx, "Internal Attack", { actions: 1, area: { type: "burst", value: lv >= 13 ? 20 : 10, foes: true }, extra: { failure: [ctx.D("bludgeoning")], criticalFailure: [ctx.D("bludgeoning")] }, effects: { failure: [["sickened", 1, rounds10]], criticalFailure: crit } })), ...(globalThis.process?.env?.INTATK_FORCE === "1" ? { forceEarly: true } : {}) }];
         if (lv >= 5) {
             const slowed = [["slowed", 1, ctx.round1]];
             // (Round 2: the surge 1 action.)

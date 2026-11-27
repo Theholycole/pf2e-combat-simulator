@@ -795,6 +795,7 @@ function startTurn(state, c) {
     }
     // (B298: a minion's two actions; its summons' time, and a sustained one's action.)
     summonTurnStart(state, c);
+    if (globalThis.process?.env?.INTATK_V === "full") internalAttackTurnStart(state, c);
     // (Calm, the charm spells, a condition floor: those that ran out end; a sustained one, an action.)
     lastingTurnStart(state, c);
 
@@ -2792,4 +2793,38 @@ function summarize(state) {
         stats: { ...state.stats, groupRout: !!state.stats.groupRout },
         log: state.log
     };
+}
+
+// (2026-11-27, Internal Attack's full rule — INTATK_V=full: the stand stays inside an infected creature for 1 minute and can't act
+// elsewhere meanwhile; the infected creature retches it out with 2 actions (Fortitude against the stand DC; an ally's Medicine isn't
+// played); one expulsion in ten finds a container and traps the stand until its user spends 1 action and beats the trapper's Fortitude DC
+// with Athletics.)
+function internalAttackTurnStart(state, c) {
+    const infectedBy = (user) => state.list.filter((o) => o.infectedBy === user.id && o.status === ACTIVE && state.round < (o.infectUntil ?? 0));
+    // an infected foe retches
+    // (INTATK_RETCH: 2 (default) | 1 — the retch's actions; INTATK_RETCH_ONCE=1: each creature tries once.)
+    const retchCost = Number(globalThis.process?.env?.INTATK_RETCH ?? 2), once = globalThis.process?.env?.INTATK_RETCH_ONCE === "1";
+    if (c.infectedBy && c.status === ACTIVE && (c.actionsLeft ?? 0) >= retchCost && state.round < (c.infectUntil ?? 0) && !(once && c.retchTried)) {
+        c.actionsLeft -= retchCost; c.retchTried = true;
+        const { degree } = rollCheck(state.rng, saveModifier(c, "fortitude"), c.infectDC ?? 20);
+        state.log?.push(`  ${c.name} retches to expel the stand: ${degree >= SUCCESS ? "expelled" : "it stays"}`);
+        if (degree >= SUCCESS) {
+            const user = state.byId.get(c.infectedBy);
+            c.infectedBy = null;
+            if (user && state.rng.chance(0.1)) { user.standTrapped = { dc: 10 + saveModifier(c, "fortitude") }; state.log?.push(`  ${c.name} traps the stand in a container`); }
+        }
+    }
+    // a user's stand trapped: 1 action, Athletics against the trapper's Fortitude DC
+    if (c.standTrapped && c.status === ACTIVE && (c.actionsLeft ?? 0) >= 1) {
+        c.actionsLeft -= 1;
+        const athletics = (c.skills?.athletics ?? (c.level ?? 1) + 2);
+        const { degree } = rollCheck(state.rng, athletics, c.standTrapped.dc);
+        state.log?.push(`  ${c.name} tries to free its stand: ${degree >= SUCCESS ? "free" : "still trapped"}`);
+        if (degree >= SUCCESS) c.standTrapped = null;
+    }
+    // the stand inside (or trapped) can't act
+    if (c.sharesHpWith) {
+        const user = state.byId.get(c.sharesHpWith);
+        if (user && (user.standTrapped || infectedBy(user).length)) { c.actionsLeft = 0; state.log?.push(`  ${c.name} is ${user.standTrapped ? "trapped" : "inside its host"} and can't act`); }
+    }
 }
