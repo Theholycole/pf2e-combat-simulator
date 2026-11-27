@@ -906,7 +906,13 @@ function standUser(type, { rush = false, ability = "flame", heaven = false, hidd
                 // Merged: the user is the one body.
                 return {
                     strikes: [main, second, ...featStrikes].map((strike) => ({ ...strike, iwr: { ...strike.iwr, runes: ["ghost-touch"] } })), spells, spellPools,
-                    ac: 10 + lv + rank(lv, [[1, T], [13, E]]) + Math.min(a.dex, 99) + armorPotency(lv) + (lv >= 7 ? 1 : 0) + guard, fields: { ...(lv >= 13 ? { extraActions: 1 } : {}), ...(custom?.user ?? {}),
+                    ac: 10 + lv + rank(lv, [[1, T], [13, E]]) + Math.min(a.dex, 99) + armorPotency(lv) + (lv >= 7 ? 1 : 0) + guard, fields: { ...((() => {
+                        // (2026-11-27, Cole: merged integrated stands keep Act Together as Worn Stand's text says — 4 actions a turn from 1st (one body,
+                        // one attack penalty), Full Merge (13th) a free stand action on top: 5. INTEGRATED_AT=0: the old reading (3, Full Merge 4).)
+                        const at = globalThis.process?.env?.INTEGRATED_AT !== "0";
+                        const extra = (at ? 1 : 0) + (lv >= 13 ? 1 : 0);
+                        return extra ? { extraActions: extra } : {};
+                    })()), ...(custom?.user ?? {}),
                         // (2026-11-25 INTEGRATED_GHOST, on by default since 2026-11-25 (Cole adopted it; INTEGRATED_GHOST=0 turns it off): merged, the user has the stand's ghostly resistance — half its level, minimum 1, to all damage but force, spirit and ghost touch.)
                         ...(process.env.INTEGRATED_GHOST !== "0" ? { resistances: [...(custom?.user?.resistances ?? []), { type: "all-damage", value: Math.max(1, Math.floor(lv / 2)), exceptions: ["force", "ghost-touch", "spirit"] }] } : {}) }
                 };
