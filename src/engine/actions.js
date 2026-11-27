@@ -1874,14 +1874,19 @@ export function applyDamage(state, target, instances, { source = null, critical 
     if (!intercepted && source && source.side !== target.side && instances.some((instance) => ["bludgeoning", "piercing", "slashing"].includes(instance.type))) {
         // (2026-11-05, Guardian's Intercept: once a fight — interceptAttack.once.)
         // (2026-11-07, Unbelievable Interception: two Strides first — from anywhere but far —, a Mythic Point each.)
-        const guardian = state.list.find((c) => c.interceptAttack && !(c.interceptAttack.once && c.interceptUsed) && !(c.interceptAttack.mythic && !((c.mythicPoints ?? 0) > 0)) && c !== target && c.side === target.side && canReact(c, c.interceptAttack.name) && (sameMelee(c, target) || (c.interceptAttack.near && isActive(c) && canAct(c) && c.band !== "far" && target.band !== "far")));
+        // (2026-11-27, Life-Giving's Leap In: an animal, once a round for all of them — interceptAttack.maker's leapRound —, when the hit
+        // deals at least interceptAttack.share of the ally's HP or drops it.)
+        const leapOk = (c) => !c.interceptAttack?.maker || state.byId.get(c.interceptAttack.maker)?.leapRound !== state.round;
+        const guardian = state.list.find((c) => c.interceptAttack && leapOk(c) && !(c.interceptAttack.once && c.interceptUsed) && !(c.interceptAttack.mythic && !((c.mythicPoints ?? 0) > 0)) && c !== target && c.side === target.side && canReact(c, c.interceptAttack.name) && (sameMelee(c, target) || (c.interceptAttack.near && isActive(c) && canAct(c) && c.band !== "far" && target.band !== "far")));
         if (guardian) {
             const total = adjustDamage(target, instances).total;
             const fraction = (c) => Math.max(0, c.hp.value) / Math.max(1, c.hp.max);
             // (2026-11-07, Stand for the Fallen: only damage that would drop the ally — lethalOnly —, with resistance to all of it equal to
             // its level — resist.)
             const lethal = total >= target.hp.value + (target.hp.temp ?? 0);
-            if (lethal || (!guardian.interceptAttack.lethalOnly && fraction(guardian) > fraction(target) + 0.2)) {
+            const shareHit = guardian.interceptAttack.share ? total >= guardian.interceptAttack.share * target.hp.max || fraction(target) <= 0.5 : fraction(guardian) > fraction(target) + 0.2;
+            if (lethal || (!guardian.interceptAttack.lethalOnly && shareHit)) {
+                if (guardian.interceptAttack.maker) { const mk = state.byId.get(guardian.interceptAttack.maker); if (mk) mk.leapRound = state.round; }
                 spendReaction(guardian, guardian.interceptAttack.name);
                 guardian.interceptUsed = true;
                 if (guardian.interceptAttack.mythic) guardian.mythicPoints--;
@@ -1889,7 +1894,10 @@ export function applyDamage(state, target, instances, { source = null, critical 
                 log(state, `  ${guardian.name} uses ${guardian.interceptAttack.near ? guardian.interceptAttack.name : "Intercept Attack"} for ${target.name}`);
                 const held = guardian.resistances;
                 if (guardian.interceptAttack.resist) guardian.resistances = [...(held ?? []), { type: "all-damage", value: guardian.interceptAttack.resist, exceptions: [] }];
+                const noReflect = guardian.interceptAttack.noReflect && guardian.reflectHalf;
+                if (noReflect) guardian.reflectHalf = false;
                 const dealt = applyDamage(state, guardian, instances, { source, critical, nonlethal, physical, intercepted: true });
+                if (noReflect) guardian.reflectHalf = true;
                 guardian.resistances = held;
                 // (2026-11-05, Armored Counterattack: a free Strike back at an attacker beside it — taken as a melee one's —, a Taunt on a hit.)
                 if (guardian.armoredCounterattack && isActive(guardian) && canAct(guardian) && isActive(source) && sameMelee(guardian, source)) {
@@ -2036,6 +2044,12 @@ export function applyDamage(state, target, instances, { source = null, critical 
     }
     for (const instance of adjusted.persistent) addPersistent(target, instance, source);
     const dealt = dealDamage(state, target, total, { source, critical, nonlethal });
+    // (2026-11-27, Life-Giving 9th: "a creature that damages one of your animals takes half that damage back" — reflectHalf, any damage,
+    // area too; untyped, and not reflected again.)
+    if (dealt > 1 && target.reflectHalf && source && source !== target && source.side !== target.side && !source.reflectHalf && isActive(source)) {
+        log(state, `  ${source.name} takes half of it back from ${target.name}`);
+        applyDamage(state, source, [{ type: "untyped", amount: Math.floor(dealt / 2), persistent: false, precision: false }], { source: target, intercepted: true });
+    }
     // (Warrior's Regret: the creatures it damaged this turn.)
     if (dealt > 0 && source && source !== target) (source.damagedThisTurn ??= new Set()).add(target.id);
     // Vengeful Rage (B65): damage that leaves it at that many Hit Points or fewer.

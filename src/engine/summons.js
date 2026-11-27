@@ -190,7 +190,7 @@ export function activateSummons(state, maker, entry, { reaction = false, single 
                 }
             }
         }
-        if (entry.corpse) maker.raisedZombies = [...(maker.raisedZombies ?? []), c];
+        if (entry.corpse && entry.corpse !== "none") maker.raisedZombies = [...(maker.raisedZombies ?? []), c];
         c.status = ACTIVE;
         c.side = maker.side;
         c.band = maker.band === "engaged" ? "near" : maker.band ?? "near";

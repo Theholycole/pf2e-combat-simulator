@@ -163,7 +163,26 @@ export const MATTER = {
     "Life-Giving": {
         build(ctx) {
             const count = ctx.lv >= 9 ? 2 : 1;
-            const spells = [minion(ctx, "Life-Giving (command animals)", { count, standStrike: ctx.lv >= 13, kind: "piercing" })];
+            // (2026-11-27, Cole: "is there any way to make use of the animal minions that reflect damage other than hope the enemy uses AoE?"
+            // — LG_V: 0 as before (the animals one Strike roll, untouchable, the reflection not played); 1 real animals (summons.js, 2 actions
+            // each, made from an object, level − 2 minions with GM Core Low AC, HP, saves and Strike — the stand's main Strike from 13th —,
+            // targetable, 1 minute, one command a turn) that reflect half the damage they take from 9th, area damage too; 2 = 1 with Leap In
+            // from 9th (a reaction once a round for all of them: an animal beside an ally hit by a Strike takes it instead, when it would deal
+            // at least 30% of the ally's HP or drop it).)
+            const LG = Number(globalThis.process?.env?.LG_V ?? 0);
+            let spells;
+            if (LG >= 1) {
+                const level = ctx.lv - 2;
+                const average = lowAt(LOW_DAMAGE, level);
+                const die = level >= 4 ? 8 : 6;
+                const dice = Math.max(1, Math.round((average * 0.55) / ((die + 1) / 2)));
+                const bonus = Math.max(0, Math.round(average - (dice * (die + 1)) / 2));
+                const strike = ctx.lv >= 13 ? { ...structuredClone(ctx.main), name: "Stand's Strike" } : { name: "Bite", bonus: lowAt(LOW_ATTACK, level), melee: true, agile: false, unarmed: true, reach: 5, damage: [{ dice, die, bonus, type: "piercing" }] };
+                const saves = { fortitude: low("save", level), reflex: low("save", level), will: low("save", level) };
+                ctx.raise("Life-Giving (animate an object)", { count, corpse: "none", strike, ac: low("ac", level), hp: low("hp", level), saves, level, prefix: "lg-animal", label: "Life-Giving animal", traits: ["animal", "minion"], invisible: false,
+                    more: { size: "tiny", ...(ctx.lv >= 9 ? { reflectHalf: true } : {}), ...(LG >= 2 && ctx.lv >= 9 ? { interceptAttack: { name: "Leap In", share: 0.2, ...(LG === 3 ? {} : { near: true }), ...(LG === 4 ? { noReflect: true } : {}) } } : {}) } });
+                spells = [];
+            } else spells = [minion(ctx, "Life-Giving (command animals)", { count, standStrike: ctx.lv >= 13, kind: "piercing" })];
             if (ctx.lv >= 5) spells.push(heal(ctx, "Life-Giving (surge heal)", { actions: 2, formula: heals(ctx.lv), surge: true }));
             const stand = { critRider: { name: "Life-Giving", conditions: [{ slug: "stupefied", value: 1 }] } };
             let spellPools = null;

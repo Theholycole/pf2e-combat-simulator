@@ -823,10 +823,10 @@ function standUser(type, { rush = false, ability = "flame", heaven = false, hidd
                 // from round 1) or "fight" (none at first: each needs a creature that died this fight — summons.js canSummon). fromCorpse (17th):
                 // the zombie takes that creature's size and reach.)
                 const zombieReserves = [];
-                const raise = (name, { count = 1, corpse = "fight", fromCorpse = false, strike, ac, hp, saves, level, mass = false, free = false, riseOnDeath = false, riseStrike = false, minionActions = 2 }) => {
+                const raise = (name, { count = 1, corpse = "fight", fromCorpse = false, strike, ac, hp, saves, level, mass = false, free = false, riseOnDeath = false, riseStrike = false, minionActions = 2, prefix = "zombie", label = "Invisible zombie", traits = ["minion", "mindless", "undead", "zombie"], invisible = true, more = {} }) => {
                     const ids = [];
                     for (let index = 0; index < count; index++) {
-                        const made = { id: `zombie-${index}`, name: `Invisible zombie ${index + 1}`, kind: "npc", level, traits: ["minion", "mindless", "undead", "zombie"], hp: { value: hp, max: hp }, ac, saves: { ...saves }, perception: saves.will, speed: 25, reach: 5, strikes: [structuredClone(strike)], reactions: { aoo: false, shieldBlock: false }, senses: [], permanent: [{ slug: "invisible" }], immunities: ["death-effects", "disease", "mental", "paralyzed", "poison", "unconscious"], ...(minionActions !== 2 ? { minionActions } : {}) };
+                        const made = { id: `${prefix}-${index}`, name: `${label} ${index + 1}`, kind: "npc", level, traits: [...traits], hp: { value: hp, max: hp }, ac, saves: { ...saves }, perception: saves.will, speed: 25, reach: 5, strikes: [structuredClone(strike)], reactions: { aoo: false, shieldBlock: false }, senses: [], ...(invisible ? { permanent: [{ slug: "invisible" }], immunities: ["death-effects", "disease", "mental", "paralyzed", "poison", "unconscious"] } : {}), ...(minionActions !== 2 ? { minionActions } : {}), ...structuredClone(more) };
                         zombieReserves.push(made);
                         ids.push(made.id);
                     }
@@ -934,7 +934,7 @@ function standUser(type, { rush = false, ability = "flame", heaven = false, hidd
             }
             // (The bound vessel: the user's own Strike at the stand's numbers.)
             const strikes = type === "bound" ? [{ ...main, iwr: { ...main.iwr } }] : [];
-            return { strikes, spells, spellPools, ...(guard ? { ac: 10 + lv + rank(lv, [[1, T], [13, E]]) + Math.min(a.dex, 99) + armorPotency(lv) + guard } : {}), fields: { actionsPerTurn: 2, actTogether: true, boostEidolon: 0, ...heavenUser, ...(custom?.user ?? {}), ...(type === "bound" && process.env.BOUND_GUARD !== "0" ? vesselGuard(lv, custom?.user) : {}) }, companions: [stand, ...(custom?.bystanderReserves ?? []).map((spec) => (user) => ({ ...structuredClone(spec), side: user.side ?? "party", reserve: true, summonedBy: user.id, bystander: true }))] };
+            return { strikes, spells, spellPools, ...(guard ? { ac: 10 + lv + rank(lv, [[1, T], [13, E]]) + Math.min(a.dex, 99) + armorPotency(lv) + guard } : {}), fields: { actionsPerTurn: 2, actTogether: true, boostEidolon: 0, ...heavenUser, ...(custom?.user ?? {}), ...(type === "bound" && process.env.BOUND_GUARD !== "0" ? vesselGuard(lv, custom?.user) : {}) }, companions: [stand, ...(custom?.bystanderReserves ?? []).map((spec) => (user) => ({ ...structuredClone(spec), side: user.side ?? "party", reserve: true, summonedBy: user.id, bystander: true, ...(spec.interceptAttack ? { interceptAttack: { ...spec.interceptAttack, maker: user.id } } : {}) }))] };
         }
     };
 }
