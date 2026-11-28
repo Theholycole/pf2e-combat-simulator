@@ -168,7 +168,7 @@ export const MIND = {
                     return ctx.effectModel(name, rounds, { modifiers: mods, aura: [{ radius: 30, affects: "allies", includesSelf: false, model: ctx.effectModel(name, rounds, { modifiers: mods }) }] });
                 };
                 const selfEffects = [{ name: "Replay (glimpse)", actions: 1, model: aura("Replay (glimpse)", B1.has("RP2") ? 1 : 10, 1) }];  // (RP2: the glimpse lasts 1 round, was 1 minute)
-                if (lv >= 5) selfEffects.push({ name: "Replay (surge, replayed action)", actions: 1, model: aura("Replay (surge, replayed action)", 10, 2), pool: ctx.pool });
+                if (lv >= 5) selfEffects.push({ name: "Replay (surge, replayed action)", actions: 1, model: aura("Replay (surge, replayed action)", 10, B1.has("RP3") ? 1 : 2), pool: ctx.pool });  // (RP3: the surge +1 (was +2) to AC and saves, +1 to attacks as before)
                 return { spells: [], user: { selfEffects }, ...(lv >= 5 ? { spellPools: { [ctx.pool]: 2 } } : {}) };
             }
             if (lv < 9) return { spells: [] };

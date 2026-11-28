@@ -47,8 +47,8 @@ const BUFFED = {
         // enfeebled, listed before the save so it's the shrink of an earlier hit.)
         const fail = [["enfeebled", lv >= 13 ? 2 : 1, lv >= 5 ? 10 : 1], ["off-guard", null, 1]];
         const crit = [["enfeebled", 2, 10], ["off-guard", null, 1], ...(lv >= 5 ? [["clumsy", 1, 10]] : [])];
-        const crush = { source: "Shrink (crushing blow)", when: "condition:enfeebled", dice: B1.has("SH1") ? (lv >= 13 ? 2 : 1) : lv >= 13 ? 3 : lv >= 5 ? 2 : 1, die: 6 };  // (SH1: crushing blows 1d6, 2d6 from 13th)  // (Round 5: 2d6 from 5th, 3d6 from 13th.)
-        const extras = [crush, ...(B1.has("SH2") ? [] : [{ source: "Shrink (off-guard)", when: "hit", offGuardToAttacker: true }]), { source: "Shrink", when: "hit", save: { statistic: "fortitude", dc, outcomes: [crit, fail, [], []] } }];
+        const crush = { source: "Shrink (crushing blow)", when: "condition:enfeebled", dice: B1.has("SH1") || B1.has("SH3") ? (lv >= 13 ? 2 : 1) : lv >= 13 ? 3 : lv >= 5 ? 2 : 1, die: 6 };  // (SH1: crushing blows 1d6, 2d6 from 13th)  // (Round 5: 2d6 from 5th, 3d6 from 13th.)
+        const extras = [crush, ...(B1.has("SH2") || B1.has("SH3") ? [] : [{ source: "Shrink (off-guard)", when: "hit", offGuardToAttacker: true }]), { source: "Shrink", when: "hit", save: { statistic: "fortitude", dc, outcomes: [crit, fail, [], []] } }];
         // (Round 6 trim: 'already shrunk' read as shrunk by a critical failure — its clumsy 1 the size's stand-in —, not any enfeebled: in the
         // buffed text a failure only enfeebles, so the 17th's second save no longer rides on every pinch and failed save.)
         if (lv >= 17) extras.push({ source: "Shrink (already shrunk)", when: "condition:clumsy", save: { statistic: "fortitude", dc, incapacitation: true, outcomes: [[["enfeebled", 3, 10]], [["enfeebled", 3, 10]], [], []] } });
