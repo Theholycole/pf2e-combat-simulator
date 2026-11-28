@@ -203,11 +203,11 @@ const BUFFED = {
             ...(lv >= 5 ? [{ on: "speed", type: "circumstance", value: 10 }] : [])];
         // (Round 4 cap: resistance 3 at most — was 5 from 17th.)
         // (IA2: resistance 3 from 9th, 5 from 17th.)
-        const resist = lv >= 9 ? [{ type: "physical", value: B1.has("IA2") ? (lv >= 17 ? 5 : 3) : lv >= 13 ? 3 : 2, exceptions: [] }] : [];
+        const resist = B1.has("IA6") ? [{ type: "physical", value: lv >= 17 ? 5 : lv >= 9 ? 3 : 2, exceptions: [] }] : lv >= 9 ? [{ type: "physical", value: B1.has("IA2") ? (lv >= 17 ? 5 : 3) : lv >= 13 ? 3 : 2, exceptions: [] }] : [];
         const armor = ctx.effectModel("Ice Armor", 100, { modifiers, resistances: resist, hitBack: `${lv}[cold]` });
         // (Round 2: frost on your fists — the armor's cold on the Strikes, played as always on: the armor goes on in the first round.)
         // (Round 4 cap: 1d6 at every level — was 2d6 from 9th, 3d6 from 17th.)
-        const frost = ["IA1", "IA2", "IA3", "IA4"].some((k) => B1.has(k)) ? (lv >= 17 ? 3 : lv >= 9 ? 2 : 1) : 1;  // (IA1: 2d6 from 9th, 3d6 from 17th, the pre-cap scaling)
+        const frost = ["IA1", "IA2", "IA3", "IA4", "IA5", "IA6"].some((k) => B1.has(k)) ? (lv >= 17 ? 3 : lv >= 9 ? 2 : 1) : 1;  // (IA1: 2d6 from 9th, 3d6 from 17th, the pre-cap scaling)
         for (const strike of [ctx.main, ctx.second]) if (strike) strike.damage = [...strike.damage, { dice: frost, die: 6, bonus: 0, type: "cold" }];
         const spells = [];
         const deepFreeze = lv >= 13 ? ctx.minutes(1) : ctx.round1;
@@ -219,7 +219,8 @@ const BUFFED = {
             spells.push(aura);
         }
         const user = {
-            selfEffects: [{ name: "Ice Armor", actions: 1, model: armor }],
+            // (IA5: IA1 + the armor forms as the stand manifests — always on, no action; IA6: IA5 + resistance 2 from 1st, 3 from 9th, 5 from 17th.)
+            ...(B1.has("IA5") || B1.has("IA6") ? { passiveEffects: [{ ...armor, rounds: Infinity }] } : { selfEffects: [{ name: "Ice Armor", actions: 1, model: armor }] }),
             ...(lv >= 13 ? { acReaction: { value: 50, when: "hit", against: "ranged", name: "Ice Armor (shatter projectile)" } } : {})
         };
         // (2026-11-27, open to all types: a separate stand wears the ice itself — armor, retaliation, reaction on the stand.)
@@ -231,10 +232,10 @@ const BUFFED = {
         const unseen = { success: [["off-guard", null, round1]], criticalSuccess: [["off-guard", null, round1]] };
         // (AS1: the bubble deals half S (was D); AS2: AS1 + up to 2 creatures from 5th.)
         // (AS3: AS1 + a bubble out of nowhere frightens 1 on a hit; AS4: AS3 + up to 2 creatures from 5th.)
-        const as1 = ["AS1", "AS2", "AS3", "AS4"].some((k) => B1.has(k)), as3 = B1.has("AS3") || B1.has("AS4");
+        const as1 = ["AS1", "AS2", "AS3", "AS4", "AS5"].some((k) => B1.has(k)), as3 = B1.has("AS3") || B1.has("AS4") || B1.has("AS5");  // (AS5: AS4 + the surge bubbles S each, was half S)
         const bubbleFx = as3 ? { success: [["off-guard", null, round1], ["frightened", 1, null]], criticalSuccess: [["off-guard", null, round1], ["frightened", 1, null]] } : unseen;
-        const spells = [ctx.make("Air Shots (bubble)", { actions: 1, damage: as1 ? halfS("bludgeoning") : D("bludgeoning"), kind: "bludgeoning", attackRoll: true, effects: bubbleFx, ...((B1.has("AS2") || B1.has("AS4")) && lv >= 5 ? { target: "up to 2 creatures" } : {}) })];
-        if (lv >= 5) spells.push(ctx.make("Air Shots (surge bubbles)", { actions: 2, damage: halfS("bludgeoning"), kind: "bludgeoning", attackRoll: true, target: lv >= 13 ? "up to 5 creatures" : "up to 3 creatures", surge: true, effects: unseen }));
+        const spells = [ctx.make("Air Shots (bubble)", { actions: 1, damage: as1 ? halfS("bludgeoning") : D("bludgeoning"), kind: "bludgeoning", attackRoll: true, effects: bubbleFx, ...((B1.has("AS2") || B1.has("AS4") || B1.has("AS5")) && lv >= 5 ? { target: "up to 2 creatures" } : {}) })];
+        if (lv >= 5) spells.push(ctx.make("Air Shots (surge bubbles)", { actions: 2, damage: B1.has("AS5") ? ctx.S("bludgeoning") : halfS("bludgeoning"), kind: "bludgeoning", attackRoll: true, target: lv >= 13 ? "up to 5 creatures" : "up to 3 creatures", surge: true, effects: unseen }));
         if (lv >= 9) {
             const uuid = "stand:air-shots-wall";
             const model = ctx.effectModel("Air Shots (bubble wall)", ctx.minutes(1).value, { modifiers: [{ on: "reflex", type: "circumstance", value: 2 }], conditional: [{ on: "ac", type: "circumstance", value: 2, predicate: ["item:ranged"] }] });

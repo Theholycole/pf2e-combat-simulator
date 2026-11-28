@@ -627,7 +627,7 @@ export const MATTER = {
                 : { name: "Fist", bonus: lowAt(LOW_ATTACK, level), melee: true, agile: false, unarmed: true, reach: 5, damage: [{ dice, die, bonus, type: "bludgeoning" }] };
             const saves = { fortitude: low("save", level), reflex: low("save", level), will: low("save", level) };
             // (ID3: ID2 + bodies from round 1 — Limp Bizkit raises "any corpse he has interacted with"; ID4: ID1 + bodies from round 1.)
-            const corpse = globalThis.process?.env?.INVDEAD_CORPSES === "1" || B1.has("ID3") || B1.has("ID4") ? "start" : "fight";
+            const corpse = globalThis.process?.env?.INVDEAD_CORPSES === "1" || B1.has("ID3") || B1.has("ID4") || B1.has("ID5") ? "start" : "fight";  // (ID5: bodies from round 1 only)
             // (2026-11-27 variants, INVDEAD_V — default 1, Cole's pick: 0 as above; 1 rise on death — a free reaction raises a creature that just died, once a round
             // (the 2-action raise from an older corpse stays); 2 = 1 with stronger zombies — level − 1, GM Core Moderate Strike, AC, HP and
             // saves; 3 = 2 with two Strikes a command (3 actions after a command: a Stride and two Strikes); 4 = 2 with a Strike as it rises.)

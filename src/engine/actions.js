@@ -2111,6 +2111,8 @@ export function applyDamage(state, target, instances, { source = null, critical 
         const owner = source.sharesHpWith ? state.byId.get(source.sharesHpWith) : source;
         if (owner?.parasiteFill && state.castingNow.name === "Parasite") for (const entry of target.persistent) if (entry.type === "bleed") entry.parasite = owner.parasiteFill;
         if (owner?.devourFill && /^Devouring Flesh \(slime lash\)/.test(state.castingNow.name)) for (const entry of target.persistent) if (entry.type === "acid") entry.noFlat = true;
+        // (BAND1 MD5: Melting Dart's acid the same — no flat check, 2 actions to scrape.)
+        if (owner?.meltFill && /^Melting Dart/.test(state.castingNow.name)) for (const entry of target.persistent) if (entry.type === "acid") entry.noFlat = true;
     }
     const dealt = dealDamage(state, target, total, { source, critical, nonlethal });
     // (2026-11-27, Back Rider 17th — NCFILL2: a foe's physical hit on the stand riding a creature also hits that creature, the same damage.)
