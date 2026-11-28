@@ -423,7 +423,9 @@ export const MATTER = {
         build(ctx) {
             // (WG1: golems use the stand's Strike from 5th (was 13th); WG2: WG1 + two golems from 5th (was 9th).)
             const count = ctx.lv >= (B1.has("WG2") ? 5 : 9) ? 2 : 1;
-            const spells = [minion(ctx, "Wish Golems (command golems)", { count, standStrike: ctx.lv >= (B1.has("WG1") || B1.has("WG2") ? 5 : 13) })];
+            // (WG3: WG2 + a golem's hit leaves its target off-guard for a round — Judgement's trick.)
+            const count2 = B1.has("WG3") && ctx.lv >= 5 ? 2 : count;
+            const spells = [minion(ctx, "Wish Golems (command golems)", { count: count2, standStrike: ctx.lv >= (B1.has("WG1") || B1.has("WG2") || B1.has("WG3") ? 5 : 13), ...(B1.has("WG3") ? { effects: { success: [["off-guard", null, ctx.round1]], criticalSuccess: [["off-guard", null, ctx.round1]] } } : {}) })];
             if (ctx.lv >= 5) {
                 const fail = [["off-guard", null, ctx.round1], ...(ctx.lv >= 17 ? [["fascinated", null, ctx.round1]] : [])];
                 spells.push(saveOnly(ctx, "Wish Golems (surge wish golem)", { actions: 2, surge: true, save: "will", traits: ["mental"], effects: { failure: fail, criticalFailure: fail } }));
@@ -610,7 +612,7 @@ export const MATTER = {
         build(ctx) {
             // (a5ce436: three zombies at 9th; the surge at 5th.)
             const late = ctx.buffed && LATE;
-            const count = (ctx.lv >= 13 ? 4 : late && ctx.lv >= 9 ? 3 : ctx.lv >= 5 ? 2 : 1) + (B1.has("ID2") ? 1 : 0);  // (ID2: one more zombie)
+            const count = (ctx.lv >= 13 ? 4 : late && ctx.lv >= 9 ? 3 : ctx.lv >= 5 ? 2 : 1) + (B1.has("ID2") || B1.has("ID3") ? 1 : 0);  // (ID2: one more zombie)
             const level = ctx.lv - 2;
             const average = lowAt(LOW_DAMAGE, level);
             const die = level >= 4 ? 8 : 6;
@@ -624,7 +626,8 @@ export const MATTER = {
                 ? (() => { const m = moderate("damage", level); const dd = Math.max(1, Math.round((m * 0.55) / ((die + 1) / 2))); return { name: "Fist", bonus: moderate("attack", level), melee: true, agile: false, unarmed: true, reach: 5, damage: [{ dice: dd, die, bonus: Math.max(0, Math.round(m - (dd * (die + 1)) / 2)), type: "bludgeoning" }] }; })()
                 : { name: "Fist", bonus: lowAt(LOW_ATTACK, level), melee: true, agile: false, unarmed: true, reach: 5, damage: [{ dice, die, bonus, type: "bludgeoning" }] };
             const saves = { fortitude: low("save", level), reflex: low("save", level), will: low("save", level) };
-            const corpse = globalThis.process?.env?.INVDEAD_CORPSES === "1" ? "start" : "fight";
+            // (ID3: ID2 + bodies from round 1 — Limp Bizkit raises "any corpse he has interacted with"; ID4: ID1 + bodies from round 1.)
+            const corpse = globalThis.process?.env?.INVDEAD_CORPSES === "1" || B1.has("ID3") || B1.has("ID4") ? "start" : "fight";
             // (2026-11-27 variants, INVDEAD_V — default 1, Cole's pick: 0 as above; 1 rise on death — a free reaction raises a creature that just died, once a round
             // (the 2-action raise from an older corpse stays); 2 = 1 with stronger zombies — level − 1, GM Core Moderate Strike, AC, HP and
             // saves; 3 = 2 with two Strikes a command (3 actions after a command: a Stride and two Strikes); 4 = 2 with a Strike as it rises.)
@@ -633,9 +636,9 @@ export const MATTER = {
             const zl = strong ? ctx.lv - 1 : level;
             const zStrike = strong ? (() => { const m = moderate("damage", zl); const zd = zl >= 4 ? 8 : 6; const dd = Math.max(1, Math.round((m * 0.55) / ((zd + 1) / 2))); return { name: "Fist", bonus: moderate("attack", zl), melee: true, agile: false, unarmed: true, reach: 5, damage: [{ dice: dd, die: zd, bonus: Math.max(0, Math.round(m - (dd * (zd + 1)) / 2)), type: "bludgeoning" }] }; })() : strike;
             const zSaves = strong ? { fortitude: moderate("save", zl), reflex: moderate("save", zl), will: moderate("save", zl) } : saves;
-            const idSummon = ctx.raise("Invisible Dead (raise a zombie)", { count, corpse, fromCorpse: ctx.lv >= 17, strike: zStrike, ac: strong ? moderate("ac", zl) : low("ac", level), hp: strong ? moderate("hp", zl) : low("hp", level), saves: zSaves, level: zl, mass: BUFF.has("mass"), free: BUFF.has("free"), riseOnDeath: V >= 1, riseStrike: V === 4 || B1.has("ID1") || B1.has("ID2"), minionActions: V === 3 ? 3 : 2 });
+            const idSummon = ctx.raise("Invisible Dead (raise a zombie)", { count, corpse, fromCorpse: ctx.lv >= 17, strike: zStrike, ac: strong ? moderate("ac", zl) : low("ac", level), hp: strong ? moderate("hp", zl) : low("hp", level), saves: zSaves, level: zl, mass: BUFF.has("mass"), free: BUFF.has("free"), riseOnDeath: V >= 1, riseStrike: V === 4 || ["ID1", "ID2", "ID3", "ID4"].some((k) => B1.has(k)), minionActions: V === 3 ? 3 : 2 });
             // (ID1: a zombie rises with a Strike, and raising one from an older corpse costs 1 action, not 2.)
-            if (B1.has("ID1") || B1.has("ID2")) idSummon.actions = 1;
+            if (["ID1", "ID2", "ID3", "ID4"].some((k) => B1.has(k))) idSummon.actions = 1;
             const spells = [];
             if (ctx.lv >= (late ? 5 : 9)) {
                 // (The surge, as it was: a command with D more damage a zombie — at most 2D in all, buffed — and grabbed; one roll at a zombie's

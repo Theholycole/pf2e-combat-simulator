@@ -520,7 +520,9 @@ export const MIND = {
             const damage = strong ? `${part.dice}d${part.die}+${part.bonus}[bludgeoning]` : `${dice}d6${bonus ? `+${bonus}` : ""}[bludgeoning]`;
             const hit = strong ? main.bonus : LOW_ATTACK[level + 1];
             const character = (name) => {
-                const p = ctx.savePlan(name, { actions: 1, traits: [...BASE], range: "30 feet", attack: true, dc: ctx.dc, damage });
+                // (SB3: SB1 + a character's hit leaves its target off-guard for a round; SB4: SB3 + a third character from 9th.)
+                const sbFx = B1.has("SB3") || B1.has("SB4") ? { effects: { success: [["off-guard", null, ctx.round1]], criticalSuccess: [["off-guard", null, ctx.round1]] } } : {};
+                const p = ctx.savePlan(name, { actions: 1, traits: [...BASE], range: "30 feet", attack: true, dc: ctx.dc, damage, ...sbFx });
                 p.resolution.sharedDamage.components = [{ id: "0", formula: damage, type: "bludgeoning", category: null }];
                 // (Bystanders: the 5th surge on a commoner who knows the story — its character, one chosen action: played as the commoner on the
             // user's side for a round (a minute from 17th).)
@@ -533,8 +535,8 @@ export const MIND = {
             const body = globalThis.process?.env?.STORY_BODY === "1";
             const spells = body ? [] : [character("Storybook (command character)")];
             // (SB1: two characters from 5th (was 9th); SB2: SB1 + a third from 13th.)
-            if (!body && lv >= (B1.has("SB1") || B1.has("SB2") ? 5 : 9)) spells.push(character("Storybook (command second character)"));
-            if (!body && B1.has("SB2") && lv >= 13) spells.push(character("Storybook (command third character)"));
+            if (!body && lv >= (["SB1", "SB2", "SB3", "SB4"].some((k) => B1.has(k)) ? 5 : 9)) spells.push(character("Storybook (command second character)"));
+            if (!body && ((B1.has("SB2") && lv >= 13) || (B1.has("SB4") && lv >= 9))) spells.push(character("Storybook (command third character)"));
             if (body) {
                 const cl = lv - 2;
                 const strike = strong ? { ...structuredClone(main), name: "Character's Strike" } : { name: "Character's Strike", bonus: hit, melee: true, agile: false, unarmed: true, reach: 5, damage: [{ dice, die: 6, bonus, type: "bludgeoning" }] };
