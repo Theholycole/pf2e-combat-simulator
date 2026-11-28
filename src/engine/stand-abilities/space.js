@@ -4,6 +4,7 @@
 // (2026-11-26, module a5ce436, Cole: "give 5th level surges for the late ones" — the 9th-level surges at 5th and new 9th steps; LATE,
 // STAND_LATE_SURGE=0 for the text before it.)
 const LATE = globalThis.process?.env?.STAND_LATE_SURGE !== "0";
+const B1 = new Set(String(globalThis.process?.env?.BAND1 ?? "").split(",").filter(Boolean));  // (2026-11-28, band batch candidates)
 const TRAITS = ["concentrate", "occult", "stand"];
 // A save plan with no damage (conditions, a Disarm, a push or pull, out of the fight), as a ready entry.
 //   disarm: degrees whose creature drops a held weapon; move: { degree: { kind: "pull"|"push", distance } }; hinder: true for "hinder:" slugs;
@@ -75,8 +76,10 @@ export const SPACE = {
     },
     "Erasure": {
         build(ctx) {
-            const distance = ctx.lv >= 9 ? 20 : 10;
-            const spells = [control(ctx, "Erasure (swipe pull)", { actions: 1, save: "fortitude", range: "20 feet", move: { failure: { kind: "pull", distance }, criticalFailure: { kind: "pull", distance } } })];
+            // (ER1: pulls 20 ft from 1st (was 9th); ER2: ER1 + the creature pulled through erased space is off-guard until the start of your next turn.)
+            const distance = ctx.lv >= 9 || B1.has("ER1") || B1.has("ER2") ? 20 : 10;
+            const erFx = B1.has("ER2") ? { effects: { failure: [["off-guard", null, ctx.round1]], criticalFailure: [["off-guard", null, ctx.round1]] } } : {};
+            const spells = [control(ctx, "Erasure (swipe pull)", { actions: 1, save: "fortitude", range: "20 feet", ...erFx, move: { failure: { kind: "pull", distance }, criticalFailure: { kind: "pull", distance } } })];
             const stand = {};
             if (ctx.lv >= 5) {
                 // (Surge: a swipe Strike for S force, the target's item bonus to AC ignored — +1/+2/+3 as a PC's armor potency —; 17th: drained 2 on a critical hit.)
@@ -218,12 +221,14 @@ export const SPACE = {
     "Reflection Travel": {
         build(ctx) {
             const offGuard = ctx.buffed || ctx.lv >= 5;
-            const stand = { strikeActivities: [strikeActivity("Reflection Travel (from a reflection)", { strides: 1, offGuard, ...(ctx.buffed && ctx.lv >= 5 ? { damagePerWeaponDie: 1 } : {}) })] };
+            // (RT1: +1 damage a weapon die from 1st (was 5th), +2 from 13th; RT2: RT1 + the three-reflection surge from 9th.)
+            const rt = B1.has("RT1") || B1.has("RT2");
+            const stand = { strikeActivities: [strikeActivity("Reflection Travel (from a reflection)", { strides: 1, offGuard, ...(rt ? { damagePerWeaponDie: ctx.lv >= 13 ? 2 : 1 } : ctx.buffed && ctx.lv >= 5 ? { damagePerWeaponDie: 1 } : {}) })] };
             if (ctx.buffed && ctx.lv >= 5) {
                 stand.strikeActivities.push(strikeActivity("Reflection Travel (surge, in its eyes)", { strides: 1, offGuard: true, damage: ctx.S("slashing"), pool: ctx.pool }));
                 stand.spellPools = { [ctx.pool]: 2 };
             }
-            if (ctx.lv >= 13) {
+            if (ctx.lv >= (B1.has("RT2") ? 9 : 13)) {
                 stand.multiStrikes = [
                     { name: "Reflection Travel (surge, three reflections)", actions: 2, strikes: [null, null, null], distinct: true, pool: ctx.pool, penalty: -2 },
                     { name: "Reflection Travel (surge, two reflections)", actions: 2, strikes: [null, null], distinct: true, pool: ctx.pool, penalty: -2 }

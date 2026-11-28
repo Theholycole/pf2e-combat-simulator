@@ -373,7 +373,7 @@ export const MATTER = {
         build(ctx) {
             if (ctx.buffed) {
                 const r1 = ctx.round1;
-                const five = ctx.lv >= 5;
+                const five = ctx.lv >= 5 || B1.has("FP1") || B1.has("FP2");  // (FP1: the limb fix immobilizes on a failure from 1st, was 5th)
                 const limb = { failure: [["off-guard", null, r1], ...(five ? [["immobilized", null, r1]] : [])], criticalFailure: [["off-guard", null, five ? ctx.minutes(1) : r1], ["immobilized", null, r1]] };
                 const spells = [saveOnly(ctx, "Fix in Place (fix limb)", { actions: 1, save: "fortitude", range: "touch", effects: limb })];
                 const out = { spells, stand: { strikeActivities: [touchStrike(ctx, "Fix in Place (fixing strike)", "fortitude", limb)] } };
@@ -384,7 +384,7 @@ export const MATTER = {
                     // (a5ce436 9th: one surge fixes up to two creatures the stand hits that turn — played as two fixing Strikes a Stand Point.)
                     out.stand.spellPools = { [ctx.pool]: LATE && ctx.lv >= 9 ? 4 : 2 };
                 }
-                const momentum = ctx.lv >= 13 ? plain(ctx.D("force")).replace(/^(\d+)d/, (m, n) => `${Number(n) * 2}d`) + "[force]" : ctx.D("force");
+                const momentum = ctx.lv >= (B1.has("FP2") ? 5 : 13) ? plain(ctx.D("force")).replace(/^(\d+)d/, (m, n) => `${Number(n) * 2}d`) + "[force]" : ctx.D("force");
                 spells.push(ctx.make("Fix in Place (release momentum)", { actions: 1, damage: momentum, kind: "force" }));
                 return out;
             }

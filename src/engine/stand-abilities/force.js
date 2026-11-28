@@ -128,9 +128,10 @@ const BUFFED = {
     Spin(ctx) {
         const { lv, D, S } = ctx;
         const range = lv >= 13 ? "60 feet" : ctx.range;
-        const hole = lv >= 5 ? (n) => ({ success: [`${n}d6[persistent,bleed]`], criticalSuccess: [`${n}d6[persistent,bleed]`] }) : () => ({});
+        // (SP1: the hole's bleed from 1st (was 5th); SP2: SP1 + the nail shot deals half S (was D).)
+        const hole = lv >= 5 || B1.has("SP1") || B1.has("SP2") ? (n) => ({ success: [`${n}d6[persistent,bleed]`], criticalSuccess: [`${n}d6[persistent,bleed]`] }) : () => ({});
         const bleedDice = lv >= 13 ? 2 : 1;
-        const shot = ctx.make("Spin (nail shot)", { actions: 1, damage: D("piercing"), kind: "piercing", attackRoll: true, extra: hole(bleedDice) });
+        const shot = ctx.make("Spin (nail shot)", { actions: 1, damage: B1.has("SP2") ? ctx.halfS("piercing") : D("piercing"), kind: "piercing", attackRoll: true, extra: hole(bleedDice) });
         shot.plan.targeting.range = range;
         const spells = [shot];
         // (a5ce436: the golden spin at 5th; a hit knocks prone from 9th. 1st's regrowing surge: nails aren't counted here.)

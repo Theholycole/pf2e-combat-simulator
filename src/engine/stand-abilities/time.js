@@ -2,6 +2,7 @@
 // (2026-11-24: the five Time abilities of content/stand-abilities.md, buffed wording.)
 
 const TRAITS = ["concentrate", "occult", "stand"];
+const B1 = new Set(String(globalThis.process?.env?.BAND1 ?? "").split(",").filter(Boolean));  // (2026-11-28, band batch candidates)
 // A condition-only save plan as a ready entry (no damage — make() needs damage).
 const condition = (ctx, name, { actions = 2, save = "will", target = "1 creature", range = ctx.range, area = null, effects = {}, traits = [], surge = false, pool = null }) => {
     const plan = ctx.savePlan(name, { actions, traits: [...TRAITS, ...traits], area, target, range, save, dc: ctx.dc, effects });
@@ -29,7 +30,7 @@ export const TIME = {
         build(ctx) {
             const user = {
                 // (1st: reaction, surge — the attack resolves against the old space and misses: +50 AC against that Strike, twice a fight.)
-                acReaction: { name: "Time Skip", when: "targeted", value: 50, uses: 2 }
+                acReaction: { name: "Time Skip", when: "targeted", value: 50, uses: B1.has("TS1") || B1.has("TS2") ? 3 : 2 }  // (TS1: three free skips, was two)
             };
             // (5th: initiative rolled twice, the higher kept — about +3.)
             if (ctx.lv >= 5) user.initiativeWarning = { name: "Time Skip (glimpse)", value: 3, free: true, self: true };
@@ -38,7 +39,7 @@ export const TIME = {
             if (ctx.buffed && ctx.lv >= 5) {
                 // (Buffed 5th: surge, 1 action — the stand's Strike through the erased moment, S damage, the target off-guard; the reaction's
                 // first two skips free, so the 2 Stand Points are the stand's.)
-                const stand = { ...userOnly(user), strikeActivities: [strikeActivity("Time Skip (surge, erased moment)", { damage: ctx.S("bludgeoning"), pool: ctx.pool })], spellPools: { [ctx.pool]: 2 } };
+                const stand = { ...userOnly(user), strikeActivities: [strikeActivity("Time Skip (surge, erased moment)", { damage: ctx.S("bludgeoning"), pool: ctx.pool, ...(B1.has("TS2") ? { offGuard: true } : {}) })]  /* (TS2: TS1 + the target off-guard to the erased-moment Strike) */, spellPools: { [ctx.pool]: 2 } };
                 return { user, stand };
             }
             return { user, stand: userOnly(user) };
@@ -152,9 +153,9 @@ export const TIME = {
             if (ctx.buffed) {
                 // (Buffed 1st: once a fight, free, 1 action — the stand quickened for 1 minute; 5th: surge, 1 action — the stand's accelerated Strike,
                 // S damage. The 2 Stand Points go to that Strike; the user's own quickening isn't played in the buffed build.)
-                const stand = { ...out.stand, selfEffects: [{ name: "Accelerate (stand)", actions: 1, pool: "accelerate-stand", model: ctx.effectModel("Accelerate (stand)", 3, { conditions: [{ slug: "quickened", value: null }] }) }], spellPools: { "accelerate-stand": 1 } };
+                const stand = { ...out.stand, selfEffects: [{ name: "Accelerate (stand)", actions: 1, pool: "accelerate-stand", model: ctx.effectModel("Accelerate (stand)", B1.has("AC1") || B1.has("AC2") ? 10 : 3, { conditions: [{ slug: "quickened", value: null }] }) }], spellPools: { "accelerate-stand": 1 } };  // (AC1: the stand's quickening lasts 1 minute, was 3 rounds)
                 // (Round 2, 1st: the stand's first Strike each turn at accelerated speed — the target off-guard to it.)
-                stand.strikeActivities = [strikeActivity("Accelerate (accelerated first Strike)", { offGuard: true, oncePerTurn: true })];
+                stand.strikeActivities = [strikeActivity("Accelerate (accelerated first Strike)", { offGuard: true, oncePerTurn: true, ...(B1.has("AC2") ? { damagePerWeaponDie: 1 } : {}) })];  // (AC2: AC1 + that Strike +1 damage a weapon die)
                 if (ctx.lv >= 5) {
                     // (Round 2, 5th: the surge Strike outside the multiple attack penalty, and off-guard too — both taken back in round 3.)
                     stand.strikeActivities.push(strikeActivity("Accelerate (surge, accelerated Strike)", { damage: ctx.S("bludgeoning"), pool: ctx.pool }));
