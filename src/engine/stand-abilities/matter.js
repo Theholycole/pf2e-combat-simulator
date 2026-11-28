@@ -18,6 +18,7 @@ const LOW_DAMAGE = [2, 3, 4, 6, 8, 9, 11, 12, 13, 15, 16, 17, 19, 20, 21, 23, 24
 // (2026-11-26, module a5ce436, Cole: "give 5th level surges for the late ones" — the 9th-level surges at 5th and new 9th steps; LATE,
 // STAND_LATE_SURGE=0 for the text before it.)
 const LATE = globalThis.process?.env?.STAND_LATE_SURGE !== "0";
+const B1 = new Set(String(globalThis.process?.env?.BAND1 ?? "").split(",").filter(Boolean));  // (2026-11-28, band batch 1a candidates)
 const lowAt = (table, level) => table[Math.max(-1, Math.min(24, level)) + 1];
 
 const heals = (lv) => `${2 + Math.floor(lv / 2)}d8+${key(lv)}`;
@@ -420,8 +421,9 @@ export const MATTER = {
     },
     "Wish Golems": {
         build(ctx) {
-            const count = ctx.lv >= 9 ? 2 : 1;
-            const spells = [minion(ctx, "Wish Golems (command golems)", { count, standStrike: ctx.lv >= 13 })];
+            // (WG1: golems use the stand's Strike from 5th (was 13th); WG2: WG1 + two golems from 5th (was 9th).)
+            const count = ctx.lv >= (B1.has("WG2") ? 5 : 9) ? 2 : 1;
+            const spells = [minion(ctx, "Wish Golems (command golems)", { count, standStrike: ctx.lv >= (B1.has("WG1") || B1.has("WG2") ? 5 : 13) })];
             if (ctx.lv >= 5) {
                 const fail = [["off-guard", null, ctx.round1], ...(ctx.lv >= 17 ? [["fascinated", null, ctx.round1]] : [])];
                 spells.push(saveOnly(ctx, "Wish Golems (surge wish golem)", { actions: 2, surge: true, save: "will", traits: ["mental"], effects: { failure: fail, criticalFailure: fail } }));
@@ -608,7 +610,7 @@ export const MATTER = {
         build(ctx) {
             // (a5ce436: three zombies at 9th; the surge at 5th.)
             const late = ctx.buffed && LATE;
-            const count = ctx.lv >= 13 ? 4 : late && ctx.lv >= 9 ? 3 : ctx.lv >= 5 ? 2 : 1;
+            const count = (ctx.lv >= 13 ? 4 : late && ctx.lv >= 9 ? 3 : ctx.lv >= 5 ? 2 : 1) + (B1.has("ID2") ? 1 : 0);  // (ID2: one more zombie)
             const level = ctx.lv - 2;
             const average = lowAt(LOW_DAMAGE, level);
             const die = level >= 4 ? 8 : 6;
@@ -631,7 +633,9 @@ export const MATTER = {
             const zl = strong ? ctx.lv - 1 : level;
             const zStrike = strong ? (() => { const m = moderate("damage", zl); const zd = zl >= 4 ? 8 : 6; const dd = Math.max(1, Math.round((m * 0.55) / ((zd + 1) / 2))); return { name: "Fist", bonus: moderate("attack", zl), melee: true, agile: false, unarmed: true, reach: 5, damage: [{ dice: dd, die: zd, bonus: Math.max(0, Math.round(m - (dd * (zd + 1)) / 2)), type: "bludgeoning" }] }; })() : strike;
             const zSaves = strong ? { fortitude: moderate("save", zl), reflex: moderate("save", zl), will: moderate("save", zl) } : saves;
-            ctx.raise("Invisible Dead (raise a zombie)", { count, corpse, fromCorpse: ctx.lv >= 17, strike: zStrike, ac: strong ? moderate("ac", zl) : low("ac", level), hp: strong ? moderate("hp", zl) : low("hp", level), saves: zSaves, level: zl, mass: BUFF.has("mass"), free: BUFF.has("free"), riseOnDeath: V >= 1, riseStrike: V === 4, minionActions: V === 3 ? 3 : 2 });
+            const idSummon = ctx.raise("Invisible Dead (raise a zombie)", { count, corpse, fromCorpse: ctx.lv >= 17, strike: zStrike, ac: strong ? moderate("ac", zl) : low("ac", level), hp: strong ? moderate("hp", zl) : low("hp", level), saves: zSaves, level: zl, mass: BUFF.has("mass"), free: BUFF.has("free"), riseOnDeath: V >= 1, riseStrike: V === 4 || B1.has("ID1") || B1.has("ID2"), minionActions: V === 3 ? 3 : 2 });
+            // (ID1: a zombie rises with a Strike, and raising one from an older corpse costs 1 action, not 2.)
+            if (B1.has("ID1") || B1.has("ID2")) idSummon.actions = 1;
             const spells = [];
             if (ctx.lv >= (late ? 5 : 9)) {
                 // (The surge, as it was: a command with D more damage a zombie — at most 2D in all, buffed — and grabbed; one roll at a zombie's

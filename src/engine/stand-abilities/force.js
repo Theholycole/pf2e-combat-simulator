@@ -5,6 +5,7 @@ import { zoneSpell } from "../zones.js";
 // (2026-11-26, module a5ce436, Cole: "give 5th level surges for the late ones" — the 9th-level surges at 5th and new 9th steps; LATE,
 // STAND_LATE_SURGE=0 for the text before it.)
 const LATE = globalThis.process?.env?.STAND_LATE_SURGE !== "0";
+const B1 = new Set(String(globalThis.process?.env?.BAND1 ?? "").split(",").filter(Boolean));  // (2026-11-28, band batch 1a candidates)
 const TRAITS = (kind, more = []) => ["concentrate", "occult", "stand", ...(kind ? [kind] : []), ...more];
 
 // A plan with no roll ("no save", "for creatures you choose"): its success row for everyone it reaches.
@@ -199,11 +200,12 @@ const BUFFED = {
         const { lv, S } = ctx;
         const modifiers = [{ on: "ac", type: "circumstance", value: lv >= 5 ? 2 : 1 }, ...(lv >= 5 ? [{ on: "speed", type: "circumstance", value: 10 }] : [])];
         // (Round 4 cap: resistance 3 at most — was 5 from 17th.)
-        const resist = lv >= 9 ? [{ type: "physical", value: lv >= 13 ? 3 : 2, exceptions: [] }] : [];
+        // (IA2: resistance 3 from 9th, 5 from 17th.)
+        const resist = lv >= 9 ? [{ type: "physical", value: B1.has("IA2") ? (lv >= 17 ? 5 : 3) : lv >= 13 ? 3 : 2, exceptions: [] }] : [];
         const armor = ctx.effectModel("Ice Armor", 100, { modifiers, resistances: resist, hitBack: `${lv}[cold]` });
         // (Round 2: frost on your fists — the armor's cold on the Strikes, played as always on: the armor goes on in the first round.)
         // (Round 4 cap: 1d6 at every level — was 2d6 from 9th, 3d6 from 17th.)
-        const frost = 1;
+        const frost = B1.has("IA1") || B1.has("IA2") ? (lv >= 17 ? 3 : lv >= 9 ? 2 : 1) : 1;  // (IA1: 2d6 from 9th, 3d6 from 17th, the pre-cap scaling)
         for (const strike of [ctx.main, ctx.second]) if (strike) strike.damage = [...strike.damage, { dice: frost, die: 6, bonus: 0, type: "cold" }];
         const spells = [];
         const deepFreeze = lv >= 13 ? ctx.minutes(1) : ctx.round1;
@@ -225,7 +227,9 @@ const BUFFED = {
     "Air Shots"(ctx) {
         const { lv, D, halfS, round1 } = ctx;
         const unseen = { success: [["off-guard", null, round1]], criticalSuccess: [["off-guard", null, round1]] };
-        const spells = [ctx.make("Air Shots (bubble)", { actions: 1, damage: D("bludgeoning"), kind: "bludgeoning", attackRoll: true, effects: unseen })];
+        // (AS1: the bubble deals half S (was D); AS2: AS1 + up to 2 creatures from 5th.)
+        const as1 = B1.has("AS1") || B1.has("AS2");
+        const spells = [ctx.make("Air Shots (bubble)", { actions: 1, damage: as1 ? halfS("bludgeoning") : D("bludgeoning"), kind: "bludgeoning", attackRoll: true, effects: unseen, ...(B1.has("AS2") && lv >= 5 ? { target: "up to 2 creatures" } : {}) })];
         if (lv >= 5) spells.push(ctx.make("Air Shots (surge bubbles)", { actions: 2, damage: halfS("bludgeoning"), kind: "bludgeoning", attackRoll: true, target: lv >= 13 ? "up to 5 creatures" : "up to 3 creatures", surge: true, effects: unseen }));
         if (lv >= 9) {
             const uuid = "stand:air-shots-wall";

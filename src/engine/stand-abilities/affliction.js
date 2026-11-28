@@ -5,6 +5,7 @@
 // (2026-11-26, module a5ce436, Cole: "give 5th level surges for the late ones" — the 9th-level surges at 5th and new 9th steps; LATE,
 // STAND_LATE_SURGE=0 for the text before it.)
 const LATE = globalThis.process?.env?.STAND_LATE_SURGE !== "0";
+const B1 = new Set(String(globalThis.process?.env?.BAND1 ?? "").split(",").filter(Boolean));  // (2026-11-28, band batch 1a candidates)
 const TRAITS = ["concentrate", "occult", "stand"];
 
 // A save plan of the stand's (its DC, its range; a burst placed within the range).
@@ -232,7 +233,8 @@ const BUFFED = {
     },
     "Melting Dart"(ctx) {
         const { lv, make, D, halfS } = ctx;
-        const dice = lv >= 17 ? 3 : lv >= 9 ? 2 : 1;
+        const md = B1.has("MD1") || B1.has("MD2");
+        const dice = B1.has("MD2") ? (lv >= 13 ? 3 : lv >= 5 ? 2 : 1) : lv >= 17 ? 3 : lv >= 9 ? 2 : 1;  // (MD2: persistent 2d6 from 5th, 3d6 from 13th)
         // (Round 2: persistent acid from 1st; the critical hit's clumsy from 5th; from 13th clumsy 1 on any hit until the end of the
         // user's next turn — a 1-round duration.)
         const acid = { success: [`${dice}d6[persistent,acid]`], criticalSuccess: [`${dice}d6[persistent,acid]`] };
@@ -241,15 +243,17 @@ const BUFFED = {
             if (lv >= 17) entry.plan.resolution.ignoreResistance = [{ value: 1e9, types: ["acid"] }];
             return entry;
         };
-        const spells = [ignore(make("Melting Dart", { actions: 1, damage: D("acid"), kind: "acid", attackRoll: true, extra: acid, effects: clumsy }))];
+        const spells = [ignore(make("Melting Dart", { actions: 1, damage: md ? halfS("acid") : D("acid"), kind: "acid", attackRoll: true, extra: acid, effects: clumsy }))];  // (MD1: the dart half S, was D)
         if (lv >= (LATE ? 5 : 9)) spells.push(ignore(make("Melting Dart (surge, three darts)", { actions: 1, damage: halfS("acid"), kind: "acid", attackRoll: true, target: "up to 3 creatures", surge: true, extra: acid, effects: clumsy })));
         return { spells };
     },
     Dinosaurify(ctx) {
         const { lv } = ctx;
         // (Round 2: the raptor's tearing — extra dice on every stand Strike that hits in raptor form, the form taken as up from the start.)
-        const tearing = { source: "Dinosaurify (tearing jaws)", when: "hit", dice: lv >= 17 ? 3 : lv >= 9 ? 2 : 1, die: 6 };
-        const stand = { speed: 40, strikeExtras: [tearing], charges: [{ name: "Dinosaurify (Leaping Charge)", actions: 1, strides: 1, strike: ctx.main.name, attackBonus: 1, oncePerTurn: true }] };
+        // (DN1: tearing 2d6 from 5th, 3d6 from 13th; DN2: DN1 + Leaping Charge +2 to hit.)
+        const dn = B1.has("DN1") || B1.has("DN2");
+        const tearing = { source: "Dinosaurify (tearing jaws)", when: "hit", dice: dn ? (lv >= 13 ? 3 : lv >= 5 ? 2 : 1) : lv >= 17 ? 3 : lv >= 9 ? 2 : 1, die: 6 };
+        const stand = { speed: 40, strikeExtras: [tearing], charges: [{ name: "Dinosaurify (Leaping Charge)", actions: 1, strides: 1, strike: ctx.main.name, attackBonus: B1.has("DN2") ? 2 : 1, oncePerTurn: true }] };
         const spells = [];
         if (lv >= 5) {
             const crit = lv >= 17 ? ctx.minutes(10) : ctx.minutes(1);

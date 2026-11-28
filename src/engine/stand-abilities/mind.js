@@ -1,4 +1,5 @@
 import { low } from "../creature-tables.js";
+const B1 = new Set(String(globalThis.process?.env?.BAND1 ?? "").split(",").filter(Boolean));  // (2026-11-28, band batch 1a candidates)
 // Stand Abilities: mind theme (see index.js for the contract).
 // (2026-11-24: "## Mind and Sense" of content/stand-abilities.md, with the buffed wording.) Defaults (abilities.mjs): a surge costs 1 Stand
 // Point and 2 actions unless listed; ranges from the stand (a touch of the close-range stand played as 15 feet from its user); saves
@@ -531,7 +532,9 @@ export const MIND = {
             // —, foes able to attack them; NCFILL2 13th: resistance to physical damage equal to half the user's level.)
             const body = globalThis.process?.env?.STORY_BODY === "1";
             const spells = body ? [] : [character("Storybook (command character)")];
-            if (!body && lv >= 9) spells.push(character("Storybook (command second character)"));
+            // (SB1: two characters from 5th (was 9th); SB2: SB1 + a third from 13th.)
+            if (!body && lv >= (B1.has("SB1") || B1.has("SB2") ? 5 : 9)) spells.push(character("Storybook (command second character)"));
+            if (!body && B1.has("SB2") && lv >= 13) spells.push(character("Storybook (command third character)"));
             if (body) {
                 const cl = lv - 2;
                 const strike = strong ? { ...structuredClone(main), name: "Character's Strike" } : { name: "Character's Strike", bonus: hit, melee: true, agile: false, unarmed: true, reach: 5, damage: [{ dice, die: 6, bonus, type: "bludgeoning" }] };
