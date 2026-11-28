@@ -389,7 +389,7 @@ export const SPACE = {
             if (!ctx.buffed) return null;
             const spells = [ctx.make("Grid Teleport (drop)", { actions: 1, damage: ctx.D("bludgeoning"), kind: "bludgeoning" })];
             // (Round 2: the falling-object surge from 5th, prone on a failure from 13th; 5th's attended object as a 1-action Disarm.)
-            const prone = ctx.lv >= 13 ? { failure: [["prone", null, null]], criticalFailure: [["prone", null, null]] } : {};
+            const prone = ctx.lv >= 13 ? { ...(B1.has("GT1") ? {} : { failure: [["prone", null, null]] }), criticalFailure: [["prone", null, null]] } : {};  // (GT1: the falling object knocks prone only on a critical failure)
             if (ctx.lv >= 5) spells.push(control(ctx, "Grid Teleport (attended object)", { actions: 1, save: "reflex", disarm: ["failure", "criticalFailure"] }));
             if (ctx.lv >= 5) spells.push(ctx.make("Grid Teleport (surge, falling object)", { actions: 2, damage: ctx.S("bludgeoning"), kind: "bludgeoning", surge: true, effects: prone }));
             // (NCFILL 9th: reaction, once a round: a ranged weapon attack at a creature in your grid misses — the stand's allyAcReaction, the

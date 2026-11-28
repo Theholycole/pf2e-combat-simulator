@@ -472,7 +472,7 @@ export const MATTER = {
                 const value = ctx.lv >= 5 ? ctx.lv : Math.max(1, Math.floor(ctx.lv / 2));
                 const resist = [{ type: "all-damage", value, exceptions: [] }];
                 const user = { selfEffects: [{ name: "Shapeshift (object form)", actions: 1, model: ctx.effectModel("Shapeshift (object form)", 10, { resistances: resist, conditions: [{ slug: "hidden", value: null }] }) }] };
-                const tool = ctx.effectModel("Shapeshift (living tool)", 10, { modifiers: [{ on: "attack", type: "circumstance", value: 1 }, { on: "ac", type: "circumstance", value: 2 }, { on: "damage", type: "circumstance", value: ctx.lv >= 13 ? 4 : 2 }] });
+                const tool = ctx.effectModel("Shapeshift (living tool)", 10, { modifiers: [...(B1.has("SS1") ? [] : [{ on: "attack", type: "circumstance", value: 1 }]), { on: "ac", type: "circumstance", value: 2 },  /* (SS1: the living tool gives no attack bonus) */ { on: "damage", type: "circumstance", value: ctx.lv >= 13 ? 4 : 2 }] });
                 const spells = [allyEffect(ctx, "Shapeshift (living tool)", { actions: 1, model: tool, range: "touch" })];
                 // (Round 2: the lunge from beside the object — off-guard against it; a die more from 5th; off-guard a round after a hit from 13th.)
                 const lunge = strikeAct(ctx, "Shapeshift (lunge)", { offGuard: true, extraWeaponDice: ctx.lv >= 5 ? 1 : 0, conditions: ctx.lv >= 13 ? [cond("off-guard", null, ctx.round1)] : [] });
