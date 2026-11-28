@@ -59,16 +59,16 @@ const BUFFED = {
         if (lv >= 5) {
             const all = [bomb];
             const weak = lv >= 13 ? { success: [`${Math.ceil(dice / 2)}d6[force]`] } : {};
-            spells.push(ctx.entry("Bomb Touch (surge, creature bomb)", plan(ctx, "Bomb Touch (surge, creature bomb)", { actions: 2, kind: "force", save: "fortitude", basic: false, extra: { ...weak, failure: all, criticalFailure: [`${2 * dice}d6[force]`] } }), { surge: true }));
+            spells.push(ctx.entry("Bomb Touch (surge, creature bomb)", plan(ctx, "Bomb Touch (surge, creature bomb)", { actions: B1.has("BT2") ? 1 : 2,  /* (BT2: the creature bomb 1 action — Killer Queen arms with a touch) */ kind: "force", save: "fortitude", basic: false, extra: { ...weak, failure: all, criticalFailure: [`${2 * dice}d6[force]`] } }), { surge: true }));
         }
         if (lv >= 13) spells.push(ctx.entry("Bomb Touch (surge, seeking bomb)", plan(ctx, "Bomb Touch (surge, seeking bomb)", { actions: 2, kind: "force", area: burst, range: "60 feet", damage: bomb }), { surge: true }));
         return { spells };
     },
     Flame(ctx) {
         const { lv, D, S, halfS, round1 } = ctx;
-        const burn = lv >= (B1.has("FL1") ? 9 : 17) ? { failure: ["2d6[persistent,fire]"], criticalFailure: ["2d6[persistent,fire]"] } : { failure: ["1d6[persistent,fire]"], criticalFailure: ["1d6[persistent,fire]"] };  // (FL1: 2d6 persistent fire from 9th, was 17th)
+        const burn = lv >= (B1.has("FL1") || B1.has("FL2") ? 9 : 17) ? { failure: ["2d6[persistent,fire]"], criticalFailure: ["2d6[persistent,fire]"] } : { failure: ["1d6[persistent,fire]"], criticalFailure: ["1d6[persistent,fire]"] };  // (FL1: 2d6 persistent fire from 9th, was 17th)
         const bind = lv >= 5 ? { failure: [["grabbed", null, round1]], criticalFailure: [["grabbed", null, round1]] } : {};
-        const spells = [ctx.make("Flame (ankh)", { actions: 1, damage: D("fire"), kind: "fire", extra: burn, effects: bind, target: lv >= 17 ? "up to 3 creatures" : lv >= 5 ? "up to 2 creatures" : "1 creature" })];
+        const spells = [ctx.make("Flame (ankh)", { actions: 1, damage: B1.has("FL2") ? halfS("fire") : D("fire"), kind: "fire", extra: burn, effects: bind, target: lv >= 17 ? "up to 3 creatures" : lv >= 5 ? "up to 2 creatures" : "1 creature" })];
         if (lv >= 5) spells.push(ctx.make("Flame (surge cone)", { actions: 2, damage: lv >= 17 ? `${3 * Math.ceil(lv / 2)}d6[fire]` : S("fire"), kind: "fire", area: { type: "burst", value: 15, foes: true }, surge: true, extra: burn, effects: bind }));
         if (lv >= 13) spells.push(ctx.make("Flame (surge ankhs)", { actions: 1, damage: halfS("fire"), kind: "fire", target: "up to 6 creatures", surge: true, extra: burn }));
         // (Ranges from the stand, which fights beside the foes: the user throws its Flame from 60 ft back.)
@@ -90,7 +90,7 @@ const BUFFED = {
         const spells = [zoneEntry(ctx, "Weather (fog)", { actions: 2, area: { type: "burst", value: 15 }, centre: "self", concealed: true })];
         if (!inside) {
             const offGuard = { failure: [["off-guard", null, ctx.round1]], criticalFailure: [["off-guard", null, ctx.round1]] };
-            spells.push(ctx.make("Weather (hail)", { actions: 1, damage: B1.has("WE1") ? ctx.halfS("cold") : ctx.D("cold"),  /* (WE1: hail half S, was D) */ kind: "cold", effects: offGuard }));
+            spells.push(ctx.make("Weather (hail)", { actions: 1, damage: B1.has("WE1") || B1.has("WE2") ? ctx.halfS("cold") : ctx.D("cold"),  /* (WE1: hail half S, was D) */ kind: "cold", effects: offGuard }));
             if (lv >= 5) {
                 const uuid = "stand:weather-rain";
                 const model = ctx.effectModel("Weather (rain and wind)", 1, { conditional: [{ on: "attack", type: "circumstance", value: -2, predicate: ["item:ranged"] }] });
@@ -98,7 +98,7 @@ const BUFFED = {
                 spells.push(zoneEntry(ctx, "Weather (surge rain)", { actions: 2, area: { type: "burst", value: 30 }, range: 30, terrain: true, surge: true, saves: [{ when: ["initial", "start"], plan: rain }], effects: { [uuid]: model } }));
                 // (WEATHER_17=1, the proposed 17th: the lightning stuns 1 on a failure, 2 on a critical failure; heavy weather once per 10 minutes —
                 // the same as once a day in one fight.)
-                const stun17 = lv >= 17 && env.WEATHER_17 === "1" ? { failure: [["stunned", 1, null]], criticalFailure: [["stunned", 2, null]] } : { criticalFailure: [["stunned", 1, null]] };
+                const stun17 = lv >= 17 && env.WEATHER_17 === "1" ? { failure: [["stunned", 1, null]], criticalFailure: [["stunned", 2, null]] } : B1.has("WE2") ? { failure: [["stunned", 1, null]], criticalFailure: [["stunned", 1, null]] } : { criticalFailure: [["stunned", 1, null]] };  // (WE2: WE1 + stunned 1 on a failure)
                 spells.push(ctx.make("Weather (surge lightning)", { actions: 2, damage: S("electricity"), kind: "electricity", surge: true, target: lv >= 17 ? "up to 5 creatures" : lv >= 13 ? "up to 3 creatures" : "1 creature", effects: stun17 }));
             }
             if (lv >= (re ? 9 : 5)) spells.push(ctx.entry("Weather (moisture)", plan(ctx, "Weather (moisture)", { actions: 1, save: "fortitude", target: lv >= 13 ? "up to 3 creatures" : "1 creature", effects: { failure: [["sickened", 2, null]], criticalFailure: [["sickened", 3, null]] } })));
@@ -129,9 +129,9 @@ const BUFFED = {
         const { lv, D, S } = ctx;
         const range = lv >= 13 ? "60 feet" : ctx.range;
         // (SP1: the hole's bleed from 1st (was 5th); SP2: SP1 + the nail shot deals half S (was D).)
-        const hole = lv >= 5 || ["SP1", "SP2", "SP3", "SP4"].some((k) => B1.has(k)) ? (n) => ({ success: [`${n}d6[persistent,bleed]`], criticalSuccess: [`${n}d6[persistent,bleed]`] }) : () => ({});
+        const hole = lv >= 5 || ["SP1", "SP2", "SP3", "SP4", "SP5"].some((k) => B1.has(k)) ? (n) => ({ success: [`${n}d6[persistent,bleed]`], criticalSuccess: [`${n}d6[persistent,bleed]`] }) : () => ({});
         const bleedDice = B1.has("SP3") ? (lv >= 13 ? 3 : lv >= 5 ? 2 : 1) : lv >= 13 ? 2 : 1;  // (SP3: SP2 + the bleed 2d6 from 5th, 3d6 from 13th)
-        const shot = ctx.make("Spin (nail shot)", { actions: 1, damage: B1.has("SP2") || B1.has("SP3") || B1.has("SP4") ? ctx.halfS("piercing") : D("piercing"), ...(B1.has("SP4") ? { target: "up to 2 creatures" } : {}),  /* (SP4: SP2 + two nails at up to 2 creatures) */ kind: "piercing", attackRoll: true, extra: hole(bleedDice) });
+        const shot = ctx.make("Spin (nail shot)", { actions: 1, damage: ["SP2", "SP3", "SP4", "SP5"].some((k) => B1.has(k)) ? ctx.halfS("piercing") : D("piercing"), ...(B1.has("SP4") ? { target: "up to 2 creatures" } : {}),  /* (SP4: SP2 + two nails at up to 2 creatures) */ kind: "piercing", attackRoll: true, extra: hole(bleedDice) });
         shot.plan.targeting.range = range;
         const spells = [shot];
         // (a5ce436: the golden spin at 5th; a hit knocks prone from 9th. 1st's regrowing surge: nails aren't counted here.)
@@ -142,12 +142,12 @@ const BUFFED = {
             golden.plan.resolution.ignoreResistance = [{ value: null, types: ["*"] }];
             spells.push(golden);
         }
-        if (lv >= 17) {
+        if (lv >= (B1.has("SP5") ? 9 : 17)) {  // (SP5 signature: the infinite spin from 9th, was 17th)
             const n = 2 * Math.ceil(lv / 2);
             const p = autoPlan(ctx, "Spin (surge infinite spin)", { actions: 2, kind: "piercing", range, success: { damage: { mode: "formulas", formulas: [{ formula: `${n}d6[piercing]` }, { formula: `${n}d6[persistent,piercing]` }], rollScope: "outcome" } } });
             spells.push(ctx.entry("Spin (surge infinite spin)", p, { pool: "stand-spin:infinite" }));
         }
-        return { spells, ...(lv >= 17 ? { spellPools: { "stand-spin:infinite": 1 } } : {}) };
+        return { spells, ...(lv >= (B1.has("SP5") ? 9 : 17) ? { spellPools: { "stand-spin:infinite": 1 } } : {}) };
     },
     "Gravity Flip"(ctx) {
         const { lv, S } = ctx;
@@ -232,11 +232,13 @@ const BUFFED = {
         const unseen = { success: [["off-guard", null, round1]], criticalSuccess: [["off-guard", null, round1]] };
         // (AS1: the bubble deals half S (was D); AS2: AS1 + up to 2 creatures from 5th.)
         // (AS3: AS1 + a bubble out of nowhere frightens 1 on a hit; AS4: AS3 + up to 2 creatures from 5th.)
-        const as1 = ["AS1", "AS2", "AS3", "AS4", "AS5", "AS6", "AS7"].some((k) => B1.has(k)), as3 = ["AS3", "AS4", "AS5", "AS6", "AS7"].some((k) => B1.has(k));  // (AS7: AS5 + a 1-action volley at up to 3 creatures from 1st)  // (AS6: AS5 + a bubble that hits stays lodged: off-guard 1 minute)  // (AS5: AS4 + the surge bubbles S each, was half S)
+        const as1 = ["AS1", "AS2", "AS3", "AS4", "AS5", "AS6", "AS7", "AS8"].some((k) => B1.has(k)), as3 = ["AS3", "AS4", "AS5", "AS6", "AS7", "AS8"].some((k) => B1.has(k));
+        // (AS8 signature: a bubble that hits lodges in the body and bursts — half S more, S on a critical hit.)
+        const lodged = B1.has("AS8") ? { extra: { success: [halfS("bludgeoning")], criticalSuccess: [ctx.S("bludgeoning")] } } : {};  // (AS7: AS5 + a 1-action volley at up to 3 creatures from 1st)  // (AS6: AS5 + a bubble that hits stays lodged: off-guard 1 minute)  // (AS5: AS4 + the surge bubbles S each, was half S)
         const og = B1.has("AS6") ? ctx.minutes(1) : round1;
         const bubbleFx = as3 ? { success: [["off-guard", null, og], ["frightened", 1, null]], criticalSuccess: [["off-guard", null, og], ["frightened", 1, null]] } : unseen;
-        const spells = [ctx.make("Air Shots (bubble)", { actions: 1, damage: as1 ? halfS("bludgeoning") : D("bludgeoning"), kind: "bludgeoning", attackRoll: true, effects: bubbleFx, ...(B1.has("AS7") ? { target: "up to 3 creatures" } : {}), ...(["AS2", "AS4", "AS5", "AS6"].some((k) => B1.has(k)) && lv >= 5 ? { target: "up to 2 creatures" } : {}) })];
-        if (lv >= 5) spells.push(ctx.make("Air Shots (surge bubbles)", { actions: 2, damage: B1.has("AS5") || B1.has("AS6") || B1.has("AS7") ? ctx.S("bludgeoning") : halfS("bludgeoning"), kind: "bludgeoning", attackRoll: true, target: lv >= 13 ? "up to 5 creatures" : "up to 3 creatures", surge: true, effects: unseen }));
+        const spells = [ctx.make("Air Shots (bubble)", { actions: 1, damage: as1 ? halfS("bludgeoning") : D("bludgeoning"), kind: "bludgeoning", attackRoll: true, effects: bubbleFx, ...lodged, ...(B1.has("AS7") ? { target: "up to 3 creatures" } : {}), ...(["AS2", "AS4", "AS5", "AS6"].some((k) => B1.has(k)) && lv >= 5 ? { target: "up to 2 creatures" } : {}) })];
+        if (lv >= 5) spells.push(ctx.make("Air Shots (surge bubbles)", { actions: 2, damage: ["AS5", "AS6", "AS7", "AS8"].some((k) => B1.has(k)) ? ctx.S("bludgeoning") : halfS("bludgeoning"), kind: "bludgeoning", attackRoll: true, target: lv >= 13 ? "up to 5 creatures" : "up to 3 creatures", surge: true, effects: unseen }));
         if (lv >= 9) {
             const uuid = "stand:air-shots-wall";
             const model = ctx.effectModel("Air Shots (bubble wall)", ctx.minutes(1).value, { modifiers: [{ on: "reflex", type: "circumstance", value: 2 }], conditional: [{ on: "ac", type: "circumstance", value: 2, predicate: ["item:ranged"] }] });

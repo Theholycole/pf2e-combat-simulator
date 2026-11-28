@@ -127,9 +127,9 @@ export const MATTER = {
         build(ctx) {
             if (ctx.buffed) {
                 const r1 = ctx.round1;
-                const guard = ctx.lv >= 5 || B1.has("RS1") ? [["off-guard", null, ctx.minutes(1)]] : [];  // (RS1: the joints fused wrong from 1st, was 5th)
+                const guard = ctx.lv >= 5 || B1.has("RS1") || B1.has("RS2") ? [["off-guard", null, ctx.minutes(1)]] : [];  // (RS1: the joints fused wrong from 1st, was 5th)
                 const rows = { failure: [["immobilized", null, r1], ...guard], criticalFailure: [["restrained", null, r1], ...guard] };
-                const mend = ctx.lv >= 13 ? plain(ctx.D("untyped")).replace(/^(\d+)d/, (m, n) => `${Number(n) * 2}d`) : plain(ctx.D("untyped"));
+                const mend = ctx.lv >= (B1.has("RS2") ? 5 : 13) ? plain(ctx.D("untyped")).replace(/^(\d+)d/, (m, n) => `${Number(n) * 2}d`) : plain(ctx.D("untyped"));
                 const spells = [
                     heal(ctx, "Restore (surge heal)", { actions: ctx.lv >= 9 ? 1 : 2, formula: heals(ctx.lv), surge: true, target: ctx.lv >= 13 ? "2 creatures" : "1 creature" }),
                     heal(ctx, "Restore (mend wound)", { actions: 1, formula: mend }),

@@ -1063,7 +1063,7 @@ function endTurn(state, c) {
         if (!c.summonedBy) creditPersistent(state, entry, dealt);
         // (Infinite Rotation: no end but its death.)
         // (2026-11-27, NCFILL2: Devouring Flesh's acid — no flat check; Parasite's bleed — DC 17, and D piercing as it's cut out.)
-        if (entry.noFlat) { entry.ticks = (entry.ticks ?? 0) + 1; continue; }
+        if (entry.noFlat) { entry.ticks = (entry.ticks ?? 0) + 1; if (entry.grows && (entry.grown ?? 0) < 3) { entry.dice = (entry.dice ?? 1) + 1; entry.grown = (entry.grown ?? 0) + 1; } continue; }
         if (entry.parasite) {
             if (flatCheck(state.rng, entry.parasite.dc) >= SUCCESS) {
                 c.persistent.splice(c.persistent.indexOf(entry), 1);

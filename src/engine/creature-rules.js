@@ -54,7 +54,7 @@ export function critRiderAnswer(state, attacker, target, { applyCondition, apply
     const rider = attacker.critRider;
     if (!rider || !isActive(target)) return;
     log(state, `  ${attacker.name}'s critical hit: its ${rider.name ?? "rider"}`);
-    for (const { slug, value } of rider.conditions ?? []) if (applyCondition(state, target, slug, value ?? null, null, attacker)) log(state, `  ${target.name} is ${slug}${Number.isFinite(value) ? ` ${value}` : ""}`);
+    for (const { slug, value, duration } of rider.conditions ?? []) if (applyCondition(state, target, slug, value ?? null, duration ?? null, attacker)) log(state, `  ${target.name} is ${slug}${Number.isFinite(value) ? ` ${value}` : ""}`);
     if (rider.push && isActive(target)) applyMove(state, target, { kind: "push", distance: rider.push }, attacker);
 }
 

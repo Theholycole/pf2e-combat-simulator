@@ -50,7 +50,7 @@ export const SPACE = {
             // (5th: 2 actions, 30 ft along a surface with no reactions.)
             if (ctx.lv >= 5) user.safeMove = { name: "Zippers (zip along)", actions: 2 };
             // (9th: reaction, surge — a melee hit that misses, its 2 uses a fight the 2 Stand Points.)
-            if (ctx.lv >= (B1.has("ZP1") ? 5 : 9)) user.acReaction = { name: "Zippers (unzip body)", when: "hit", value: 50, against: "melee", uses: 2 };  // (ZP1: the unzip reaction from 5th, was 9th)
+            if (ctx.lv >= (B1.has("ZP1") || B1.has("ZP2") ? 5 : 9)) user.acReaction = { name: "Zippers (unzip body)", when: "hit", value: 50, against: "melee", uses: B1.has("ZP2") ? 3 : 2 };  // (ZP2: ZP1 + three free uses)  // (ZP1: the unzip reaction from 5th, was 9th)
             if (ctx.buffed && ctx.lv >= 5) {
                 // (Buffed 5th: surge, 1 action — the stand's Strike zips the target apart: S slashing in place of its damage, the drop save on a hit.)
                 stand.strikeActivities.push(withRider(strikeActivity("Zippers (surge, zip apart)", { damage: ctx.S("slashing"), pool: ctx.pool, onHit: { save: rider } })));
@@ -225,7 +225,7 @@ export const SPACE = {
             const offGuard = ctx.buffed || ctx.lv >= 5;
             // (RT1: +1 damage a weapon die from 1st (was 5th), +2 from 13th; RT2: RT1 + the three-reflection surge from 9th.)
             const rt = B1.has("RT1") || B1.has("RT2");
-            const stand = { strikeActivities: [strikeActivity("Reflection Travel (from a reflection)", { strides: 1, offGuard, ...(B1.has("RT3") || B1.has("RT4") ? { onHit: { conditions: [{ slug: "frightened", value: 1, duration: null }] } } : {}), ...(rt || B1.has("RT3") || B1.has("RT4") ? { damagePerWeaponDie: ctx.lv >= (B1.has("RT4") ? 9 : 13) ? 2 : 1 } : ctx.buffed && ctx.lv >= 5 ? { damagePerWeaponDie: 1 } : {}) })] };
+            const stand = { strikeActivities: [strikeActivity("Reflection Travel (from a reflection)", { strides: 1, offGuard, ...(["RT3", "RT4", "RT5"].some((k) => B1.has(k)) ? { onHit: { conditions: [{ slug: "frightened", value: 1, duration: null }] } } : {}), ...(rt || ["RT3", "RT4", "RT5"].some((k) => B1.has(k)) ? { damagePerWeaponDie: ctx.lv >= (B1.has("RT4") ? 9 : 13) ? 2 : 1 } : ctx.buffed && ctx.lv >= 5 ? { damagePerWeaponDie: 1 } : {}) })] };
             if (ctx.buffed && ctx.lv >= 5) {
                 stand.strikeActivities.push(strikeActivity("Reflection Travel (surge, in its eyes)", { strides: 1, offGuard: true, damage: ctx.S("slashing"), pool: ctx.pool }));
                 stand.spellPools = { [ctx.pool]: 2 };
@@ -237,6 +237,8 @@ export const SPACE = {
                 ];
                 stand.spellPools = { [ctx.pool]: 2 };
             }
+            // (RT5 signature: RT3 + the stand lives in reflections — concealed to its foes, DC 5 flat check, from 1st.)
+            if (B1.has("RT5")) stand.permanent = [{ slug: "concealed" }];
             return { stand };
         },
         notes: [
