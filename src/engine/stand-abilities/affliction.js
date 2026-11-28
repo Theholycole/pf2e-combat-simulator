@@ -73,7 +73,7 @@ const BUFFED = {
         const spells = [{ ...zoneEntry(ctx, "Aging (gas aura)", valuePlan, { area, centre: "caster", rounds: 10, savePlan: turnPlan }), ...(globalThis.process?.env?.AGING_FORCE === "1" ? { forceEarly: true } : {}) }];
         // (Round 2: the withering grip, at will — 1 action, the stand's touch at its 30 ft like the surge's.)
         const withered = [["enfeebled", 1, ctx.round1]];  // (Round 4 cap: a failure's enfeebled 1 until the end of the user's next turn, was 1 minute.)
-        spells.push(ctx.make("Aging (withering grip)", { actions: 1, damage: ctx.D("force"), kind: "force", save: "fortitude", effects: { failure: withered, criticalFailure: [["enfeebled", 2, ctx.minutes(1)]] } }));
+        spells.push(ctx.make("Aging (withering grip)", { actions: 1, damage: B1.has("AG1") ? ctx.halfS("force") : ctx.D("force"),  /* (AG1: the grip half S, was D) */ kind: "force", save: "fortitude", effects: { failure: withered, criticalFailure: [["enfeebled", 2, ctx.minutes(1)]] } }));
         if (lv >= 5) {
             const drained = ["drained", lv >= 13 ? 2 : 1, null];
             spells.push(ctx.entry("Aging (surge touch)", plan(ctx, "Aging (surge touch)", { actions: 2, damage: ctx.S("force").replace("d6", "d4"), kind: "force", effects: { failure: [drained, ["slowed", 1, ctx.round1]], criticalFailure: [drained, ["slowed", 1, ctx.minutes(1)]] } }), { surge: true }));  // (Round 4 cap: S's dice d4s, was d6s.)

@@ -726,7 +726,7 @@ export const MATTER = {
                 const sliding = touchStrike(ctx, "Slide (sliding strike)", "will", pain, { failure: [ctx.D("force"), ...(bleeds.failure ?? [])], criticalFailure: [ctx.D("force"), bleed] });
                 // (Round 5 b: the wound slides into the cut — 1d6 extra force on a hit, 2d6 from 5th, 3d6 from 13th.)
                 // (Round 6: trimmed — 1d6, 2d6 from 13th; no 3d6.)
-                sliding.onHit.damage = [`${ctx.lv >= 13 ? 2 : 1}d6[force]`];
+                sliding.onHit.damage = [`${B1.has("SL1") ? (ctx.lv >= 13 ? 3 : ctx.lv >= 5 ? 2 : 1) : ctx.lv >= 13 ? 2 : 1}d6[force]`];  // (SL1: 2d6 from 5th, 3d6 from 13th — round 5 b's numbers)
                 // (2026-11-27: SLIDE_MOVE=1 or 0.5 — the slid wound heals its source, actions.js slideTransfer.)
                 const move = Number(globalThis.process?.env?.SLIDE_MOVE ?? 1);
                 const stand = { strikeActivities: [sliding], ...(move ? { slideTransfer: move } : {}) };

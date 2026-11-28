@@ -90,7 +90,7 @@ const BUFFED = {
         const spells = [zoneEntry(ctx, "Weather (fog)", { actions: 2, area: { type: "burst", value: 15 }, centre: "self", concealed: true })];
         if (!inside) {
             const offGuard = { failure: [["off-guard", null, ctx.round1]], criticalFailure: [["off-guard", null, ctx.round1]] };
-            spells.push(ctx.make("Weather (hail)", { actions: 1, damage: ctx.D("cold"), kind: "cold", effects: offGuard }));
+            spells.push(ctx.make("Weather (hail)", { actions: 1, damage: B1.has("WE1") ? ctx.halfS("cold") : ctx.D("cold"),  /* (WE1: hail half S, was D) */ kind: "cold", effects: offGuard }));
             if (lv >= 5) {
                 const uuid = "stand:weather-rain";
                 const model = ctx.effectModel("Weather (rain and wind)", 1, { conditional: [{ on: "attack", type: "circumstance", value: -2, predicate: ["item:ranged"] }] });
@@ -254,7 +254,7 @@ const BUFFED = {
             // (Round 3 tone-down: prone only on a critical failure; 17th's second meteor half damage — 1.5 times the dice in all.)
             const n = Math.ceil(lv / 2);
             // (Round 4 cap: the fragment a quarter of the first — 1.25 times the dice; the burst 15 ft from 13th, was 20.)
-            const total = lv >= 17 ? Math.floor(n * 1.25) : n;
+            const total = lv >= 17 ? Math.floor(n * (B1.has("MC1") ? 1.5 : 1.25)) : n;  // (MC1: the 17th fragment half the meteor, was a quarter)
             const prone = { criticalFailure: [["prone"]] };
             const p = plan(ctx, "Meteor Call (surge meteor)", { actions: 2, kind: "bludgeoning", area: { type: "burst", value: lv >= 13 ? 15 : 10, foes: true }, range: "60 feet", damage: `${total}d6[bludgeoning]`, effects: prone });
             spells.push(ctx.entry("Meteor Call (surge meteor)", twoTypes(p, `${total}d6[fire]`, "fire"), { surge: true }));
