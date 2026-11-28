@@ -167,7 +167,7 @@ export const MIND = {
                     const mods = [...["ac", "fortitude", "reflex", "will"].map((on) => ({ on, type: "status", value })), ...(B1.has("RP1") && value < 2 ? [] : [{ on: "attack", type: "status", value: 1 }])];  // (RP1: the glimpse gives no attack bonus — only the 5th-level surge does)
                     return ctx.effectModel(name, rounds, { modifiers: mods, aura: [{ radius: 30, affects: "allies", includesSelf: false, model: ctx.effectModel(name, rounds, { modifiers: mods }) }] });
                 };
-                const selfEffects = [{ name: "Replay (glimpse)", actions: 1, model: aura("Replay (glimpse)", 10, 1) }];
+                const selfEffects = [{ name: "Replay (glimpse)", actions: 1, model: aura("Replay (glimpse)", B1.has("RP2") ? 1 : 10, 1) }];  // (RP2: the glimpse lasts 1 round, was 1 minute)
                 if (lv >= 5) selfEffects.push({ name: "Replay (surge, replayed action)", actions: 1, model: aura("Replay (surge, replayed action)", 10, 2), pool: ctx.pool });
                 return { spells: [], user: { selfEffects }, ...(lv >= 5 ? { spellPools: { [ctx.pool]: 2 } } : {}) };
             }
@@ -303,8 +303,8 @@ export const MIND = {
             const { lv } = ctx;
             if (ctx.buffed) {
                 const traitsB = ["illusion", "visual", "mental"];
-                const out = [ctx.entry("Illusion Maze (fold)", plan(ctx, "Illusion Maze (fold)", { actions: 1, traits: traitsB, damage: ctx.D("mental"), kind: "mental", effects: { failure: B1.has("IM1") ? [] : [["off-guard", null, untilNext]], criticalFailure: [["off-guard", null, untilNext]] } }))];
-                if (lv >= 5) out.push(ctx.entry("Illusion Maze (surge, lost)", plan(ctx, "Illusion Maze (surge, lost)", { range: lv >= 13 ? "60 feet" : "30 feet", area: { type: "burst", value: 10, foes: true }, traits: traitsB, effects: { failure: [["fleeing", null, ctx.round1]], criticalFailure: [["fleeing", null, globalThis.process?.env?.MAZE17 && lv >= 17 ? (globalThis.process.env.MAZE17 === "r2" ? { mode: "fixed", value: 2, unit: "rounds" } : ctx.minutes(1)) : ctx.round1]] } }), { surge: true }));  // (MAZE17: min — lost 1 minute on a critical failure; r2 — 2 rounds)
+                const out = [ctx.entry("Illusion Maze (fold)", plan(ctx, "Illusion Maze (fold)", { actions: 1, traits: traitsB, damage: ctx.D("mental"), kind: "mental", effects: { failure: B1.has("IM1") || B1.has("IM2") ? [] : [["off-guard", null, untilNext]], criticalFailure: [["off-guard", null, untilNext]] } }))];
+                if (lv >= 5) out.push(ctx.entry("Illusion Maze (surge, lost)", plan(ctx, "Illusion Maze (surge, lost)", { range: lv >= 13 ? "60 feet" : "30 feet", area: { type: "burst", value: B1.has("IM2") ? 5 : 10,  /* (IM2: IM1 + the lost burst 5 ft) */ foes: true }, traits: traitsB, effects: { failure: [["fleeing", null, ctx.round1]], criticalFailure: [["fleeing", null, globalThis.process?.env?.MAZE17 && lv >= 17 ? (globalThis.process.env.MAZE17 === "r2" ? { mode: "fixed", value: 2, unit: "rounds" } : ctx.minutes(1)) : ctx.round1]] } }), { surge: true }));  // (MAZE17: min — lost 1 minute on a critical failure; r2 — 2 rounds)
                 // (Round 3 tone-down: a 10-ft burst (was 15); lost 2 rounds on a critical failure from 17th, was 1 minute.)
                 // (Round 4 cap: lost 1 round on a critical failure at 17th too; the fold's critical failure off-guard until your next turn.)
                 return { spells: out };
@@ -434,7 +434,7 @@ export const MIND = {
             const { lv } = ctx;
             if (ctx.buffed) {
                 const rideB = both([{ selector: "attack", value: -1, type: "circumstance", duration: ctx.minutes(1) }]);
-                const out = [ctx.entry("Back Rider (ride)", plan(ctx, "Back Rider (ride)", { actions: 1, range: "15 feet", save: "reflex", damage: ctx.D("bludgeoning"), kind: "bludgeoning", modifiers: rideB, effects: { failure: [["off-guard", null, untilNext], ["frightened", 1, null]], criticalFailure: [["off-guard", null, ctx.minutes(1)], ["frightened", 1, null]] } }))];
+                const out = [ctx.entry("Back Rider (ride)", plan(ctx, "Back Rider (ride)", { actions: 1, range: "15 feet", save: "reflex", damage: ctx.D("bludgeoning"), kind: "bludgeoning", modifiers: rideB, effects: { failure: [["off-guard", null, untilNext], ...(B1.has("BR1") ? [] : [["frightened", 1, null]])], criticalFailure: [["off-guard", null, ctx.minutes(1)], ["frightened", 1, null]] } }))];  // (BR1: the voice at its ear frightens only on a critical failure)
                 if (lv >= 5) {
                     const floorB = lv >= 13 ? { degrees: ["success", "failure", "criticalFailure"], floor: { slug: "frightened", value: 1, lifetime: "fixed", duration: { value: 1, unit: "minutes" } } } : null;
                     // (Round 2: the whisper is a scream at its ear — S mental, basic Will; the trip from 9th (was 17th).)
@@ -567,7 +567,7 @@ export const MIND = {
         build(ctx) {
             if (!ctx.buffed) return null;
             const { lv } = ctx;
-            const out = [ctx.entry("Scent Tracking (scent lock)", plan(ctx, "Scent Tracking (scent lock)", { actions: 1, save: "reflex", damage: ctx.D("bludgeoning"), kind: "bludgeoning", effects: { failure: [["off-guard", null, untilNext]], criticalFailure: [["off-guard", null, ctx.minutes(1)]] } }))];
+            const out = [ctx.entry("Scent Tracking (scent lock)", plan(ctx, "Scent Tracking (scent lock)", { actions: 1, save: "reflex", damage: ctx.D("bludgeoning"), kind: "bludgeoning", effects: { failure: B1.has("ST1") ? [] : [["off-guard", null, untilNext]], criticalFailure: [["off-guard", null, ctx.minutes(1)]] } }))];
             // (Round 2: trail ahead from 5th (was 9th), the stand waiting where it steps — S bludgeoning, basic Reflex in place of Will.)
             if (lv >= 5) out.push(ctx.entry("Scent Tracking (surge, trail ahead)", plan(ctx, "Scent Tracking (surge, trail ahead)", { save: "reflex", damage: ctx.S("bludgeoning"), kind: "bludgeoning", effects: { failure: [["off-guard", null, ctx.minutes(1)]], criticalFailure: [["off-guard", null, ctx.minutes(1)], ["frightened", 1, null]] } }), { surge: true }));
             return { spells: out };

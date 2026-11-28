@@ -48,7 +48,7 @@ const BUFFED = {
         const fail = [["enfeebled", lv >= 13 ? 2 : 1, lv >= 5 ? 10 : 1], ["off-guard", null, 1]];
         const crit = [["enfeebled", 2, 10], ["off-guard", null, 1], ...(lv >= 5 ? [["clumsy", 1, 10]] : [])];
         const crush = { source: "Shrink (crushing blow)", when: "condition:enfeebled", dice: B1.has("SH1") ? (lv >= 13 ? 2 : 1) : lv >= 13 ? 3 : lv >= 5 ? 2 : 1, die: 6 };  // (SH1: crushing blows 1d6, 2d6 from 13th)  // (Round 5: 2d6 from 5th, 3d6 from 13th.)
-        const extras = [crush, { source: "Shrink (off-guard)", when: "hit", offGuardToAttacker: true }, { source: "Shrink", when: "hit", save: { statistic: "fortitude", dc, outcomes: [crit, fail, [], []] } }];
+        const extras = [crush, ...(B1.has("SH2") ? [] : [{ source: "Shrink (off-guard)", when: "hit", offGuardToAttacker: true }]), { source: "Shrink", when: "hit", save: { statistic: "fortitude", dc, outcomes: [crit, fail, [], []] } }];
         // (Round 6 trim: 'already shrunk' read as shrunk by a critical failure — its clumsy 1 the size's stand-in —, not any enfeebled: in the
         // buffed text a failure only enfeebles, so the 17th's second save no longer rides on every pinch and failed save.)
         if (lv >= 17) extras.push({ source: "Shrink (already shrunk)", when: "condition:clumsy", save: { statistic: "fortitude", dc, incapacitation: true, outcomes: [[["enfeebled", 3, 10]], [["enfeebled", 3, 10]], [], []] } });
@@ -105,7 +105,7 @@ const BUFFED = {
             const extra = { failure: [persistent], criticalFailure: [persistent] };
             // (Round 2: 1 action to release; from 5th a failed slip is a fall — prone on a failure too.)
             const actions = surge ? 2 : 1;
-            const effects = { ...(lv >= 5 ? { failure: [["prone", null, null]] } : {}), criticalFailure: [["prone", null, null], ...(lv >= 17 ? [["slowed", 1, ctx.round1]] : [])] };
+            const effects = { ...(lv >= (B1.has("MO1") ? 9 : 5) ? { failure: [["prone", null, null]] } : {}),  /* (MO1: prone on a failure from 9th, was 5th) */ criticalFailure: [["prone", null, null], ...(lv >= 17 ? [["slowed", 1, ctx.round1]] : [])] };
             const area = { type: "emanation", value: radius };
             // (a5ce436 9th: −2 circumstance to Reflex against the footing, played as the DC 2 higher.)
             const c = LATE && lv >= 9 ? { ...ctx, dc: ctx.dc + 2 } : ctx;

@@ -329,7 +329,7 @@ const BUFFED = {
         // (The wound share: 1 action, D force basic Will — 'the Hit Points you're missing, up to D' taken as at least D: the user is
         // hurt by the time it's worth a turn.)
         // (Round 2: two creatures from 5th — 13th's step moved —, the cap S from 13th.)
-        const wound = plan(ctx, "Shared Fate (wound share)", { actions: 1, target: ctx.lv >= (B1.has("SF1") ? 9 : 5) ? "up to 2 creatures"  /* (SF1: two creatures from 9th, was 5th) */ : "1 creature", damage: ctx.lv >= 13 ? ctx.S("force") : ctx.lv >= 5 ? ctx.halfS("force") : ctx.D("force"), kind: "force", effects: { failure: [["sickened", 1, null]], criticalFailure: [["sickened", 2, null]] } });  // (Round 5: sickened 1/2 on a failure/critical failure; Round 6: the 3 creatures at 17th cut, back to 2.)
+        const wound = plan(ctx, "Shared Fate (wound share)", { actions: 1, target: ctx.lv >= (B1.has("SF1") || B1.has("SF2") ? 9 : 5) ? "up to 2 creatures"  /* (SF1: two creatures from 9th, was 5th) */ : "1 creature", damage: B1.has("SF2") ? (ctx.lv >= 17 ? ctx.S("force") : ctx.lv >= 9 ? ctx.halfS("force") : ctx.D("force")) : ctx.lv >= 13 ? ctx.S("force") : ctx.lv >= 5 ? ctx.halfS("force") : ctx.D("force"),  /* (SF2: SF1 + the cap half S from 9th, S from 17th) */ kind: "force", effects: { failure: [["sickened", 1, null]], criticalFailure: [["sickened", 2, null]] } });  // (Round 5: sickened 1/2 on a failure/critical failure; Round 6: the 3 creatures at 17th cut, back to 2.)
         out.spells = [...(out.spells ?? []), ctx.entry("Shared Fate (wound share)", wound)];
         // (2026-11-26, Cole: "run them in a 4 fight day": the halving on the user, where the foes' hits land — on the stand it never fired
         // (0 in 40 fights) —, for a hit of a typical foe Strike's size or more (typicalHit), not 4.6×level; 2 a day from 9th, 4 from 17th —
@@ -379,7 +379,7 @@ const BUFFED = {
             targeting: { target: null, range: null, area }, trigger: { event: "use" },
             resolution: { kind: "effect", applications }
         });
-        const lucky = ctx.effectModel("Fortune Directions (lucky)", rounds, { modifiers: ["attack", "fortitude", "reflex", "will"].map((on) => ({ on, type: "status", value: bonus })) });
+        const lucky = ctx.effectModel("Fortune Directions (lucky)", rounds, { modifiers: (B1.has("FD1") && lv < 9 ? ["attack"] : ["attack", "fortitude", "reflex", "will"]).map  /* (FD1: luck to attack rolls only until 9th) */((on) => ({ on, type: "status", value: bonus })) });
         const luck = ctx.entry("Fortune Directions", effectPlan("Fortune Directions", [{ kind: "native-spell-effect", uuid: "fortune-lucky", label: "Fortune Directions (lucky)", recipients: "allies-in-area" }]));
         luck.effects = { "fortune-lucky": lucky };
         const spells = [luck];

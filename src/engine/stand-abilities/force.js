@@ -175,12 +175,12 @@ const BUFFED = {
     Magnetism(ctx) {
         const { lv, S } = ctx;
         const lasts = ctx.minutes(1);
-        const fail = [["clumsy", 1, B1.has("MG1") ? ctx.round1 : lasts], ...(lv >= 17 ? [["immobilized", null, lasts]] : [])];  // (MG1: a failure's clumsy 1 for 1 round, 1 minute on a critical failure)
+        const fail = [["clumsy", 1, B1.has("MG1") || B1.has("MG2") ? ctx.round1 : lasts], ...(lv >= 17 ? [["immobilized", null, lasts]] : [])];  // (MG1: a failure's clumsy 1 for 1 round, 1 minute on a critical failure)
         const critFail = [["clumsy", 2, lasts], ...(lv >= 17 ? [["immobilized", null, lasts]] : [])];
         // (NCFILL 9th: two magnetized creatures pulled together and colliding — approximated as D more bludgeoning on a failure.)
         const pull9 = (globalThis.process?.env?.NCFILL ?? "1") === "1" && lv >= 9 ? { failure: [ctx.D("bludgeoning")], criticalFailure: [ctx.D("bludgeoning")] } : {};
         const spells = [ctx.entry("Magnetism (magnetize)", plan(ctx, "Magnetism (magnetize)", { actions: 1, kind: "bludgeoning", save: "fortitude", damage: ctx.D("bludgeoning"), target: lv >= 13 ? "up to 3 creatures" : "1 creature", effects: { failure: fail, criticalFailure: critFail }, extra: pull9 }))];
-        if (lv >= 5) spells.push(ctx.make("Magnetism (surge pull)", { actions: 2, damage: S("bludgeoning"), kind: "bludgeoning", surge: true, effects: { failure: [["clumsy", 1, lasts]], criticalFailure: [["clumsy", 2, lasts]] } }));
+        if (lv >= 5) spells.push(ctx.make("Magnetism (surge pull)", { actions: 2, damage: B1.has("MG2") ? ctx.halfS("bludgeoning") : S("bludgeoning"),  /* (MG2: MG1 + the surge pull half S) */ kind: "bludgeoning", surge: true, effects: { failure: [["clumsy", 1, lasts]], criticalFailure: [["clumsy", 2, lasts]] } }));
         return { spells };
     },
     Ice(ctx) {

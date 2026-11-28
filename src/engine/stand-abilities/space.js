@@ -344,7 +344,7 @@ export const SPACE = {
             // (Round 2: the ghost walls from 1st, a critical failure held 1 minute from 5th, up to 2 creatures from 9th; 13th: the ghost weapon.)
             if (ctx.lv < (ctx.buffed ? 1 : 9)) return {};
             const held = ctx.buffed && ctx.lv >= (B1.has("GO1") ? 9 : 5) ? ctx.minutes(1) : ctx.round1;  // (GO1: the 1-minute hold from 9th, was 5th)
-            const out = { spells: [control(ctx, "Ghost Objects (surge, ghost walls)", { save: "reflex", surge: true, target: ctx.buffed && ctx.lv >= 13 ? "up to 2 creatures" : "1 creature", effects: { failure: [["restrained", null, ctx.round1]], criticalFailure: [["restrained", null, held]] } })] };
+            const out = { spells: [control(ctx, "Ghost Objects (surge, ghost walls)", { save: "reflex", surge: true, target: ctx.buffed && ctx.lv >= 13 ? "up to 2 creatures" : "1 creature", effects: { failure: B1.has("GO2") ? [["immobilized", null, ctx.round1], ["off-guard", null, ctx.round1]] : [["restrained", null, ctx.round1]], criticalFailure: [["restrained", null, held]] } })] };  // (GO2: a failure immobilized and off-guard 1 round; restrained only on a critical failure)
             if (ctx.buffed && ctx.lv >= 13) out.stand = { strikeActivities: [strikeActivity("Ghost Objects (ghost weapon)", { extraWeaponDice: 1, oncePerTurn: true })] };
             return out;
         },
@@ -419,7 +419,7 @@ export const SPACE = {
                 // (Buffed 1st: the stand flicks a card and a stored object bursts out — D bludgeoning, basic Reflex, 1 action.)
                 spells.push(ctx.make("Card Storage (flicked card)", { actions: 1, damage: ctx.D("bludgeoning"), kind: "bludgeoning" }));
                 // (Buffed 5th: surge, a Medium or smaller creature stored till the end of the user's next turn, 1 minute on a critical failure.)
-                if (ctx.lv >= 5 && ctx.lv < 13) spells.push(control(ctx, "Card Storage (surge, store Medium)", { actions: 1, save: "reflex", surge: true, hinder: true, size: "medium", effects: { failure: [[GONE, null, ctx.rounds(2)]], criticalFailure: [[GONE, null, ctx.minutes(1)]] } }));
+                if (ctx.lv >= (B1.has("CS1") ? 9 : 5) && ctx.lv < 13) spells.push(control(ctx, "Card Storage (surge, store Medium)"  /* (CS1: storing a Medium creature from 9th, was 5th) */, { actions: 1, save: "reflex", surge: true, hinder: true, size: "medium", effects: { failure: [[GONE, null, ctx.rounds(2)]], criticalFailure: [[GONE, null, ctx.minutes(1)]] } }));
             }
             if (ctx.lv >= 9) spells.push(ctx.make("Card Storage (surge, card burst)", { actions: 2, damage: ctx.S("bludgeoning"), kind: "bludgeoning", surge: true }));
             return { spells };
