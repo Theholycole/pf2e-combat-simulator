@@ -18,7 +18,7 @@ const LOW_DAMAGE = [2, 3, 4, 6, 8, 9, 11, 12, 13, 15, 16, 17, 19, 20, 21, 23, 24
 // (2026-11-26, module a5ce436, Cole: "give 5th level surges for the late ones" — the 9th-level surges at 5th and new 9th steps; LATE,
 // STAND_LATE_SURGE=0 for the text before it.)
 const LATE = globalThis.process?.env?.STAND_LATE_SURGE !== "0";
-const B1 = new Set(String(globalThis.process?.env?.BAND1 ?? "").split(",").filter(Boolean));  // (2026-11-28, band batch 1a candidates)
+const B1 = new Set([...(globalThis.process?.env?.BAND1_OFF === "1" ? [] : "WG3,TS2,IA6,FP3,ID6,ER4,AC4,WE2,SB9,DN8,FS1,AG1,SL1,MC1,PS1,SF3,CW1,IN1,IM2,MG2,GL1,IB2,FG1,GT1,SS1,GO3,PH1,LG1,PX2".split(",")), ...String(globalThis.process?.env?.BAND1 ?? "").split(",")].filter(Boolean));  // (2026-11-28: the adopted band changes on by default — Cole approved the batch; BAND1 adds candidates, BAND1_OFF=1 for none)
 const lowAt = (table, level) => table[Math.max(-1, Math.min(24, level)) + 1];
 
 const heals = (lv) => `${2 + Math.floor(lv / 2)}d8+${key(lv)}`;
@@ -127,7 +127,7 @@ export const MATTER = {
         build(ctx) {
             if (ctx.buffed) {
                 const r1 = ctx.round1;
-                const guard = ctx.lv >= 5 || B1.has("RS1") || B1.has("RS2") ? [["off-guard", null, ctx.minutes(1)]] : [];  // (RS1: the joints fused wrong from 1st, was 5th)
+                const guard = ctx.lv >= 5 || B1.has("RS1") || B1.has("RS2") || B1.has("RS3") ? [["off-guard", null, ctx.minutes(1)]] : [];  // (RS1: the joints fused wrong from 1st, was 5th)
                 const rows = { failure: [["immobilized", null, r1], ...guard], criticalFailure: [["restrained", null, r1], ...guard] };
                 const mend = ctx.lv >= (B1.has("RS2") ? 5 : 13) ? plain(ctx.D("untyped")).replace(/^(\d+)d/, (m, n) => `${Number(n) * 2}d`) : plain(ctx.D("untyped"));
                 const spells = [
@@ -135,7 +135,7 @@ export const MATTER = {
                     heal(ctx, "Restore (mend wound)", { actions: 1, formula: mend }),
                     saveOnly(ctx, "Restore (reassemble)", { actions: 1, save: "reflex", range: "touch", effects: rows })
                 ];
-                return { spells, stand: { strikeActivities: [touchStrike(ctx, "Restore (reassembling strike)", "reflex", rows)] } };
+                return { spells, stand: { strikeActivities: [{ ...touchStrike(ctx, "Restore (reassembling strike)", "reflex", rows), ...(B1.has("RS3") ? { extraWeaponDice: 1 } : {}) }] } };  // (RS3 rework: RS1 + Crazy Diamond's punch, one more weapon die)
             }
             const spells = [heal(ctx, "Restore (surge heal)", { actions: 2, formula: heals(ctx.lv), surge: true, target: ctx.lv >= 13 ? "2 creatures" : "1 creature" })];
             if (ctx.lv >= 5) spells.push(saveOnly(ctx, "Restore (reassemble)", { actions: 1, save: "reflex", range: "touch", effects: { failure: [["immobilized", null, ctx.round1]], criticalFailure: [["restrained", null, ctx.round1]] } }));

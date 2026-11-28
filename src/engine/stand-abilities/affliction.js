@@ -5,7 +5,8 @@
 // (2026-11-26, module a5ce436, Cole: "give 5th level surges for the late ones" — the 9th-level surges at 5th and new 9th steps; LATE,
 // STAND_LATE_SURGE=0 for the text before it.)
 const LATE = globalThis.process?.env?.STAND_LATE_SURGE !== "0";
-const B1 = new Set(String(globalThis.process?.env?.BAND1 ?? "").split(",").filter(Boolean));  // (2026-11-28, band batch 1a candidates)
+const B1 = new Set([...(globalThis.process?.env?.BAND1_OFF === "1" ? [] : "WG3,TS2,IA6,FP3,ID6,ER4,AC4,WE2,SB9,DN8,FS1,AG1,SL1,MC1,PS1,SF3,CW1,IN1,IM2,MG2,GL1,IB2,FG1,GT1,SS1,GO3,PH1,LG1,PX2".split(",")), ...String(globalThis.process?.env?.BAND1 ?? "").split(",")].filter(Boolean));  // (2026-11-28: the adopted band changes on by default — Cole approved the batch; BAND1 adds candidates, BAND1_OFF=1 for none)
+const sAct = (name, more = {}) => ({ name, actions: 1, strides: 0, strike: null, attackBonus: 0, damageBonus: 0, damage: null, offGuard: false, requires: null, oncePerFight: false, traits: ["stand"], riderSpell: null, ...more, onHit: { conditions: [], critical: null, push: null, damage: [], save: null, size: null, ...(more.onHit ?? {}) } });  // (band reworks: a stand Strike activity)
 const TRAITS = ["concentrate", "occult", "stand"];
 
 // A save plan of the stand's (its DC, its range; a burst placed within the range).
@@ -45,10 +46,10 @@ const BUFFED = {
         const { lv, dc } = ctx;
         // (Round 2: enfeebled 2 on a failure from 13th; the stand's blows crush a shrunk creature — extra dice on a target already
         // enfeebled, listed before the save so it's the shrink of an earlier hit.)
-        const fail = [["enfeebled", lv >= 13 ? 2 : 1, lv >= 5 ? 10 : 1], ["off-guard", null, 1]];
+        const fail = [["enfeebled", lv >= 13 ? 2 : 1, lv >= (B1.has("SH5") ? 9 : 5) ? 10 : 1], ["off-guard", null, 1]];  // (SH5: SH4 + the minute-long enfeebled from 9th)
         const crit = [["enfeebled", 2, 10], ["off-guard", null, 1], ...(lv >= 5 ? [["clumsy", 1, 10]] : [])];
-        const crush = { source: "Shrink (crushing blow)", when: "condition:enfeebled", dice: B1.has("SH4") ? (lv >= 13 ? 2 : lv >= 5 ? 1 : 0) : B1.has("SH1") || B1.has("SH3") ? (lv >= 13 ? 2 : 1) : lv >= 13 ? 3 : lv >= 5 ? 2 : 1, die: 6 };  // (SH1: crushing blows 1d6, 2d6 from 13th)  // (Round 5: 2d6 from 5th, 3d6 from 13th.)
-        const extras = [crush, ...(B1.has("SH2") || B1.has("SH3") || B1.has("SH4") ? [] : [{ source: "Shrink (off-guard)", when: "hit", offGuardToAttacker: true }]), { source: "Shrink", when: "hit", save: { statistic: "fortitude", dc, outcomes: [crit, fail, [], []] } }];
+        const crush = { source: "Shrink (crushing blow)", when: "condition:enfeebled", dice: B1.has("SH4") || B1.has("SH5") ? (lv >= 13 ? 2 : lv >= 5 ? 1 : 0) : B1.has("SH1") || B1.has("SH3") ? (lv >= 13 ? 2 : 1) : lv >= 13 ? 3 : lv >= 5 ? 2 : 1, die: 6 };  // (SH1: crushing blows 1d6, 2d6 from 13th)  // (Round 5: 2d6 from 5th, 3d6 from 13th.)
+        const extras = [crush, ...(B1.has("SH2") || B1.has("SH3") || B1.has("SH4") || B1.has("SH5") ? [] : [{ source: "Shrink (off-guard)", when: "hit", offGuardToAttacker: true }]), { source: "Shrink", when: "hit", save: { statistic: "fortitude", dc, outcomes: [crit, fail, [], []] } }];
         // (Round 6 trim: 'already shrunk' read as shrunk by a critical failure — its clumsy 1 the size's stand-in —, not any enfeebled: in the
         // buffed text a failure only enfeebles, so the 17th's second save no longer rides on every pinch and failed save.)
         if (lv >= 17) extras.push({ source: "Shrink (already shrunk)", when: "condition:clumsy", save: { statistic: "fortitude", dc, incapacitation: true, outcomes: [[["enfeebled", 3, 10]], [["enfeebled", 3, 10]], [], []] } });
@@ -233,16 +234,16 @@ const BUFFED = {
     },
     "Melting Dart"(ctx) {
         const { lv, make, D, halfS } = ctx;
-        const md = ["MD1", "MD2", "MD3", "MD4", "MD5", "MD6", "MD7", "MD8"].some((k) => B1.has(k));
+        const md = ["MD1", "MD2", "MD3", "MD4", "MD5", "MD6", "MD7", "MD8", "MD9"].some((k) => B1.has(k));
         const dice = B1.has("MD2") || B1.has("MD6") ? (lv >= 13 ? 3 : lv >= 5 ? 2 : 1) : lv >= 17 ? 3 : lv >= 9 ? 2 : 1;  // (MD2: persistent 2d6 from 5th, 3d6 from 13th)
         // (Round 2: persistent acid from 1st; the critical hit's clumsy from 5th; from 13th clumsy 1 on any hit until the end of the
         // user's next turn — a 1-round duration.)
         const acid = { success: [`${dice}d6[persistent,acid]`], criticalSuccess: [`${dice}d6[persistent,acid]`] };
         // (MD3: melting flesh from 1st — clumsy 1 until the end of your next turn on any hit (13th's step), 1 minute on a critical hit; MD4: MD3 +
         // enfeebled 1 on any hit too.)
-        const md3 = ["MD3", "MD4", "MD5", "MD6", "MD7", "MD8"].some((k) => B1.has(k));
-        const mdHit = [["clumsy", 1, ctx.round1], ...(["MD4", "MD5", "MD6", "MD7", "MD8"].some((k) => B1.has(k)) ? [["enfeebled", 1, ctx.round1]] : [])];
-        const clumsy = md3 ? { success: mdHit, criticalSuccess: [["clumsy", 1, ctx.minutes(1)], ...(["MD4", "MD5", "MD6", "MD7", "MD8"].some((k) => B1.has(k)) ? [["enfeebled", 1, ctx.minutes(1)]] : [])] } : lv >= 5 ? { ...(lv >= 13 ? { success: [["clumsy", 1, ctx.round1]] } : {}), criticalSuccess: [["clumsy", 1, ctx.minutes(1)]] } : {};
+        const md3 = ["MD3", "MD4", "MD5", "MD6", "MD7", "MD8", "MD9"].some((k) => B1.has(k));
+        const mdHit = [["clumsy", 1, ctx.round1], ...(["MD4", "MD5", "MD6", "MD7", "MD8", "MD9"].some((k) => B1.has(k)) ? [["enfeebled", 1, ctx.round1]] : [])];
+        const clumsy = md3 ? { success: mdHit, criticalSuccess: [["clumsy", 1, ctx.minutes(1)], ...(["MD4", "MD5", "MD6", "MD7", "MD8", "MD9"].some((k) => B1.has(k)) ? [["enfeebled", 1, ctx.minutes(1)]] : [])] } : lv >= 5 ? { ...(lv >= 13 ? { success: [["clumsy", 1, ctx.round1]] } : {}), criticalSuccess: [["clumsy", 1, ctx.minutes(1)]] } : {};
         const ignore = (entry) => {
             if (lv >= 17) entry.plan.resolution.ignoreResistance = [{ value: 1e9, types: ["acid"] }];
             return entry;
@@ -250,6 +251,7 @@ const BUFFED = {
         const spells = [ignore(make("Melting Dart", { actions: 1, damage: md ? halfS("acid") : D("acid"), kind: "acid", attackRoll: true, extra: acid, effects: clumsy, ...(B1.has("MD7") ? { target: "up to 2 creatures" } : {}) }))];  // (MD7: MD5 + a burst of darts — up to 2 creatures)  // (MD1: the dart half S, was D)
         if (lv >= (LATE ? 5 : 9)) spells.push(ignore(make("Melting Dart (surge, three darts)", { actions: 1, damage: halfS("acid"), kind: "acid", attackRoll: true, target: "up to 3 creatures", surge: true, extra: acid, effects: clumsy })));
         // (MD5: MD4 + the melting acid has no flat check — 2 actions to scrape it off, as Devouring Flesh 9th — actions.js meltFill.)
+        if (B1.has("MD9")) return { spells, user: { meltFill: true }, stand: { strikeActivities: [sAct("Melting Dart (rat volley)", { strides: 1, damage: halfS("acid"), onHit: { conditions: [{ slug: "clumsy", value: 1, duration: ctx.round1 }] } })] } };  // (MD9 rework: MD5 + Ratt fires as the stand's own 1-action Strike: half S acid, clumsy 1)
         if (["MD5", "MD6", "MD7", "MD8"].some((k) => B1.has(k))) return { spells, user: { meltFill: B1.has("MD8") ? "grows" : true } };  // (MD8 signature: MD5 + the melt spreads — its persistent acid grows 1 die each time it deals damage, to 3 dice more at most)
         return { spells };
     },

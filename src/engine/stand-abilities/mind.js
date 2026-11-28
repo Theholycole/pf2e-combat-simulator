@@ -1,5 +1,5 @@
 import { low } from "../creature-tables.js";
-const B1 = new Set(String(globalThis.process?.env?.BAND1 ?? "").split(",").filter(Boolean));  // (2026-11-28, band batch 1a candidates)
+const B1 = new Set([...(globalThis.process?.env?.BAND1_OFF === "1" ? [] : "WG3,TS2,IA6,FP3,ID6,ER4,AC4,WE2,SB9,DN8,FS1,AG1,SL1,MC1,PS1,SF3,CW1,IN1,IM2,MG2,GL1,IB2,FG1,GT1,SS1,GO3,PH1,LG1,PX2".split(",")), ...String(globalThis.process?.env?.BAND1 ?? "").split(",")].filter(Boolean));  // (2026-11-28: the adopted band changes on by default — Cole approved the batch; BAND1 adds candidates, BAND1_OFF=1 for none)
 // Stand Abilities: mind theme (see index.js for the contract).
 // (2026-11-24: "## Mind and Sense" of content/stand-abilities.md, with the buffed wording.) Defaults (abilities.mjs): a surge costs 1 Stand
 // Point and 2 actions unless listed; ranges from the stand (a touch of the close-range stand played as 15 feet from its user); saves
@@ -164,7 +164,7 @@ export const MIND = {
             if (ctx.buffed) {
                 // (Round 2: +1 status to attack rolls too — you've seen how it moves; the surge's +2 for 1 minute from 5th.)
                 const aura = (name, rounds, value) => {
-                    const mods = [...["ac", "fortitude", "reflex", "will"].map((on) => ({ on, type: "status", value })), ...(B1.has("RP1") && value < 2 ? [] : [{ on: "attack", type: "status", value: 1 }])];  // (RP1: the glimpse gives no attack bonus — only the 5th-level surge does)
+                    const mods = [...["ac", "fortitude", "reflex", "will"].map((on) => ({ on, type: "status", value })), ...((B1.has("RP1") && value < 2) || (B1.has("RP5") && value >= 2) ? [] : [{ on: "attack", type: "status", value: 1 }])]  /* (RP5: the surge gives no attack bonus) */;  // (RP1: the glimpse gives no attack bonus — only the 5th-level surge does)
                     return ctx.effectModel(name, rounds, { modifiers: mods, aura: [{ radius: 30, affects: "allies", includesSelf: false, model: ctx.effectModel(name, rounds, { modifiers: mods }) }] });
                 };
                 const selfEffects = [{ name: "Replay (glimpse)", actions: 1, model: aura("Replay (glimpse)", B1.has("RP2") ? 1 : 10, 1) }];  // (RP2: the glimpse lasts 1 round, was 1 minute)
@@ -648,7 +648,7 @@ export const MIND = {
                 else if (lv >= 5) out.push(marked(ctx.entry("Puppet Marks (surge, move limb)", plan(ctx, "Puppet Marks (surge, move limb)", { range: "15 feet", save: "fortitude", damage: ctx.S("bludgeoning"), kind: "bludgeoning", effects: both([["prone"], ["off-guard", null, ctx.minutes(1)]]), raw: rawB }), { surge: true })));
                 if (lv >= 13) out.push(marked(ctx.entry("Puppet Marks (surge, control)", plan(ctx, "Puppet Marks (surge, control)", { range: "15 feet", traits: ["mental", "incapacitation"], effects: { criticalFailure: [["controlled", null, ctx.round1]] }, notes: { failure: [command()] } }), { surge: true })));
                 if (lv >= 13) ctx.convert("Puppet Marks (surge, bystander)", { from: "commoner", actions: 2, surge: true, lasts: 1, initiative: "roll", forced: true });
-                return { spells: out, ...(["rider", "rider2", "rider3", "rider4"].includes(PV) ? { stand: { puppetRider: true, ...(PV === "rider4" ? { puppetRiderAll: true } : {}), ...(B1.has("PK1") || B1.has("PK2") ? { puppetJerkOnce: true } : {}) } } : {}) };  // (PK1: the jerk's off-guard once a turn)
+                return { spells: out, ...(["rider", "rider2", "rider3", "rider4"].includes(PV) ? { stand: { puppetRider: true, ...(PV === "rider4" && !B1.has("PK3") ? { puppetRiderAll: true } : {}), ...(B1.has("PK1") || B1.has("PK2") ? { puppetJerkOnce: true } : {}) } } : {}) };  // (PK1: the jerk's off-guard once a turn)
             }
             if (lv < 5) return { spells: [] };
             const touch = "15 feet";

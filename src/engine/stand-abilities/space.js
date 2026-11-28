@@ -4,7 +4,7 @@
 // (2026-11-26, module a5ce436, Cole: "give 5th level surges for the late ones" — the 9th-level surges at 5th and new 9th steps; LATE,
 // STAND_LATE_SURGE=0 for the text before it.)
 const LATE = globalThis.process?.env?.STAND_LATE_SURGE !== "0";
-const B1 = new Set(String(globalThis.process?.env?.BAND1 ?? "").split(",").filter(Boolean));  // (2026-11-28, band batch candidates)
+const B1 = new Set([...(globalThis.process?.env?.BAND1_OFF === "1" ? [] : "WG3,TS2,IA6,FP3,ID6,ER4,AC4,WE2,SB9,DN8,FS1,AG1,SL1,MC1,PS1,SF3,CW1,IN1,IM2,MG2,GL1,IB2,FG1,GT1,SS1,GO3,PH1,LG1,PX2".split(",")), ...String(globalThis.process?.env?.BAND1 ?? "").split(",")].filter(Boolean));  // (2026-11-28: the adopted band changes on by default — Cole approved the batch; BAND1 adds candidates, BAND1_OFF=1 for none)
 const TRAITS = ["concentrate", "occult", "stand"];
 // A save plan with no damage (conditions, a Disarm, a push or pull, out of the fight), as a ready entry.
 //   disarm: degrees whose creature drops a held weapon; move: { degree: { kind: "pull"|"push", distance } }; hinder: true for "hinder:" slugs;
@@ -146,7 +146,7 @@ export const SPACE = {
             // (Round 4: the buffed 17th no longer drops the save — the parallel copy stays basic Fortitude, the 5th's entry below.)
             if (!ctx.buffed && ctx.lv >= 17) spells.push(noSave(ctx, "Dimension Step (surge, parallel copy)", { damage: ctx.S("force"), range, surge: true }));
             // (Round 2, 5th: the parallel copy from 5th, basic Fortitude till the 17th's no save.)
-            else if (ctx.buffed && ctx.lv >= 5) spells.push(ctx.make("Dimension Step (surge, parallel copy)", { actions: 2, damage: B1.has("DS2") ? ctx.halfS("force") : ctx.S("force"),  /* (DS2: the parallel copy half S) */ kind: "force", save: "fortitude", surge: true }));
+            else if (ctx.buffed && ctx.lv >= 5) spells.push(ctx.make("Dimension Step (surge, parallel copy)", { actions: 2, damage: B1.has("DS2") || (B1.has("DS3") && ctx.lv < 13) ? ctx.halfS("force") : ctx.S("force"),  /* (DS3: half S until 13th) */  /* (DS2: the parallel copy half S) */ kind: "force", save: "fortitude", surge: true }));
             const stand = userOnly(user);
             // (Round 2, 1st: the stand steps through the other world beside a creature and Strikes it off-guard, once a turn.)
             if (ctx.buffed) stand.strikeActivities = [strikeActivity("Dimension Step (from the other world)", { strides: 1, offGuard: !B1.has("DS1") || ctx.lv >= 5, oncePerTurn: true })];  // (DS1: the off-guard from the other world from 5th)
@@ -225,7 +225,7 @@ export const SPACE = {
             const offGuard = ctx.buffed || ctx.lv >= 5;
             // (RT1: +1 damage a weapon die from 1st (was 5th), +2 from 13th; RT2: RT1 + the three-reflection surge from 9th.)
             const rt = B1.has("RT1") || B1.has("RT2");
-            const stand = { strikeActivities: [strikeActivity("Reflection Travel (from a reflection)", { strides: 1, offGuard, ...(["RT3", "RT4", "RT5"].some((k) => B1.has(k)) ? { onHit: { conditions: [{ slug: "frightened", value: 1, duration: null }] } } : {}), ...(rt || ["RT3", "RT4", "RT5"].some((k) => B1.has(k)) ? { damagePerWeaponDie: ctx.lv >= (B1.has("RT4") ? 9 : 13) ? 2 : 1 } : ctx.buffed && ctx.lv >= 5 ? { damagePerWeaponDie: 1 } : {}) })] };
+            const stand = { strikeActivities: [strikeActivity("Reflection Travel (from a reflection)", { strides: 1, offGuard, ...(B1.has("RT6") ? { extraWeaponDice: 1 } : {}), ...(["RT3", "RT4", "RT5", "RT6"].some((k) => B1.has(k)) ? { onHit: { conditions: [{ slug: "frightened", value: 1, duration: null }] } } : {}), ...(rt || ["RT3", "RT4", "RT5", "RT6"].some((k) => B1.has(k)) ? { damagePerWeaponDie: ctx.lv >= (B1.has("RT4") ? 9 : 13) ? 2 : 1 } : ctx.buffed && ctx.lv >= 5 ? { damagePerWeaponDie: 1 } : {}) })] };
             if (ctx.buffed && ctx.lv >= 5) {
                 stand.strikeActivities.push(strikeActivity("Reflection Travel (surge, in its eyes)", { strides: 1, offGuard: true, damage: ctx.S("slashing"), pool: ctx.pool }));
                 stand.spellPools = { [ctx.pool]: 2 };
@@ -238,7 +238,7 @@ export const SPACE = {
                 stand.spellPools = { [ctx.pool]: 2 };
             }
             // (RT5 signature: RT3 + the stand lives in reflections — concealed to its foes, DC 5 flat check, from 1st.)
-            if (B1.has("RT5")) stand.permanent = [{ slug: "concealed" }];
+            if (B1.has("RT5") || B1.has("RT6")) stand.permanent = [{ slug: "concealed" }];
             return { stand };
         },
         notes: [

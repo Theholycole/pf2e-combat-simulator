@@ -5,7 +5,8 @@ import { zoneSpell } from "../zones.js";
 // (2026-11-26, module a5ce436, Cole: "give 5th level surges for the late ones" — the 9th-level surges at 5th and new 9th steps; LATE,
 // STAND_LATE_SURGE=0 for the text before it.)
 const LATE = globalThis.process?.env?.STAND_LATE_SURGE !== "0";
-const B1 = new Set(String(globalThis.process?.env?.BAND1 ?? "").split(",").filter(Boolean));  // (2026-11-28, band batch 1a candidates)
+const B1 = new Set([...(globalThis.process?.env?.BAND1_OFF === "1" ? [] : "WG3,TS2,IA6,FP3,ID6,ER4,AC4,WE2,SB9,DN8,FS1,AG1,SL1,MC1,PS1,SF3,CW1,IN1,IM2,MG2,GL1,IB2,FG1,GT1,SS1,GO3,PH1,LG1,PX2".split(",")), ...String(globalThis.process?.env?.BAND1 ?? "").split(",")].filter(Boolean));  // (2026-11-28: the adopted band changes on by default — Cole approved the batch; BAND1 adds candidates, BAND1_OFF=1 for none)
+const sAct = (name, more = {}) => ({ name, actions: 1, strides: 0, strike: null, attackBonus: 0, damageBonus: 0, damage: null, offGuard: false, requires: null, oncePerFight: false, traits: ["stand"], riderSpell: null, ...more, onHit: { conditions: [], critical: null, push: null, damage: [], save: null, size: null, ...(more.onHit ?? {}) } });  // (band reworks: a stand Strike activity)
 const TRAITS = (kind, more = []) => ["concentrate", "occult", "stand", ...(kind ? [kind] : []), ...more];
 
 // A plan with no roll ("no save", "for creatures you choose"): its success row for everyone it reaches.
@@ -62,6 +63,8 @@ const BUFFED = {
             spells.push(ctx.entry("Bomb Touch (surge, creature bomb)", plan(ctx, "Bomb Touch (surge, creature bomb)", { actions: B1.has("BT2") ? 1 : 2,  /* (BT2: the creature bomb 1 action — Killer Queen arms with a touch) */ kind: "force", save: "fortitude", basic: false, extra: { ...weak, failure: all, criticalFailure: [`${2 * dice}d6[force]`] } }), { surge: true }));
         }
         if (lv >= 13) spells.push(ctx.entry("Bomb Touch (surge, seeking bomb)", plan(ctx, "Bomb Touch (surge, seeking bomb)", { actions: 2, kind: "force", area: burst, range: "60 feet", damage: bomb }), { surge: true }));
+        // (BT3 rework: Killer Queen touches and detonates — 2 actions, the stand's Strike; on a hit the creature it touched explodes for the bomb's dice, no save.)
+        if (B1.has("BT3")) return { spells, stand: { strikeActivities: [sAct("Bomb Touch (touch and detonate)", { actions: 2, strides: 1, onHit: { damage: [bomb] } })] } };
         return { spells };
     },
     Flame(ctx) {
@@ -129,9 +132,9 @@ const BUFFED = {
         const { lv, D, S } = ctx;
         const range = lv >= 13 ? "60 feet" : ctx.range;
         // (SP1: the hole's bleed from 1st (was 5th); SP2: SP1 + the nail shot deals half S (was D).)
-        const hole = lv >= 5 || ["SP1", "SP2", "SP3", "SP4", "SP5"].some((k) => B1.has(k)) ? (n) => ({ success: [`${n}d6[persistent,bleed]`], criticalSuccess: [`${n}d6[persistent,bleed]`] }) : () => ({});
+        const hole = lv >= 5 || ["SP1", "SP2", "SP3", "SP4", "SP5", "SP6"].some((k) => B1.has(k)) ? (n) => ({ success: [`${n}d6[persistent,bleed]`], criticalSuccess: [`${n}d6[persistent,bleed]`] }) : () => ({});
         const bleedDice = B1.has("SP3") ? (lv >= 13 ? 3 : lv >= 5 ? 2 : 1) : lv >= 13 ? 2 : 1;  // (SP3: SP2 + the bleed 2d6 from 5th, 3d6 from 13th)
-        const shot = ctx.make("Spin (nail shot)", { actions: 1, damage: ["SP2", "SP3", "SP4", "SP5"].some((k) => B1.has(k)) ? ctx.halfS("piercing") : D("piercing"), ...(B1.has("SP4") ? { target: "up to 2 creatures" } : {}),  /* (SP4: SP2 + two nails at up to 2 creatures) */ kind: "piercing", attackRoll: true, extra: hole(bleedDice) });
+        const shot = ctx.make("Spin (nail shot)", { actions: 1, damage: ["SP2", "SP3", "SP4", "SP5", "SP6"].some((k) => B1.has(k)) ? ctx.halfS("piercing") : D("piercing"), ...(B1.has("SP6") ? { effects: { success: [["off-guard", null, ctx.round1]], criticalSuccess: [["off-guard", null, ctx.round1]] } } : {}),  /* (SP6 rework: SP2 + the hole leaves it off-guard till your next turn) */ ...(B1.has("SP4") ? { target: "up to 2 creatures" } : {}),  /* (SP4: SP2 + two nails at up to 2 creatures) */ kind: "piercing", attackRoll: true, extra: hole(bleedDice) });
         shot.plan.targeting.range = range;
         const spells = [shot];
         // (a5ce436: the golden spin at 5th; a hit knocks prone from 9th. 1st's regrowing surge: nails aren't counted here.)
@@ -232,7 +235,7 @@ const BUFFED = {
         const unseen = { success: [["off-guard", null, round1]], criticalSuccess: [["off-guard", null, round1]] };
         // (AS1: the bubble deals half S (was D); AS2: AS1 + up to 2 creatures from 5th.)
         // (AS3: AS1 + a bubble out of nowhere frightens 1 on a hit; AS4: AS3 + up to 2 creatures from 5th.)
-        const as1 = ["AS1", "AS2", "AS3", "AS4", "AS5", "AS6", "AS7", "AS8"].some((k) => B1.has(k)), as3 = ["AS3", "AS4", "AS5", "AS6", "AS7", "AS8"].some((k) => B1.has(k));
+        const as1 = ["AS1", "AS2", "AS3", "AS4", "AS5", "AS6", "AS7", "AS8", "AS9"].some((k) => B1.has(k)), as3 = ["AS3", "AS4", "AS5", "AS6", "AS7", "AS8", "AS9"].some((k) => B1.has(k));
         // (AS8 signature: a bubble that hits lodges in the body and bursts — half S more, S on a critical hit.)
         const lodged = B1.has("AS8") ? { extra: { success: [halfS("bludgeoning")], criticalSuccess: [ctx.S("bludgeoning")] } } : {};  // (AS7: AS5 + a 1-action volley at up to 3 creatures from 1st)  // (AS6: AS5 + a bubble that hits stays lodged: off-guard 1 minute)  // (AS5: AS4 + the surge bubbles S each, was half S)
         const og = B1.has("AS6") ? ctx.minutes(1) : round1;
@@ -246,6 +249,9 @@ const BUFFED = {
             p.resolution = { kind: "effect", check: null, sharedDamage: null, applications: [{ kind: "native-spell-effect", uuid, recipients: "allies-in-area" }] };
             spells.push({ ...ctx.entry("Air Shots (surge bubble wall)", p, { surge: true }), effects: { [uuid]: model } });
         }
+        // (AS9 rework: Stray Cat itself fires the bubbles — 1 action, a Strike activity of the stand at its attack bonus, half S bludgeoning, off-guard
+        // and frightened 1 on a hit; the user's bubble and surges stay.)
+        if (B1.has("AS9")) return { spells, stand: { strikeActivities: [sAct("Air Shots (stand bubble)", { strides: 1, damage: halfS("bludgeoning"), offGuard: true, onHit: { conditions: [{ slug: "frightened", value: 1, duration: null }] } })] }, ...(lv >= 17 ? { user: { acReaction: { value: 2, when: "hit", against: "ranged", name: "Air Shots (bubble shield)" } } } : {}) };
         return { spells, ...(lv >= 17 ? { user: { acReaction: { value: 2, when: "hit", against: "ranged", name: "Air Shots (bubble shield)" } } } : {}) };
     },
     "Meteor Call"(ctx) {
