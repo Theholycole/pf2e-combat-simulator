@@ -164,7 +164,7 @@ export const MIND = {
             if (ctx.buffed) {
                 // (Round 2: +1 status to attack rolls too — you've seen how it moves; the surge's +2 for 1 minute from 5th.)
                 const aura = (name, rounds, value) => {
-                    const mods = [...["ac", "fortitude", "reflex", "will"].map((on) => ({ on, type: "status", value })), { on: "attack", type: "status", value: 1 }];
+                    const mods = [...["ac", "fortitude", "reflex", "will"].map((on) => ({ on, type: "status", value })), ...(B1.has("RP1") && value < 2 ? [] : [{ on: "attack", type: "status", value: 1 }])];  // (RP1: the glimpse gives no attack bonus — only the 5th-level surge does)
                     return ctx.effectModel(name, rounds, { modifiers: mods, aura: [{ radius: 30, affects: "allies", includesSelf: false, model: ctx.effectModel(name, rounds, { modifiers: mods }) }] });
                 };
                 const selfEffects = [{ name: "Replay (glimpse)", actions: 1, model: aura("Replay (glimpse)", 10, 1) }];
@@ -269,7 +269,7 @@ export const MIND = {
                 // (Round 2: two puppets from 9th (was 17th); the fog's penalty −2 from 13th.)
                 // (Round 3 tone-down: the −2 from 17th (was 13th) and to attack rolls only; AC stays −1.)
                 const fogB = lv >= 17 ? -2 : -1;
-                const penaltyB = [{ selector: "attack", value: fogB, type: "status", duration: ctx.minutes(1) }, { selector: "ac", value: -1, type: "status", duration: ctx.minutes(1) }];
+                const penaltyB = [{ selector: "attack", value: fogB, type: "status", duration: ctx.minutes(1) }, ...(B1.has("FG1") && lv < 9 ? [] : [{ selector: "ac", value: -1, type: "status", duration: ctx.minutes(1) }])];  // (FG1: the fog's AC penalty from 9th)
                 const out = [ctx.entry("Fog Puppets (fog)", plan(ctx, "Fog Puppets (fog)", { actions: 1, area: { type: "burst", value: lv >= 9 ? 30 : 20, foes: true }, modifiers: Object.fromEntries(DEGREES.map((degree) => [degree, penaltyB])) }))];
                 if (lv >= 5) out.push(ctx.entry("Fog Puppets (surge, puppet)", plan(ctx, "Fog Puppets (surge, puppet)", { traits: ["mental", "incapacitation"], target: lv >= 9 ? "up to 2 creatures" : "1 creature", effects: { criticalFailure: [["controlled", null, ctx.round1]] }, notes: { failure: [command()] } }), { surge: true }));
                 if (lv >= 5) ctx.convert("Fog Puppets (surge, bystander)", { from: "commoner", count: lv >= 9 ? 2 : 1, actions: 2, surge: true, lasts: 1, initiative: "roll" });
@@ -303,7 +303,7 @@ export const MIND = {
             const { lv } = ctx;
             if (ctx.buffed) {
                 const traitsB = ["illusion", "visual", "mental"];
-                const out = [ctx.entry("Illusion Maze (fold)", plan(ctx, "Illusion Maze (fold)", { actions: 1, traits: traitsB, damage: ctx.D("mental"), kind: "mental", effects: { failure: [["off-guard", null, untilNext]], criticalFailure: [["off-guard", null, untilNext]] } }))];
+                const out = [ctx.entry("Illusion Maze (fold)", plan(ctx, "Illusion Maze (fold)", { actions: 1, traits: traitsB, damage: ctx.D("mental"), kind: "mental", effects: { failure: B1.has("IM1") ? [] : [["off-guard", null, untilNext]], criticalFailure: [["off-guard", null, untilNext]] } }))];
                 if (lv >= 5) out.push(ctx.entry("Illusion Maze (surge, lost)", plan(ctx, "Illusion Maze (surge, lost)", { range: lv >= 13 ? "60 feet" : "30 feet", area: { type: "burst", value: 10, foes: true }, traits: traitsB, effects: { failure: [["fleeing", null, ctx.round1]], criticalFailure: [["fleeing", null, globalThis.process?.env?.MAZE17 && lv >= 17 ? (globalThis.process.env.MAZE17 === "r2" ? { mode: "fixed", value: 2, unit: "rounds" } : ctx.minutes(1)) : ctx.round1]] } }), { surge: true }));  // (MAZE17: min — lost 1 minute on a critical failure; r2 — 2 rounds)
                 // (Round 3 tone-down: a 10-ft burst (was 15); lost 2 rounds on a critical failure from 17th, was 1 minute.)
                 // (Round 4 cap: lost 1 round on a critical failure at 17th too; the fold's critical failure off-guard until your next turn.)
@@ -337,7 +337,7 @@ export const MIND = {
                 const lockB = { failure: [["frightened", 1, null]], criticalFailure: [["frightened", 2, null]] };
                 const surgeCritB = [["frightened", 2, null], ...slowB];
                 const traitsB = ["mental", "emotion", "fear"];
-                const out = [ctx.entry("Guilt Lock (lock)", plan(ctx, "Guilt Lock (lock)", { actions: 1, traits: traitsB, damage: ctx.D("mental"), kind: "mental", effects: lockB, notes: notesB }))];
+                const out = [ctx.entry("Guilt Lock (lock)", plan(ctx, "Guilt Lock (lock)", { actions: 1, traits: traitsB, ...(B1.has("GL1") ? {} : { damage: ctx.D("mental"), kind: "mental" }), effects: lockB, notes: notesB }))];  // (GL1: the lock is fear only — no D mental)
                 if (lv >= 5) {
                     const enf = lv >= 17
                         ? ["enfeebled", 2, { ...ctx.minutes(1), saveEnds: { save: "will", dc: ctx.dc, mode: "escalate", escalate: { criticalSuccess: "end", success: 0, failure: 1, criticalFailure: 1 }, max: 4 } }]

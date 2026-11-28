@@ -175,7 +175,7 @@ const BUFFED = {
     Magnetism(ctx) {
         const { lv, S } = ctx;
         const lasts = ctx.minutes(1);
-        const fail = [["clumsy", 1, lasts], ...(lv >= 17 ? [["immobilized", null, lasts]] : [])];
+        const fail = [["clumsy", 1, B1.has("MG1") ? ctx.round1 : lasts], ...(lv >= 17 ? [["immobilized", null, lasts]] : [])];  // (MG1: a failure's clumsy 1 for 1 round, 1 minute on a critical failure)
         const critFail = [["clumsy", 2, lasts], ...(lv >= 17 ? [["immobilized", null, lasts]] : [])];
         // (NCFILL 9th: two magnetized creatures pulled together and colliding — approximated as D more bludgeoning on a failure.)
         const pull9 = (globalThis.process?.env?.NCFILL ?? "1") === "1" && lv >= 9 ? { failure: [ctx.D("bludgeoning")], criticalFailure: [ctx.D("bludgeoning")] } : {};

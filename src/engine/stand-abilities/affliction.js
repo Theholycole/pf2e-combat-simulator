@@ -47,7 +47,7 @@ const BUFFED = {
         // enfeebled, listed before the save so it's the shrink of an earlier hit.)
         const fail = [["enfeebled", lv >= 13 ? 2 : 1, lv >= 5 ? 10 : 1], ["off-guard", null, 1]];
         const crit = [["enfeebled", 2, 10], ["off-guard", null, 1], ...(lv >= 5 ? [["clumsy", 1, 10]] : [])];
-        const crush = { source: "Shrink (crushing blow)", when: "condition:enfeebled", dice: lv >= 13 ? 3 : lv >= 5 ? 2 : 1, die: 6 };  // (Round 5: 2d6 from 5th, 3d6 from 13th.)
+        const crush = { source: "Shrink (crushing blow)", when: "condition:enfeebled", dice: B1.has("SH1") ? (lv >= 13 ? 2 : 1) : lv >= 13 ? 3 : lv >= 5 ? 2 : 1, die: 6 };  // (SH1: crushing blows 1d6, 2d6 from 13th)  // (Round 5: 2d6 from 5th, 3d6 from 13th.)
         const extras = [crush, { source: "Shrink (off-guard)", when: "hit", offGuardToAttacker: true }, { source: "Shrink", when: "hit", save: { statistic: "fortitude", dc, outcomes: [crit, fail, [], []] } }];
         // (Round 6 trim: 'already shrunk' read as shrunk by a critical failure — its clumsy 1 the size's stand-in —, not any enfeebled: in the
         // buffed text a failure only enfeebles, so the 17th's second save no longer rides on every pinch and failed save.)
@@ -221,7 +221,7 @@ const BUFFED = {
         const { lv, make, S } = ctx;
         const rounds10 = ctx.minutes(1);
         const crit = [["sickened", 2, rounds10], ...(lv >= 17 ? [["slowed", 1, rounds10]] : [])];
-        const spells = [{ ...ctx.entry("Internal Attack", plan(ctx, "Internal Attack", { actions: 1, area: { type: "burst", value: lv >= 13 ? 20 : 10, foes: true }, extra: { failure: [ctx.D("bludgeoning")], criticalFailure: [ctx.D("bludgeoning")] }, effects: { failure: [["sickened", 1, rounds10]], criticalFailure: crit } })), ...(globalThis.process?.env?.INTATK_FORCE === "1" ? { forceEarly: true } : {}) }];
+        const spells = [{ ...ctx.entry("Internal Attack", plan(ctx, "Internal Attack", { actions: 1, area: { type: "burst", value: lv >= 13 ? 20 : 10, foes: true }, extra: B1.has("IN1") ? { criticalFailure: [ctx.D("bludgeoning")] } : { failure: [ctx.D("bludgeoning")], criticalFailure: [ctx.D("bludgeoning")] }, effects: {  /* (IN1: the thrash's D only on a critical failure) */ failure: [["sickened", 1, rounds10]], criticalFailure: crit } })), ...(globalThis.process?.env?.INTATK_FORCE === "1" ? { forceEarly: true } : {}) }];
         if (lv >= 5) {
             const slowed = [["slowed", 1, ctx.round1]];
             // (Round 2: the surge 1 action.)

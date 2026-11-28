@@ -1,4 +1,5 @@
 // Stand Abilities: fate theme (see index.js for the contract). The module's text (content/stand-abilities.md, 2026-11-24 buffs);
+const B1 = new Set(String(globalThis.process?.env?.BAND1 ?? "").split(",").filter(Boolean));  // (2026-11-28, band trims)
 // its Defaults: a surge costs 1 Stand Point and 2 actions unless listed, ranges are measured from the stand (played from the user, the
 // stand beside it), untyped damage is force, saves against the stand DC.
 
@@ -234,7 +235,7 @@ export const FATE = {
             const effects = { "cursed-wealth-1": ctx.effectModel("Cursed Wealth", 1, { modifiers: SAVE_MODS(-1) }), "cursed-wealth-10": ctx.effectModel("Cursed Wealth", 10, { modifiers: SAVE_MODS(-1) }), "cursed-wealth-crit": ctx.effectModel("Cursed Wealth", 10, { modifiers: SAVE_MODS(-2) }) };
             const coin = (name, actions, conditions = {}, surge = false) => {
                 const out = plan(ctx, name, { actions, effects: conditions });
-                addRows(out, ["success"], "nativeEffects", [{ uuid: "cursed-wealth-1", label: "Cursed Wealth" }]);
+                if (!B1.has("CW1")) addRows(out, ["success"], "nativeEffects", [{ uuid: "cursed-wealth-1", label: "Cursed Wealth" }]);  // (CW1: a success shrugs the coin off — no penalty)
                 addRows(out, ["failure"], "nativeEffects", [{ uuid: "cursed-wealth-10", label: "Cursed Wealth" }]);
                 addRows(out, ["criticalFailure"], "nativeEffects", [{ uuid: "cursed-wealth-crit", label: "Cursed Wealth" }]);
                 const entry = ctx.entry(name, out, { surge });
@@ -328,7 +329,7 @@ const BUFFED = {
         // (The wound share: 1 action, D force basic Will — 'the Hit Points you're missing, up to D' taken as at least D: the user is
         // hurt by the time it's worth a turn.)
         // (Round 2: two creatures from 5th — 13th's step moved —, the cap S from 13th.)
-        const wound = plan(ctx, "Shared Fate (wound share)", { actions: 1, target: ctx.lv >= 5 ? "up to 2 creatures" : "1 creature", damage: ctx.lv >= 13 ? ctx.S("force") : ctx.lv >= 5 ? ctx.halfS("force") : ctx.D("force"), kind: "force", effects: { failure: [["sickened", 1, null]], criticalFailure: [["sickened", 2, null]] } });  // (Round 5: sickened 1/2 on a failure/critical failure; Round 6: the 3 creatures at 17th cut, back to 2.)
+        const wound = plan(ctx, "Shared Fate (wound share)", { actions: 1, target: ctx.lv >= (B1.has("SF1") ? 9 : 5) ? "up to 2 creatures"  /* (SF1: two creatures from 9th, was 5th) */ : "1 creature", damage: ctx.lv >= 13 ? ctx.S("force") : ctx.lv >= 5 ? ctx.halfS("force") : ctx.D("force"), kind: "force", effects: { failure: [["sickened", 1, null]], criticalFailure: [["sickened", 2, null]] } });  // (Round 5: sickened 1/2 on a failure/critical failure; Round 6: the 3 creatures at 17th cut, back to 2.)
         out.spells = [...(out.spells ?? []), ctx.entry("Shared Fate (wound share)", wound)];
         // (2026-11-26, Cole: "run them in a 4 fight day": the halving on the user, where the foes' hits land — on the stand it never fired
         // (0 in 40 fights) —, for a hit of a typical foe Strike's size or more (typicalHit), not 4.6×level; 2 a day from 9th, 4 from 17th —
