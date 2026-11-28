@@ -51,7 +51,7 @@ const speedPenalty = (value, rounds = 1) => ({ selector: "speed", type: "status"
 const BUFFED = {
     "Bomb Touch"(ctx) {
         const { lv } = ctx;
-        const dice = 2 + Math.floor((lv - 1) / 2);
+        const dice = 2 + Math.floor((lv - 1) / 2) + (B1.has("BT1") ? 1 : 0);  // (BT1: a bomb is 3d6 at 1st, +1d6 per 2 levels)
         const bomb = `${dice + (lv >= 17 ? 1 : 0)}d6[force]`;
         const burst = { type: "burst", value: lv >= 13 ? 15 : lv >= 5 ? 10 : 5, foes: true };
         // (Round 2: arming is free as part of the stand's Stride or Strike — the use is the 1-action detonation.)
@@ -66,7 +66,7 @@ const BUFFED = {
     },
     Flame(ctx) {
         const { lv, D, S, halfS, round1 } = ctx;
-        const burn = lv >= 17 ? { failure: ["2d6[persistent,fire]"], criticalFailure: ["2d6[persistent,fire]"] } : { failure: ["1d6[persistent,fire]"], criticalFailure: ["1d6[persistent,fire]"] };
+        const burn = lv >= (B1.has("FL1") ? 9 : 17) ? { failure: ["2d6[persistent,fire]"], criticalFailure: ["2d6[persistent,fire]"] } : { failure: ["1d6[persistent,fire]"], criticalFailure: ["1d6[persistent,fire]"] };  // (FL1: 2d6 persistent fire from 9th, was 17th)
         const bind = lv >= 5 ? { failure: [["grabbed", null, round1]], criticalFailure: [["grabbed", null, round1]] } : {};
         const spells = [ctx.make("Flame (ankh)", { actions: 1, damage: D("fire"), kind: "fire", extra: burn, effects: bind, target: lv >= 17 ? "up to 3 creatures" : lv >= 5 ? "up to 2 creatures" : "1 creature" })];
         if (lv >= 5) spells.push(ctx.make("Flame (surge cone)", { actions: 2, damage: lv >= 17 ? `${3 * Math.ceil(lv / 2)}d6[fire]` : S("fire"), kind: "fire", area: { type: "burst", value: 15, foes: true }, surge: true, extra: burn, effects: bind }));

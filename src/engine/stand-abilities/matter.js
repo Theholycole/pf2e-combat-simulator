@@ -127,7 +127,7 @@ export const MATTER = {
         build(ctx) {
             if (ctx.buffed) {
                 const r1 = ctx.round1;
-                const guard = ctx.lv >= 5 ? [["off-guard", null, ctx.minutes(1)]] : [];
+                const guard = ctx.lv >= 5 || B1.has("RS1") ? [["off-guard", null, ctx.minutes(1)]] : [];  // (RS1: the joints fused wrong from 1st, was 5th)
                 const rows = { failure: [["immobilized", null, r1], ...guard], criticalFailure: [["restrained", null, r1], ...guard] };
                 const mend = ctx.lv >= 13 ? plain(ctx.D("untyped")).replace(/^(\d+)d/, (m, n) => `${Number(n) * 2}d`) : plain(ctx.D("untyped"));
                 const spells = [
@@ -676,7 +676,7 @@ export const MATTER = {
                     { ...heal(ctx, "Flesh Spray (close wound)", { actions: 1, formula: twice }), ...(globalThis.process?.env?.FLESH_COST === "0" ? {} : { selfCost: plain(ctx.D("untyped")) }) },
                     saveOnly(ctx, "Flesh Spray (seal eyes)", { actions: 1, save: "reflex", target: sealTarget, effects: seal("blinded") }),
                     saveOnly(ctx, "Flesh Spray (seal mouth)", { actions: 1, save: "reflex", target: sealTarget, effects: seal("voiceless") }),
-                    hurt(ctx, "Flesh Spray (rip flesh)", { actions: 1, damage: ctx.D("slashing"), kind: "slashing", save: "fortitude", effects: ctx.lv >= 13 ? { failure: [["blinded", null, r1]], criticalFailure: [["blinded", null, r1]] } : {} })
+                    hurt(ctx, "Flesh Spray (rip flesh)", { actions: 1, damage: B1.has("FS1") ? ctx.halfS("slashing") : ctx.D("slashing"),  /* (FS1: the rip half S, was D) */ kind: "slashing", save: "fortitude", effects: ctx.lv >= 13 ? { failure: [["blinded", null, r1]], criticalFailure: [["blinded", null, r1]] } : {} })
                 ];
                 // (a5ce436: the surge heal at 5th; from 9th split between two allies — rolled once, half each as the even split.)
                 if (ctx.lv >= (LATE ? 5 : 9)) spells.push(heal(ctx, "Flesh Spray (surge heal)", { actions: 1, formula: heals(ctx.lv), surge: true }));

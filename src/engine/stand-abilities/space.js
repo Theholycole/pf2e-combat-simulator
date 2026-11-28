@@ -50,7 +50,7 @@ export const SPACE = {
             // (5th: 2 actions, 30 ft along a surface with no reactions.)
             if (ctx.lv >= 5) user.safeMove = { name: "Zippers (zip along)", actions: 2 };
             // (9th: reaction, surge — a melee hit that misses, its 2 uses a fight the 2 Stand Points.)
-            if (ctx.lv >= 9) user.acReaction = { name: "Zippers (unzip body)", when: "hit", value: 50, against: "melee", uses: 2 };
+            if (ctx.lv >= (B1.has("ZP1") ? 5 : 9)) user.acReaction = { name: "Zippers (unzip body)", when: "hit", value: 50, against: "melee", uses: 2 };  // (ZP1: the unzip reaction from 5th, was 9th)
             if (ctx.buffed && ctx.lv >= 5) {
                 // (Buffed 5th: surge, 1 action — the stand's Strike zips the target apart: S slashing in place of its damage, the drop save on a hit.)
                 stand.strikeActivities.push(withRider(strikeActivity("Zippers (surge, zip apart)", { damage: ctx.S("slashing"), pool: ctx.pool, onHit: { save: rider } })));

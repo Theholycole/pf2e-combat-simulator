@@ -407,7 +407,7 @@ export const MIND = {
                 // (Round 2: the released fire keeps burning — 1d6 persistent fire on a failure (2d6 from 9th); from 5th the paper bursts
                 // over a 10-ft burst of creatures you choose; the seal on 2 creatures from 5th, 3 from 13th.)
                 const burnB = both([lv >= 9 ? "2d6[persistent,fire]" : "1d6[persistent,fire]"]);
-                const unfoldOpts = lv >= 5 ? { area: { type: "burst", value: 10, foes: true }, range: "30 feet" } : {};
+                const unfoldOpts = lv >= 5 || B1.has("PS1") ? { area:  /* (PS1: the unfold burst from 1st, was 5th) */ { type: "burst", value: 10, foes: true }, range: "30 feet" } : {};
                 const out = [ctx.entry("Paper Seal (unfold)", plan(ctx, "Paper Seal (unfold)", { actions: 1, traits: ["fire"], save: "reflex", damage: ctx.D("fire"), kind: "fire", extra: burnB, effects: { failure: [["frightened", 1, null]], criticalFailure: [["frightened", 2, null]] }, ...unfoldOpts }))];
                 if (lv >= 5) out.push(ctx.entry("Paper Seal (surge, seal)", plan(ctx, "Paper Seal (surge, seal)", { traits: ["incapacitation"], target: lv >= 13 ? "up to 3 creatures" : "up to 2 creatures", hinder: true, effects: { failure: [["stunned", 1]], criticalFailure: [["hinder:mazed:100", null, lv >= 17 ? ctx.minutes(1) : ctx.round1]] } }), { surge: true }));
                 return { spells: out };
