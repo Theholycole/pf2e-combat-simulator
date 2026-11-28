@@ -146,7 +146,7 @@ export const SPACE = {
             // (Round 4: the buffed 17th no longer drops the save — the parallel copy stays basic Fortitude, the 5th's entry below.)
             if (!ctx.buffed && ctx.lv >= 17) spells.push(noSave(ctx, "Dimension Step (surge, parallel copy)", { damage: ctx.S("force"), range, surge: true }));
             // (Round 2, 5th: the parallel copy from 5th, basic Fortitude till the 17th's no save.)
-            else if (ctx.buffed && ctx.lv >= 5) spells.push(ctx.make("Dimension Step (surge, parallel copy)", { actions: 2, damage: ctx.S("force"), kind: "force", save: "fortitude", surge: true }));
+            else if (ctx.buffed && ctx.lv >= 5) spells.push(ctx.make("Dimension Step (surge, parallel copy)", { actions: 2, damage: B1.has("DS2") ? ctx.halfS("force") : ctx.S("force"),  /* (DS2: the parallel copy half S) */ kind: "force", save: "fortitude", surge: true }));
             const stand = userOnly(user);
             // (Round 2, 1st: the stand steps through the other world beside a creature and Strikes it off-guard, once a turn.)
             if (ctx.buffed) stand.strikeActivities = [strikeActivity("Dimension Step (from the other world)", { strides: 1, offGuard: !B1.has("DS1") || ctx.lv >= 5, oncePerTurn: true })];  // (DS1: the off-guard from the other world from 5th)

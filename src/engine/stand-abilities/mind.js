@@ -168,7 +168,7 @@ export const MIND = {
                     return ctx.effectModel(name, rounds, { modifiers: mods, aura: [{ radius: 30, affects: "allies", includesSelf: false, model: ctx.effectModel(name, rounds, { modifiers: mods }) }] });
                 };
                 const selfEffects = [{ name: "Replay (glimpse)", actions: 1, model: aura("Replay (glimpse)", B1.has("RP2") ? 1 : 10, 1) }];  // (RP2: the glimpse lasts 1 round, was 1 minute)
-                if (lv >= 5) selfEffects.push({ name: "Replay (surge, replayed action)", actions: 1, model: aura("Replay (surge, replayed action)", 10, B1.has("RP3") ? 1 : 2), pool: ctx.pool });  // (RP3: the surge +1 (was +2) to AC and saves, +1 to attacks as before)
+                if (lv >= 5) selfEffects.push({ name: "Replay (surge, replayed action)", actions: 1, model: aura("Replay (surge, replayed action)", B1.has("RP4") ? 3 : 10, B1.has("RP3") ? 1 : 2), pool: ctx.pool });  // (RP4: the surge's +2 lasts 3 rounds, was 1 minute)  // (RP3: the surge +1 (was +2) to AC and saves, +1 to attacks as before)
                 return { spells: [], user: { selfEffects }, ...(lv >= 5 ? { spellPools: { [ctx.pool]: 2 } } : {}) };
             }
             if (lv < 9) return { spells: [] };
@@ -634,7 +634,7 @@ export const MIND = {
                 const PB = globalThis.process?.env?.PM_BUFF ?? "surge2";  // (2026-11-27: surge2 adopted, +0.269; PM_BUFF= for rider4 alone)
                 const pbStun = ["stun", "3d", "surge", "surge2"].includes(PB), pb3 = ["3d", "surge"].includes(PB), pbSurge = ["surge", "surge2"].includes(PB);  // (surge2: stun + the surge, Wrench at 2D)
                 const wrenchDmg = r2 ? ctx.D("bludgeoning").replace(/^(\d+)d/, (m, n) => `${(pb3 ? 3 : 2) * Number(n)}d`) : ctx.D("bludgeoning");
-                const wrenchFx = r2 ? { success: og, failure: [["prone"], ...og, ...ctl], criticalFailure: [["prone"], ...og, ...ctl, ...(pbStun ? [["stunned", 1, null]] : [])] } : both([["prone"]]);
+                const wrenchFx = r2 ? { success: B1.has("PK2") ? [] : og, failure: [["prone"], ...og, ...ctl],  /* (PK2: PK1 + a successful save shrugs off the off-guard) */ criticalFailure: [["prone"], ...og, ...ctl, ...(pbStun ? [["stunned", 1, null]] : [])] } : both([["prone"]]);
                 const out = PV
                     ? [marked(ctx.entry("Puppet Marks (wrench)", plan(ctx, "Puppet Marks (wrench)", { actions: 1, range: r3 ? "60 feet" : "30 feet", save: "fortitude", damage: wrenchDmg, kind: "bludgeoning", effects: wrenchFx, ...(r3 && lv >= 9 ? { target: "up to 2 creatures" } : {}) })))]
                     : [ctx.entry("Puppet Marks (mark and tug)", plan(ctx, "Puppet Marks (mark and tug)", { actions: 1, range: "15 feet", save: "fortitude", damage: ctx.D("bludgeoning"), kind: "bludgeoning", effects: both([["prone"]]) }))];
@@ -648,7 +648,7 @@ export const MIND = {
                 else if (lv >= 5) out.push(marked(ctx.entry("Puppet Marks (surge, move limb)", plan(ctx, "Puppet Marks (surge, move limb)", { range: "15 feet", save: "fortitude", damage: ctx.S("bludgeoning"), kind: "bludgeoning", effects: both([["prone"], ["off-guard", null, ctx.minutes(1)]]), raw: rawB }), { surge: true })));
                 if (lv >= 13) out.push(marked(ctx.entry("Puppet Marks (surge, control)", plan(ctx, "Puppet Marks (surge, control)", { range: "15 feet", traits: ["mental", "incapacitation"], effects: { criticalFailure: [["controlled", null, ctx.round1]] }, notes: { failure: [command()] } }), { surge: true })));
                 if (lv >= 13) ctx.convert("Puppet Marks (surge, bystander)", { from: "commoner", actions: 2, surge: true, lasts: 1, initiative: "roll", forced: true });
-                return { spells: out, ...(["rider", "rider2", "rider3", "rider4"].includes(PV) ? { stand: { puppetRider: true, ...(PV === "rider4" ? { puppetRiderAll: true } : {}), ...(B1.has("PK1") ? { puppetJerkOnce: true } : {}) } } : {}) };  // (PK1: the jerk's off-guard once a turn)
+                return { spells: out, ...(["rider", "rider2", "rider3", "rider4"].includes(PV) ? { stand: { puppetRider: true, ...(PV === "rider4" ? { puppetRiderAll: true } : {}), ...(B1.has("PK1") || B1.has("PK2") ? { puppetJerkOnce: true } : {}) } } : {}) };  // (PK1: the jerk's off-guard once a turn)
             }
             if (lv < 5) return { spells: [] };
             const touch = "15 feet";

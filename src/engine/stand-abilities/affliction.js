@@ -47,8 +47,8 @@ const BUFFED = {
         // enfeebled, listed before the save so it's the shrink of an earlier hit.)
         const fail = [["enfeebled", lv >= 13 ? 2 : 1, lv >= 5 ? 10 : 1], ["off-guard", null, 1]];
         const crit = [["enfeebled", 2, 10], ["off-guard", null, 1], ...(lv >= 5 ? [["clumsy", 1, 10]] : [])];
-        const crush = { source: "Shrink (crushing blow)", when: "condition:enfeebled", dice: B1.has("SH1") || B1.has("SH3") ? (lv >= 13 ? 2 : 1) : lv >= 13 ? 3 : lv >= 5 ? 2 : 1, die: 6 };  // (SH1: crushing blows 1d6, 2d6 from 13th)  // (Round 5: 2d6 from 5th, 3d6 from 13th.)
-        const extras = [crush, ...(B1.has("SH2") || B1.has("SH3") ? [] : [{ source: "Shrink (off-guard)", when: "hit", offGuardToAttacker: true }]), { source: "Shrink", when: "hit", save: { statistic: "fortitude", dc, outcomes: [crit, fail, [], []] } }];
+        const crush = { source: "Shrink (crushing blow)", when: "condition:enfeebled", dice: B1.has("SH4") ? (lv >= 13 ? 2 : lv >= 5 ? 1 : 0) : B1.has("SH1") || B1.has("SH3") ? (lv >= 13 ? 2 : 1) : lv >= 13 ? 3 : lv >= 5 ? 2 : 1, die: 6 };  // (SH1: crushing blows 1d6, 2d6 from 13th)  // (Round 5: 2d6 from 5th, 3d6 from 13th.)
+        const extras = [crush, ...(B1.has("SH2") || B1.has("SH3") || B1.has("SH4") ? [] : [{ source: "Shrink (off-guard)", when: "hit", offGuardToAttacker: true }]), { source: "Shrink", when: "hit", save: { statistic: "fortitude", dc, outcomes: [crit, fail, [], []] } }];
         // (Round 6 trim: 'already shrunk' read as shrunk by a critical failure — its clumsy 1 the size's stand-in —, not any enfeebled: in the
         // buffed text a failure only enfeebles, so the 17th's second save no longer rides on every pinch and failed save.)
         if (lv >= 17) extras.push({ source: "Shrink (already shrunk)", when: "condition:clumsy", save: { statistic: "fortitude", dc, incapacitation: true, outcomes: [[["enfeebled", 3, 10]], [["enfeebled", 3, 10]], [], []] } });
@@ -345,7 +345,7 @@ export const AFFLICTION = {
             const rows = (sick) => {
                 if (IL) {
                     // (IRONLOSS_TRIM=0: no trims — the 5th sickened (its value) and 17th's drained 2 kept alongside the track.)
-                    const keep = globalThis.process?.env?.IRONLOSS_TRIM !== "1";  // (no trims by default; IRONLOSS_TRIM=1 for the trimmed version)
+                    const keep = globalThis.process?.env?.IRONLOSS_TRIM !== "1" && !B1.has("IB2");  // (IB2: the 5th-level sickened folded into the iron-loss track, 17th drained 1)  // (no trims by default; IRONLOSS_TRIM=1 for the trimmed version)
                     const failed = [["iron-loss", 1, null], ...(keep && sick ? [["sickened", sick, null]] : []), ...(lv >= (B1.has("IB1") ? 17 : 13) ? [["clumsy", 1, ctx.round1]] : [])];  // (IB1: the clumsy from 17th, was 13th)
                     return { failure: failed, criticalFailure: [["iron-loss", 2, null], ...(keep && sick ? [["sickened", sick, null]] : []), ...(lv >= (B1.has("IB1") ? 17 : 13) ? [["clumsy", 1, ctx.round1]] : []), ...(lv >= 17 ? [["drained", keep ? 2 : 1, null]] : [])] };
                 }

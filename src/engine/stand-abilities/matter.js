@@ -218,7 +218,7 @@ export const MATTER = {
                 const r1 = ctx.round1;
                 const min = ctx.minutes(1);
                 const spells = [
-                    saveOnly(ctx, "Property Theft (friction)", { actions: 1, save: "reflex", target, range, effects: { failure: [["prone"], ["off-guard", null, r1]], criticalFailure: [["prone"], ["off-guard", null, min]] } }),
+                    saveOnly(ctx, "Property Theft (friction)", { actions: 1, save: "reflex", target, range, effects: { failure: B1.has("PX2") ? [["off-guard", null, r1]] : [["prone"], ["off-guard", null, r1]],  /* (PX2: friction prone only on a critical failure) */ criticalFailure: [["prone"], ["off-guard", null, min]] } }),
                     saveOnly(ctx, "Property Theft (sound)", { actions: 1, save: "fortitude", target, range, automatic: true, effects: { success: [["voiceless", null, r1]] } }),
                     saveOnly(ctx, "Property Theft (water)", { actions: 1, save: "fortitude", target, range, effects: { failure: [["sickened", 1]], criticalFailure: [["sickened", 2]] } })
                 ];
