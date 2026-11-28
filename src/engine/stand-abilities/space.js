@@ -149,7 +149,7 @@ export const SPACE = {
             else if (ctx.buffed && ctx.lv >= 5) spells.push(ctx.make("Dimension Step (surge, parallel copy)", { actions: 2, damage: ctx.S("force"), kind: "force", save: "fortitude", surge: true }));
             const stand = userOnly(user);
             // (Round 2, 1st: the stand steps through the other world beside a creature and Strikes it off-guard, once a turn.)
-            if (ctx.buffed) stand.strikeActivities = [strikeActivity("Dimension Step (from the other world)", { strides: 1, offGuard: true, oncePerTurn: true })];
+            if (ctx.buffed) stand.strikeActivities = [strikeActivity("Dimension Step (from the other world)", { strides: 1, offGuard: !B1.has("DS1") || ctx.lv >= 5, oncePerTurn: true })];  // (DS1: the off-guard from the other world from 5th)
             // (NCFILL 17th: reaction, once a round, sandwiched (assumed): an attack that would hit you misses — a +50 AC reaction on a hit.)
             // (DIM17: minute — melee only, once a fight (acReactionUses 1); round — melee only, once a round; off unless set.)
             const dim17 = globalThis.process?.env?.DIM17 ?? "minute";  // (adopted 2026-11-27)
@@ -191,7 +191,7 @@ export const SPACE = {
             // (2026-11-27, Cole's pick: PHASE_V=react (default) — the dive a reaction when an ally in the stand's reach is hit (actions.js);
             // PHASE_V=action — the 1-action dive below.)
             const PHV = globalThis.process?.env?.PHASE_V ?? "react";
-            if (ctx.buffed && (globalThis.process?.env?.NCFILL2 ?? "1") === "1" && ctx.lv >= 9 && PHV === "react") return { spells, stand: { phaseReact: { amount: ctx.lv, damage: strikeFormula(ctx.main, "bludgeoning"), dc: ctx.dc } } };
+            if (ctx.buffed && (globalThis.process?.env?.NCFILL2 ?? "1") === "1" && ctx.lv >= 9 && PHV === "react") return { spells, stand: { phaseReact: { amount: B1.has("PH1") ? Math.max(1, Math.floor(ctx.lv / 2)) : ctx.lv,  /* (PH1: the dive reduces by half your level) */ damage: strikeFormula(ctx.main, "bludgeoning"), dc: ctx.dc } } };
             if (ctx.buffed && (globalThis.process?.env?.NCFILL2 ?? "1") === "1" && ctx.lv >= 9) {
                 const name = "Phase Store (dive into an ally)";
                 const uuid = "stand.phase-store-dive-into-an-ally";

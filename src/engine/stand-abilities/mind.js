@@ -648,7 +648,7 @@ export const MIND = {
                 else if (lv >= 5) out.push(marked(ctx.entry("Puppet Marks (surge, move limb)", plan(ctx, "Puppet Marks (surge, move limb)", { range: "15 feet", save: "fortitude", damage: ctx.S("bludgeoning"), kind: "bludgeoning", effects: both([["prone"], ["off-guard", null, ctx.minutes(1)]]), raw: rawB }), { surge: true })));
                 if (lv >= 13) out.push(marked(ctx.entry("Puppet Marks (surge, control)", plan(ctx, "Puppet Marks (surge, control)", { range: "15 feet", traits: ["mental", "incapacitation"], effects: { criticalFailure: [["controlled", null, ctx.round1]] }, notes: { failure: [command()] } }), { surge: true })));
                 if (lv >= 13) ctx.convert("Puppet Marks (surge, bystander)", { from: "commoner", actions: 2, surge: true, lasts: 1, initiative: "roll", forced: true });
-                return { spells: out, ...(["rider", "rider2", "rider3", "rider4"].includes(PV) ? { stand: { puppetRider: true, ...(PV === "rider4" ? { puppetRiderAll: true } : {}) } } : {}) };
+                return { spells: out, ...(["rider", "rider2", "rider3", "rider4"].includes(PV) ? { stand: { puppetRider: true, ...(PV === "rider4" ? { puppetRiderAll: true } : {}), ...(B1.has("PK1") ? { puppetJerkOnce: true } : {}) } } : {}) };  // (PK1: the jerk's off-guard once a turn)
             }
             if (lv < 5) return { spells: [] };
             const touch = "15 feet";

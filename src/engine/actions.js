@@ -2125,7 +2125,7 @@ export function applyDamage(state, target, instances, { source = null, critical 
     if (dealt > 0 && physical && source?.puppetRider && source.side !== target.side && (source.puppetRiderAll || source.puppetRound !== state.round) && isActive(target)) {
         source.puppetRound = state.round; target.cond["puppet-marked"] = 1; target.puppetMarks = Math.min(4, (target.puppetMarks ?? 0) + 1); target.puppetUntil = state.round + 10;
         log(state, `  ${source.name} marks a limb of ${target.name}`);
-        if (source.puppetRiderAll) applyCondition(state, target, "off-guard", null, { mode: "fixed", value: 1, unit: "rounds" }, source);
+        if (source.puppetRiderAll && !(source.puppetJerkOnce && source.puppetJerkRound === state.round)) { source.puppetJerkRound = state.round; applyCondition(state, target, "off-guard", null, { mode: "fixed", value: 1, unit: "rounds" }, source); }
     }
     // (2026-11-27, Pain Link as a real link — PAINLINK_REAL=1: any damage the user (or its stand, shared HP) takes, each linked host takes
     // too — half, all from 9th (painLinkFraction on the user), no save, no reaction; PAINLINK17=a: 1.5 times; b: stunned 1 the first time

@@ -346,8 +346,8 @@ export const AFFLICTION = {
                 if (IL) {
                     // (IRONLOSS_TRIM=0: no trims — the 5th sickened (its value) and 17th's drained 2 kept alongside the track.)
                     const keep = globalThis.process?.env?.IRONLOSS_TRIM !== "1";  // (no trims by default; IRONLOSS_TRIM=1 for the trimmed version)
-                    const failed = [["iron-loss", 1, null], ...(keep && sick ? [["sickened", sick, null]] : []), ...(lv >= 13 ? [["clumsy", 1, ctx.round1]] : [])];
-                    return { failure: failed, criticalFailure: [["iron-loss", 2, null], ...(keep && sick ? [["sickened", sick, null]] : []), ...(lv >= 13 ? [["clumsy", 1, ctx.round1]] : []), ...(lv >= 17 ? [["drained", keep ? 2 : 1, null]] : [])] };
+                    const failed = [["iron-loss", 1, null], ...(keep && sick ? [["sickened", sick, null]] : []), ...(lv >= (B1.has("IB1") ? 17 : 13) ? [["clumsy", 1, ctx.round1]] : [])];  // (IB1: the clumsy from 17th, was 13th)
+                    return { failure: failed, criticalFailure: [["iron-loss", 2, null], ...(keep && sick ? [["sickened", sick, null]] : []), ...(lv >= (B1.has("IB1") ? 17 : 13) ? [["clumsy", 1, ctx.round1]] : []), ...(lv >= 17 ? [["drained", keep ? 2 : 1, null]] : [])] };
                 }
                 const failed = [...(sick ? [["sickened", sick, null]] : []), ...(lv >= 13 ? [["clumsy", 1, ctx.round1]] : [])];
                 return { failure: failed, criticalFailure: [...failed, ...(lv >= 17 ? [["drained", 2, null]] : [])] };

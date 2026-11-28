@@ -181,7 +181,7 @@ export const MATTER = {
                 const strike = ctx.lv >= 13 ? { ...structuredClone(ctx.main), name: "Stand's Strike" } : { name: "Bite", bonus: lowAt(LOW_ATTACK, level), melee: true, agile: false, unarmed: true, reach: 5, damage: [{ dice, die, bonus, type: "piercing" }] };
                 const saves = { fortitude: low("save", level), reflex: low("save", level), will: low("save", level) };
                 ctx.raise("Life-Giving (animate an object)", { count, corpse: "none", strike, ac: low("ac", level), hp: [7, 8, 9].includes(LG) ? Math.max(1, Math.floor(low("hp", level) / 4)) : low("hp", level), saves, level, prefix: "lg-animal", label: "Life-Giving animal", spare: [5, 8, 12].includes(LG) ? 4 : 0, traits: ["animal", "minion"], invisible: false,
-                    more: { size: "tiny", ...(ctx.lv >= 9 ? { reflectHalf: true } : {}), ...(LG >= 2 && ctx.lv >= 9 ? { interceptAttack: { name: "Leap In", share: 0.2, ...(LG === 2 || LG === 4 || globalThis.process?.env?.LG_NEAR === "1" ? { near: true } : {}), ...(LG === 4 ? { noReflect: true } : {}), ...([5, 8, 12].includes(LG) ? { mode: "destroy" } : [6, 9, 11, 13].includes(LG) ? { mode: "half" } : LG === 14 ? { mode: "cap" } : {}), ...(LG === 10 ? { never: true } : {}), ...([11, 12, 13, 14].includes(LG) ? { perFight: true } : {}), ...(LG === 13 ? { noReflect: true } : {}) } } : {}) } });
+                    more: { size: "tiny", ...(ctx.lv >= (B1.has("LG1") ? 13 : 9) ? { reflectHalf: true } : {}),  /* (LG1: reflect half from 13th) */ ...(LG >= 2 && ctx.lv >= 9 ? { interceptAttack: { name: "Leap In", share: 0.2, ...(LG === 2 || LG === 4 || globalThis.process?.env?.LG_NEAR === "1" ? { near: true } : {}), ...(LG === 4 ? { noReflect: true } : {}), ...([5, 8, 12].includes(LG) ? { mode: "destroy" } : [6, 9, 11, 13].includes(LG) ? { mode: "half" } : LG === 14 ? { mode: "cap" } : {}), ...(LG === 10 ? { never: true } : {}), ...([11, 12, 13, 14].includes(LG) ? { perFight: true } : {}), ...(LG === 13 ? { noReflect: true } : {}) } } : {}) } });
                 spells = [];
             } else spells = [minion(ctx, "Life-Giving (command animals)", { count, standStrike: ctx.lv >= 13, kind: "piercing" })];
             if (ctx.lv >= 5) spells.push(heal(ctx, "Life-Giving (surge heal)", { actions: 2, formula: heals(ctx.lv), surge: true }));
@@ -214,7 +214,7 @@ export const MATTER = {
                 const TRIM = Number(globalThis.process?.env?.PT_TRIM ?? 0);
                 const TS = new Set(String(globalThis.process?.env?.PT_TRIMS ?? "3").split(",").filter(Boolean).map(Number));  // (PT_TRIMS=2,3: those trims alone; 2026-11-27: trim 3 adopted, +0.271 — PT_TRIMS= for none)
                 const t1 = TRIM >= 1 || TS.has(1), t2 = TRIM >= 2 || TS.has(2), t3 = TRIM >= 3 || TS.has(3);
-                const target = ctx.lv >= 5 && !t1 ? "up to 2 creatures" : "1 creature";
+                const target = ctx.lv >= (B1.has("PX1") ? 9 : 5) && !t1 ? "up to 2 creatures" : "1 creature";  // (PX1: two bubbles an action from 9th, was 5th)
                 const r1 = ctx.round1;
                 const min = ctx.minutes(1);
                 const spells = [
