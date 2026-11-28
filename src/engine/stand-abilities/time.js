@@ -153,9 +153,9 @@ export const TIME = {
             if (ctx.buffed) {
                 // (Buffed 1st: once a fight, free, 1 action — the stand quickened for 1 minute; 5th: surge, 1 action — the stand's accelerated Strike,
                 // S damage. The 2 Stand Points go to that Strike; the user's own quickening isn't played in the buffed build.)
-                const stand = { ...out.stand, selfEffects: [{ name: "Accelerate (stand)", actions: 1, pool: "accelerate-stand", model: ctx.effectModel("Accelerate (stand)", B1.has("AC1") || B1.has("AC2") ? 10 : 3, { conditions: [{ slug: "quickened", value: null }] }) }], spellPools: { "accelerate-stand": 1 } };  // (AC1: the stand's quickening lasts 1 minute, was 3 rounds)
+                const stand = { ...out.stand, selfEffects: [{ name: "Accelerate (stand)", actions: 1, pool: "accelerate-stand", model: ctx.effectModel("Accelerate (stand)", ["AC1", "AC2", "AC3"].some((k) => B1.has(k)) ? 10 : 3, { conditions: [{ slug: "quickened", value: null }] }) }], spellPools: { "accelerate-stand": B1.has("AC3") ? 2 : 1 } };  // (AC3: AC2 + twice a fight; AC1: the stand's quickening lasts 1 minute, was 3 rounds)
                 // (Round 2, 1st: the stand's first Strike each turn at accelerated speed — the target off-guard to it.)
-                stand.strikeActivities = [strikeActivity("Accelerate (accelerated first Strike)", { offGuard: true, oncePerTurn: true, ...(B1.has("AC2") ? { damagePerWeaponDie: 1 } : {}) })];  // (AC2: AC1 + that Strike +1 damage a weapon die)
+                stand.strikeActivities = [strikeActivity("Accelerate (accelerated first Strike)", { offGuard: true, oncePerTurn: true, ...(B1.has("AC2") || B1.has("AC3") ? { damagePerWeaponDie: 1 } : {}) })];  // (AC2: AC1 + that Strike +1 damage a weapon die)
                 if (ctx.lv >= 5) {
                     // (Round 2, 5th: the surge Strike outside the multiple attack penalty, and off-guard too — both taken back in round 3.)
                     stand.strikeActivities.push(strikeActivity("Accelerate (surge, accelerated Strike)", { damage: ctx.S("bludgeoning"), pool: ctx.pool }));

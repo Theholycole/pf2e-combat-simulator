@@ -373,7 +373,7 @@ export const MATTER = {
         build(ctx) {
             if (ctx.buffed) {
                 const r1 = ctx.round1;
-                const five = ctx.lv >= 5 || B1.has("FP1") || B1.has("FP2");  // (FP1: the limb fix immobilizes on a failure from 1st, was 5th)
+                const five = ctx.lv >= 5 || B1.has("FP1") || B1.has("FP2") || B1.has("FP3");  // (FP1: the limb fix immobilizes on a failure from 1st, was 5th)
                 const limb = { failure: [["off-guard", null, r1], ...(five ? [["immobilized", null, r1]] : [])], criticalFailure: [["off-guard", null, five ? ctx.minutes(1) : r1], ["immobilized", null, r1]] };
                 const spells = [saveOnly(ctx, "Fix in Place (fix limb)", { actions: 1, save: "fortitude", range: "touch", effects: limb })];
                 const out = { spells, stand: { strikeActivities: [touchStrike(ctx, "Fix in Place (fixing strike)", "fortitude", limb)] } };
@@ -384,7 +384,7 @@ export const MATTER = {
                     // (a5ce436 9th: one surge fixes up to two creatures the stand hits that turn — played as two fixing Strikes a Stand Point.)
                     out.stand.spellPools = { [ctx.pool]: LATE && ctx.lv >= 9 ? 4 : 2 };
                 }
-                const momentum = ctx.lv >= (B1.has("FP2") ? 5 : 13) ? plain(ctx.D("force")).replace(/^(\d+)d/, (m, n) => `${Number(n) * 2}d`) + "[force]" : ctx.D("force");
+                const momentum = ctx.lv >= (B1.has("FP3") ? 1 : B1.has("FP2") ? 5 : 13) ? plain(ctx.D("force")).replace(/^(\d+)d/, (m, n) => `${Number(n) * 2}d`) + "[force]" : ctx.D("force");
                 spells.push(ctx.make("Fix in Place (release momentum)", { actions: 1, damage: momentum, kind: "force" }));
                 return out;
             }
@@ -627,7 +627,7 @@ export const MATTER = {
                 : { name: "Fist", bonus: lowAt(LOW_ATTACK, level), melee: true, agile: false, unarmed: true, reach: 5, damage: [{ dice, die, bonus, type: "bludgeoning" }] };
             const saves = { fortitude: low("save", level), reflex: low("save", level), will: low("save", level) };
             // (ID3: ID2 + bodies from round 1 — Limp Bizkit raises "any corpse he has interacted with"; ID4: ID1 + bodies from round 1.)
-            const corpse = globalThis.process?.env?.INVDEAD_CORPSES === "1" || B1.has("ID3") || B1.has("ID4") || B1.has("ID5") ? "start" : "fight";  // (ID5: bodies from round 1 only)
+            const corpse = globalThis.process?.env?.INVDEAD_CORPSES === "1" || B1.has("ID3") || B1.has("ID4") || B1.has("ID5") || B1.has("ID6") ? "start" : "fight";  // (ID5: bodies from round 1 only)
             // (2026-11-27 variants, INVDEAD_V — default 1, Cole's pick: 0 as above; 1 rise on death — a free reaction raises a creature that just died, once a round
             // (the 2-action raise from an older corpse stays); 2 = 1 with stronger zombies — level − 1, GM Core Moderate Strike, AC, HP and
             // saves; 3 = 2 with two Strikes a command (3 actions after a command: a Stride and two Strikes); 4 = 2 with a Strike as it rises.)
@@ -636,7 +636,7 @@ export const MATTER = {
             const zl = strong ? ctx.lv - 1 : level;
             const zStrike = strong ? (() => { const m = moderate("damage", zl); const zd = zl >= 4 ? 8 : 6; const dd = Math.max(1, Math.round((m * 0.55) / ((zd + 1) / 2))); return { name: "Fist", bonus: moderate("attack", zl), melee: true, agile: false, unarmed: true, reach: 5, damage: [{ dice: dd, die: zd, bonus: Math.max(0, Math.round(m - (dd * (zd + 1)) / 2)), type: "bludgeoning" }] }; })() : strike;
             const zSaves = strong ? { fortitude: moderate("save", zl), reflex: moderate("save", zl), will: moderate("save", zl) } : saves;
-            const idSummon = ctx.raise("Invisible Dead (raise a zombie)", { count, corpse, fromCorpse: ctx.lv >= 17, strike: zStrike, ac: strong ? moderate("ac", zl) : low("ac", level), hp: strong ? moderate("hp", zl) : low("hp", level), saves: zSaves, level: zl, mass: BUFF.has("mass"), free: BUFF.has("free"), riseOnDeath: V >= 1, riseStrike: V === 4 || ["ID1", "ID2", "ID3", "ID4"].some((k) => B1.has(k)), minionActions: V === 3 ? 3 : 2 });
+            const idSummon = ctx.raise("Invisible Dead (raise a zombie)", { count, corpse, fromCorpse: ctx.lv >= 17, strike: zStrike, ac: strong ? moderate("ac", zl) : low("ac", level), hp: strong ? moderate("hp", zl) : low("hp", level), saves: zSaves, level: zl, mass: BUFF.has("mass"), free: BUFF.has("free"), riseOnDeath: V >= 1, riseStrike: V === 4 || ["ID1", "ID2", "ID3", "ID4", "ID6"].some((k) => B1.has(k)), minionActions: V === 3 ? 3 : 2 });
             // (ID1: a zombie rises with a Strike, and raising one from an older corpse costs 1 action, not 2.)
             if (["ID1", "ID2", "ID3", "ID4"].some((k) => B1.has(k))) idSummon.actions = 1;
             const spells = [];

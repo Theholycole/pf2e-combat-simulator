@@ -129,9 +129,9 @@ const BUFFED = {
         const { lv, D, S } = ctx;
         const range = lv >= 13 ? "60 feet" : ctx.range;
         // (SP1: the hole's bleed from 1st (was 5th); SP2: SP1 + the nail shot deals half S (was D).)
-        const hole = lv >= 5 || B1.has("SP1") || B1.has("SP2") ? (n) => ({ success: [`${n}d6[persistent,bleed]`], criticalSuccess: [`${n}d6[persistent,bleed]`] }) : () => ({});
-        const bleedDice = lv >= 13 ? 2 : 1;
-        const shot = ctx.make("Spin (nail shot)", { actions: 1, damage: B1.has("SP2") ? ctx.halfS("piercing") : D("piercing"), kind: "piercing", attackRoll: true, extra: hole(bleedDice) });
+        const hole = lv >= 5 || ["SP1", "SP2", "SP3"].some((k) => B1.has(k)) ? (n) => ({ success: [`${n}d6[persistent,bleed]`], criticalSuccess: [`${n}d6[persistent,bleed]`] }) : () => ({});
+        const bleedDice = B1.has("SP3") ? (lv >= 13 ? 3 : lv >= 5 ? 2 : 1) : lv >= 13 ? 2 : 1;  // (SP3: SP2 + the bleed 2d6 from 5th, 3d6 from 13th)
+        const shot = ctx.make("Spin (nail shot)", { actions: 1, damage: B1.has("SP2") || B1.has("SP3") ? ctx.halfS("piercing") : D("piercing"), kind: "piercing", attackRoll: true, extra: hole(bleedDice) });
         shot.plan.targeting.range = range;
         const spells = [shot];
         // (a5ce436: the golden spin at 5th; a hit knocks prone from 9th. 1st's regrowing surge: nails aren't counted here.)
@@ -232,10 +232,11 @@ const BUFFED = {
         const unseen = { success: [["off-guard", null, round1]], criticalSuccess: [["off-guard", null, round1]] };
         // (AS1: the bubble deals half S (was D); AS2: AS1 + up to 2 creatures from 5th.)
         // (AS3: AS1 + a bubble out of nowhere frightens 1 on a hit; AS4: AS3 + up to 2 creatures from 5th.)
-        const as1 = ["AS1", "AS2", "AS3", "AS4", "AS5"].some((k) => B1.has(k)), as3 = B1.has("AS3") || B1.has("AS4") || B1.has("AS5");  // (AS5: AS4 + the surge bubbles S each, was half S)
-        const bubbleFx = as3 ? { success: [["off-guard", null, round1], ["frightened", 1, null]], criticalSuccess: [["off-guard", null, round1], ["frightened", 1, null]] } : unseen;
-        const spells = [ctx.make("Air Shots (bubble)", { actions: 1, damage: as1 ? halfS("bludgeoning") : D("bludgeoning"), kind: "bludgeoning", attackRoll: true, effects: bubbleFx, ...((B1.has("AS2") || B1.has("AS4") || B1.has("AS5")) && lv >= 5 ? { target: "up to 2 creatures" } : {}) })];
-        if (lv >= 5) spells.push(ctx.make("Air Shots (surge bubbles)", { actions: 2, damage: B1.has("AS5") ? ctx.S("bludgeoning") : halfS("bludgeoning"), kind: "bludgeoning", attackRoll: true, target: lv >= 13 ? "up to 5 creatures" : "up to 3 creatures", surge: true, effects: unseen }));
+        const as1 = ["AS1", "AS2", "AS3", "AS4", "AS5", "AS6"].some((k) => B1.has(k)), as3 = ["AS3", "AS4", "AS5", "AS6"].some((k) => B1.has(k));  // (AS6: AS5 + a bubble that hits stays lodged: off-guard 1 minute)  // (AS5: AS4 + the surge bubbles S each, was half S)
+        const og = B1.has("AS6") ? ctx.minutes(1) : round1;
+        const bubbleFx = as3 ? { success: [["off-guard", null, og], ["frightened", 1, null]], criticalSuccess: [["off-guard", null, og], ["frightened", 1, null]] } : unseen;
+        const spells = [ctx.make("Air Shots (bubble)", { actions: 1, damage: as1 ? halfS("bludgeoning") : D("bludgeoning"), kind: "bludgeoning", attackRoll: true, effects: bubbleFx, ...(["AS2", "AS4", "AS5", "AS6"].some((k) => B1.has(k)) && lv >= 5 ? { target: "up to 2 creatures" } : {}) })];
+        if (lv >= 5) spells.push(ctx.make("Air Shots (surge bubbles)", { actions: 2, damage: B1.has("AS5") || B1.has("AS6") ? ctx.S("bludgeoning") : halfS("bludgeoning"), kind: "bludgeoning", attackRoll: true, target: lv >= 13 ? "up to 5 creatures" : "up to 3 creatures", surge: true, effects: unseen }));
         if (lv >= 9) {
             const uuid = "stand:air-shots-wall";
             const model = ctx.effectModel("Air Shots (bubble wall)", ctx.minutes(1).value, { modifiers: [{ on: "reflex", type: "circumstance", value: 2 }], conditional: [{ on: "ac", type: "circumstance", value: 2, predicate: ["item:ranged"] }] });

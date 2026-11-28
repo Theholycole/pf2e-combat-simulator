@@ -233,16 +233,16 @@ const BUFFED = {
     },
     "Melting Dart"(ctx) {
         const { lv, make, D, halfS } = ctx;
-        const md = ["MD1", "MD2", "MD3", "MD4", "MD5"].some((k) => B1.has(k));
-        const dice = B1.has("MD2") ? (lv >= 13 ? 3 : lv >= 5 ? 2 : 1) : lv >= 17 ? 3 : lv >= 9 ? 2 : 1;  // (MD2: persistent 2d6 from 5th, 3d6 from 13th)
+        const md = ["MD1", "MD2", "MD3", "MD4", "MD5", "MD6"].some((k) => B1.has(k));
+        const dice = B1.has("MD2") || B1.has("MD6") ? (lv >= 13 ? 3 : lv >= 5 ? 2 : 1) : lv >= 17 ? 3 : lv >= 9 ? 2 : 1;  // (MD2: persistent 2d6 from 5th, 3d6 from 13th)
         // (Round 2: persistent acid from 1st; the critical hit's clumsy from 5th; from 13th clumsy 1 on any hit until the end of the
         // user's next turn — a 1-round duration.)
         const acid = { success: [`${dice}d6[persistent,acid]`], criticalSuccess: [`${dice}d6[persistent,acid]`] };
         // (MD3: melting flesh from 1st — clumsy 1 until the end of your next turn on any hit (13th's step), 1 minute on a critical hit; MD4: MD3 +
         // enfeebled 1 on any hit too.)
-        const md3 = B1.has("MD3") || B1.has("MD4") || B1.has("MD5");
-        const mdHit = [["clumsy", 1, ctx.round1], ...(B1.has("MD4") || B1.has("MD5") ? [["enfeebled", 1, ctx.round1]] : [])];
-        const clumsy = md3 ? { success: mdHit, criticalSuccess: [["clumsy", 1, ctx.minutes(1)], ...(B1.has("MD4") || B1.has("MD5") ? [["enfeebled", 1, ctx.minutes(1)]] : [])] } : lv >= 5 ? { ...(lv >= 13 ? { success: [["clumsy", 1, ctx.round1]] } : {}), criticalSuccess: [["clumsy", 1, ctx.minutes(1)]] } : {};
+        const md3 = ["MD3", "MD4", "MD5", "MD6"].some((k) => B1.has(k));
+        const mdHit = [["clumsy", 1, ctx.round1], ...(["MD4", "MD5", "MD6"].some((k) => B1.has(k)) ? [["enfeebled", 1, ctx.round1]] : [])];
+        const clumsy = md3 ? { success: mdHit, criticalSuccess: [["clumsy", 1, ctx.minutes(1)], ...(["MD4", "MD5", "MD6"].some((k) => B1.has(k)) ? [["enfeebled", 1, ctx.minutes(1)]] : [])] } : lv >= 5 ? { ...(lv >= 13 ? { success: [["clumsy", 1, ctx.round1]] } : {}), criticalSuccess: [["clumsy", 1, ctx.minutes(1)]] } : {};
         const ignore = (entry) => {
             if (lv >= 17) entry.plan.resolution.ignoreResistance = [{ value: 1e9, types: ["acid"] }];
             return entry;
@@ -250,21 +250,21 @@ const BUFFED = {
         const spells = [ignore(make("Melting Dart", { actions: 1, damage: md ? halfS("acid") : D("acid"), kind: "acid", attackRoll: true, extra: acid, effects: clumsy }))];  // (MD1: the dart half S, was D)
         if (lv >= (LATE ? 5 : 9)) spells.push(ignore(make("Melting Dart (surge, three darts)", { actions: 1, damage: halfS("acid"), kind: "acid", attackRoll: true, target: "up to 3 creatures", surge: true, extra: acid, effects: clumsy })));
         // (MD5: MD4 + the melting acid has no flat check — 2 actions to scrape it off, as Devouring Flesh 9th — actions.js meltFill.)
-        if (B1.has("MD5")) return { spells, user: { meltFill: true } };
+        if (B1.has("MD5") || B1.has("MD6")) return { spells, user: { meltFill: true } };
         return { spells };
     },
     Dinosaurify(ctx) {
         const { lv } = ctx;
         // (Round 2: the raptor's tearing — extra dice on every stand Strike that hits in raptor form, the form taken as up from the start.)
         // (DN1: tearing 2d6 from 5th, 3d6 from 13th; DN2: DN1 + Leaping Charge +2 to hit.)
-        const dn = ["DN1", "DN2", "DN3", "DN4", "DN5"].some((k) => B1.has(k));  // (DN3: DN2 + the dinosaurify surge 1 action; DN4: DN1 + it)
+        const dn = ["DN1", "DN2", "DN3", "DN4", "DN5", "DN6"].some((k) => B1.has(k));  // (DN3: DN2 + the dinosaurify surge 1 action; DN4: DN1 + it)
         const tearing = { source: "Dinosaurify (tearing jaws)", when: "hit", dice: dn ? (lv >= 13 ? 3 : lv >= 5 ? 2 : 1) : lv >= 17 ? 3 : lv >= 9 ? 2 : 1, die: 6 };
-        const stand = { speed: 40, strikeExtras: [tearing], charges: [{ name: "Dinosaurify (Leaping Charge)", actions: 1, strides: 1, strike: ctx.main.name, attackBonus: B1.has("DN2") || B1.has("DN3") || B1.has("DN5") ? 2 : 1, oncePerTurn: !B1.has("DN5") }] };  // (DN5: DN2 + Leaping Charge more than once a turn)
+        const stand = { speed: 40, strikeExtras: [tearing], charges: [{ name: "Dinosaurify (Leaping Charge)", actions: 1, strides: 1, strike: ctx.main.name, attackBonus: ["DN2", "DN3", "DN5", "DN6"].some((k) => B1.has(k)) ? 2 : 1, oncePerTurn: !(B1.has("DN5") || B1.has("DN6")) }] };  // (DN5: DN2 + Leaping Charge more than once a turn)
         const spells = [];
         if (lv >= 5) {
             const crit = lv >= 17 ? ctx.minutes(10) : ctx.minutes(1);
             const dino = (duration) => [["confused", null, duration], ["stupefied", 2, duration]];
-            spells.push(ctx.entry("Dinosaurify (surge)", plan(ctx, "Dinosaurify (surge)", { actions: B1.has("DN3") || B1.has("DN4") ? 1 : 2, save: "will", traits: ["incapacitation", "polymorph"], effects: { failure: dino(ctx.rounds(2)), criticalFailure: dino(crit) } }), { surge: true }));
+            spells.push(ctx.entry("Dinosaurify (surge)", plan(ctx, "Dinosaurify (surge)", { actions: B1.has("DN3") || B1.has("DN4") || B1.has("DN6") ? 1 : 2, save: "will", traits: ["incapacitation", "polymorph"], effects: { failure: dino(ctx.rounds(2)), criticalFailure: dino(crit) } }), { surge: true }));
             ctx.convert("Dinosaurify (surge, bystander dinosaur)", { from: "commoner", actions: 2, surge: true, lasts: lv >= 17 ? 100 : 10, initiative: "roll", as: (c) => ({ ...c, name: `Dinosaur (${c.name})`, speed: 40, strikes: [{ name: "Jaws", bonus: 4, melee: true, unarmed: true, damage: [{ dice: 1, die: 4, bonus: 0, type: "piercing" }] }, { name: "Talon", bonus: 4, melee: true, agile: true, unarmed: true, damage: [{ dice: 1, die: 3, bonus: 0, type: "slashing" }] }] }) });
         }
         // (Buffed: the elite raptor from 9th, two from 13th.)

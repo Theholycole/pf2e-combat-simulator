@@ -77,14 +77,14 @@ export const SPACE = {
     "Erasure": {
         build(ctx) {
             // (ER1: pulls 20 ft from 1st (was 9th); ER2: ER1 + the creature pulled through erased space is off-guard until the start of your next turn.)
-            const distance = ctx.lv >= 9 || B1.has("ER1") || B1.has("ER2") ? 20 : 10;
-            const erFx = B1.has("ER2") ? { effects: { failure: [["off-guard", null, ctx.round1]], criticalFailure: [["off-guard", null, ctx.round1]] } } : {};
+            const distance = ctx.lv >= 9 || ["ER1", "ER2", "ER3"].some((k) => B1.has(k)) ? 20 : 10;
+            const erFx = B1.has("ER2") || B1.has("ER3") ? { effects: { failure: [["off-guard", null, ctx.round1]], criticalFailure: [["off-guard", null, ctx.round1]] } } : {};
             const spells = [control(ctx, "Erasure (swipe pull)", { actions: 1, save: "fortitude", range: "20 feet", ...erFx, move: { failure: { kind: "pull", distance }, criticalFailure: { kind: "pull", distance } } })];
             const stand = {};
             if (ctx.lv >= 5) {
                 // (Surge: a swipe Strike for S force, the target's item bonus to AC ignored — +1/+2/+3 as a PC's armor potency —; 17th: drained 2 on a critical hit.)
                 const potency = ctx.lv >= 18 ? 3 : ctx.lv >= 11 ? 2 : 1;
-                stand.strikeActivities = [strikeActivity("Erasure (surge swipe)", { damage: ctx.S("force"), attackBonus: potency, pool: ctx.pool, onHit: ctx.lv >= 17 ? { critical: [{ slug: "drained", value: 2 }] } : {} })];
+                stand.strikeActivities = [strikeActivity("Erasure (surge swipe)", { damage: ctx.S("force"), attackBonus: potency, pool: ctx.pool, onHit: { ...(ctx.lv >= 17 ? { critical: [{ slug: "drained", value: 2 }] } : {}), ...(B1.has("ER3") ? { conditions: [{ slug: "drained", value: 1, duration: null }] } : {}) } })];  // (ER3: ER2 + an erased chunk: drained 1 on any surge hit)
                 stand.spellPools = { [ctx.pool]: 2 };
             }
             if (ctx.lv >= 13) stand.allyAcReaction = { name: "Erasure (erase projectile)", value: 50, within: 10, ranged: true };
@@ -223,7 +223,7 @@ export const SPACE = {
             const offGuard = ctx.buffed || ctx.lv >= 5;
             // (RT1: +1 damage a weapon die from 1st (was 5th), +2 from 13th; RT2: RT1 + the three-reflection surge from 9th.)
             const rt = B1.has("RT1") || B1.has("RT2");
-            const stand = { strikeActivities: [strikeActivity("Reflection Travel (from a reflection)", { strides: 1, offGuard, ...(rt ? { damagePerWeaponDie: ctx.lv >= 13 ? 2 : 1 } : ctx.buffed && ctx.lv >= 5 ? { damagePerWeaponDie: 1 } : {}) })] };
+            const stand = { strikeActivities: [strikeActivity("Reflection Travel (from a reflection)", { strides: 1, offGuard, ...(B1.has("RT3") ? { onHit: { conditions: [{ slug: "frightened", value: 1, duration: null }] } } : {}), ...(rt || B1.has("RT3") ? { damagePerWeaponDie: ctx.lv >= 13 ? 2 : 1 } : ctx.buffed && ctx.lv >= 5 ? { damagePerWeaponDie: 1 } : {}) })] };
             if (ctx.buffed && ctx.lv >= 5) {
                 stand.strikeActivities.push(strikeActivity("Reflection Travel (surge, in its eyes)", { strides: 1, offGuard: true, damage: ctx.S("slashing"), pool: ctx.pool }));
                 stand.spellPools = { [ctx.pool]: 2 };
